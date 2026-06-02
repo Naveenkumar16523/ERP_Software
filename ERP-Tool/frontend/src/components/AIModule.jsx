@@ -68,7 +68,7 @@ export default function AIModule() {
         </div>
         <div>
           <h1 className="text-2xl font-bold text-main">AI Companion</h1>
-          <p className="text-xs text-dimmed">Powered by NexaERP Intelligence</p>
+          <p className="text-xs text-dimmed">Powered by CLARIX Intelligence</p>
         </div>
         <div className="ml-auto flex items-center gap-1.5 text-xs text-emerald-400 bg-emerald-500/10 px-3 py-1 rounded-full border border-emerald-500/20 font-medium">
           <Zap className="w-3 h-3 animate-pulse" /> Online

@@ -23,7 +23,6 @@ const BankingModule      = lazy(() => import('./components/BankingModule'));
 const HealthcareModule   = lazy(() => import('./components/HealthcareModule'));
 const EducationModule    = lazy(() => import('./components/EducationModule'));
 const SustainabilityModule = lazy(() => import('./components/SustainabilityModule'));
-const AgricultureModule  = lazy(() => import('./components/AgricultureModule'));
 const MarketingModule    = lazy(() => import('./components/MarketingModule'));
 const SecurityModule     = lazy(() => import('./components/SecurityModule'));
 const MobileModule       = lazy(() => import('./components/MobileModule'));
@@ -50,7 +49,6 @@ const MODULE_MAP = {
   healthcare:     HealthcareModule,
   education:      EducationModule,
   sustainability: SustainabilityModule,
-  agriculture:    AgricultureModule,
   marketing:      MarketingModule,
   security:       SecurityModule,
   mobile:         MobileModule,

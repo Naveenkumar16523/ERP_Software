@@ -16,7 +16,6 @@ import {
   HeartPulse,
   GraduationCap,
   Leaf,
-  Sprout,
   Megaphone,
   Shield,
   Truck,
@@ -49,7 +48,6 @@ const MODULES_CONFIG = [
   { id: 'healthcare', label: 'Healthcare', icon: HeartPulse, color: 'text-red-400' },
   { id: 'education', label: 'Education', icon: GraduationCap, color: 'text-indigo-300' },
   { id: 'sustainability', label: 'Sustainability', icon: Leaf, color: 'text-green-400' },
-  { id: 'agriculture', label: 'Agriculture', icon: Sprout, color: 'text-lime-500' },
   { id: 'marketing', label: 'Marketing', icon: Megaphone, color: 'text-rose-300' },
   { id: 'security', label: 'Security', icon: Shield, color: 'text-red-500' },
   { id: 'mobile', label: 'Mobile Preview', icon: Smartphone, color: 'text-blue-300' },
@@ -107,8 +105,8 @@ export default function Sidebar() {
                 initial={{ opacity: 0, x: -10 }}
                 animate={{ opacity: 1, x: 0 }}
               >
-                <p className="text-sm font-bold text-white leading-tight">NexaERP</p>
-                <p className="text-[10px] text-white/40 leading-tight">Enterprise Suite</p>
+                <p className="text-sm font-bold text-white leading-tight">CLARIX</p>
+                <p className="text-[10px] text-white/40 leading-tight">Enterprise resource planning</p>
               </motion.div>
             )}
           </div>

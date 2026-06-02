@@ -30,7 +30,7 @@ export default function TopHeader() {
   useEffect(() => {
     const checkHealth = async () => {
       try {
-        const res = await fetch('http://localhost:8000/health', { signal: AbortSignal.timeout(3000) });
+        const res = await fetch('/api/health', { signal: AbortSignal.timeout(3000) });
         setDbLive(res.ok);
       } catch {
         setDbLive(false);

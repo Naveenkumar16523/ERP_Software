@@ -21,7 +21,6 @@ const MODULE_LIST = [
   { id: 'healthcare', label: 'Healthcare', desc: 'Patients & Wards' },
   { id: 'education', label: 'Education', desc: 'Students & Grades' },
   { id: 'sustainability', label: 'Sustainability', desc: 'ESG & Carbon Offsets' },
-  { id: 'agriculture', label: 'Agriculture', desc: 'Fields & Livestock' },
   { id: 'marketing', label: 'Marketing', desc: 'Campaigns & ROI' },
   { id: 'security', label: 'Security', desc: 'Threats & Audit Log' },
   { id: 'mobile', label: 'Mobile Preview', desc: 'Responsive Preview' },

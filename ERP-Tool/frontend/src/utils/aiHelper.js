@@ -42,7 +42,7 @@ const LOCAL_SMART_REPLIES = {
     suggestions: ['View active projects', 'Overdue tasks', 'Add new project']
   },
   general_help: {
-    reply: `👋 **NexaERP AI Assistant** here! I can help you with:\n• Finance & Accounting queries\n• HR & Payroll insights\n• Inventory & Supply Chain status\n• CRM & Sales pipeline\n• Project & Manufacturing updates\n\nWhat would you like to know?`,
+    reply: `👋 **CLARIX AI Assistant** here! I can help you with:\n• Finance & Accounting queries\n• HR & Payroll insights\n• Inventory & Supply Chain status\n• CRM & Sales pipeline\n• Project & Manufacturing updates\n\nWhat would you like to know?`,
     suggestions: ['Finance summary', 'HR status', 'Inventory alerts', 'Sales pipeline']
   }
 };
