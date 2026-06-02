@@ -1,0 +1,1 @@
+"fastapi>=0.110.0\nuvicorn>=0.28.0\nsqlalchemy>=2.0.28\npymysql>=1.1.0\npydantic[email]>=2.6.4\nredis>=5.0.3\nmotor>=3.3.2\npython-jose[cryptography]>=3.3.0\npasslib[bcrypt]>=1.7.4\npyotp>=2.9.0\nqrcode>=7.4.2\npython-dotenv>=1.0.1\ncryptography>=42.0.5\n"

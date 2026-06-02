@@ -1,0 +1,49 @@
+import fs from 'fs';
+import readline from 'readline';
+
+const logPath = 'C:\\\\Users\\\\sudha\\\\.gemini\\\\antigravity-ide\\\\brain\\\\f1721082-34b8-46b4-bafe-4576da86c3ff\\.system_generated\\logs\\transcript.jsonl';
+const startStep = 2650;
+const endStep = 2730;
+
+async function main() {
+  const fileStream = fs.createReadStream(logPath);
+  const rl = readline.createInterface({
+    input: fileStream,
+    crlfDelay: Infinity
+  });
+
+  let stepCount = 0;
+  for await (const line of rl) {
+    if (!line.trim()) continue;
+    stepCount++;
+    try {
+      const obj = JSON.parse(line);
+      const stepIndex = obj.step_index || stepCount;
+      
+      if (stepIndex >= startStep && stepIndex <= endStep) {
+        console.log(`\n=================== STEP ${stepIndex} ===================`);
+        console.log(`Source: ${obj.source}, Type: ${obj.type}, Status: ${obj.status}`);
+        if (obj.tool_calls) {
+          obj.tool_calls.forEach((tc, idx) => {
+            console.log(`  Tool Call ${idx}: ${tc.name}`);
+            if (tc.args) {
+              console.log('  Args:');
+              for (const [key, val] of Object.entries(tc.args)) {
+                if (typeof val === 'string') {
+                  console.log(`    ${key}: ${val.substring(0, 500)}`);
+                } else {
+                  console.log(`    ${key}:`, JSON.stringify(val).substring(0, 500));
+                }
+              }
+            }
+          });
+        }
+        if (obj.content) {
+          console.log(`Content: ${obj.content.substring(0, 1000)}`);
+        }
+      }
+    } catch (e) {}
+  }
+}
+
+main();

@@ -1,0 +1,12 @@
+node_modules
+dist
+.env
+backend/.env
+ai-services/.env
+ai-services/venv
+__pycache__
+*.pyc
+.DS_Store
+*.db
+*.sqlite
+*.sqlite3

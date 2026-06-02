@@ -1,0 +1,710 @@
+// Prisma Schema for EPR Dashboard System
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// User Profile & Authentication
+model User {
+  id           String     @id @default(uuid())
+  email        String     @unique
+  password     String     // Hashed password
+  firstName    String
+  lastName     String
+  isActive     Boolean    @default(true)
+  mfaSecret    String?    // TOTP Secret for Google Authenticator
+  mfaEnabled   Boolean    @default(false)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  
+  // Relations
+  roles        UserRole[]
+  sessions     Session[]
+  auditLogs    AuditLog[]
+}
+
+// RBAC: Roles
+model Role {
+  id          String           @id @default(uuid())
+  name        String           @unique // e.g. "ADMIN", "FINANCE_MANAGER", "HR_OFFICER"
+  description String?
+  createdAt   DateTime         @default(now())
+  
+  // Relations
+  users       UserRole[]
+  permissions RolePermission[]
+}
+
+// RBAC: Fine-Grained Permissions
+model Permission {
+  id          String           @id @default(uuid())
+  name        String           @unique // e.g. "finance:read", "finance:write", "hr:read"
+  description String?
+  createdAt   DateTime         @default(now())
+  
+  // Relations
+  roles       RolePermission[]
+}
+
+// RBAC Junction Tables
+model UserRole {
+  id        String   @id @default(uuid())
+  userId    String
+  roleId    String
+  createdAt DateTime @default(now())
+
+  // Relations
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, roleId])
+  @@index([userId])
+  @@index([roleId])
+}
+
+model RolePermission {
+  id           String     @id @default(uuid())
+  roleId       String
+  permissionId String
+  createdAt    DateTime   @default(now())
+
+  // Relations
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+  @@index([roleId])
+  @@index([permissionId])
+}
+
+// Active Sessions for Session Management & IP Whitelisting
+model Session {
+  id        String   @id @default(uuid())
+  userId    String
+  token     String   @unique @db.VarChar(512)
+  ipAddress String?
+  userAgent String?  @db.Text
+  isValid   Boolean  @default(true)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  // Relations
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// Complete Audit Logs for Compliance (SOC2, ISO 27001)
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String?
+  action    String   // e.g. "LOGIN", "CREATE_VOUCHER", "UPDATE_SALARY"
+  resource  String   // e.g. "JournalEntry", "User"
+  details   String   @db.Text // JSON string of differences or context
+  ipAddress String?
+  userAgent String?  @db.Text
+  timestamp DateTime @default(now())
+
+  // Relations
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+}
+
+// Cryptographically linked Tamper-Proof Ledger (Blockchain-style)
+model JournalEntry {
+  id          String   @id @default(uuid())
+  blockIndex  Int      @unique // Incremental sequence check
+  voucherType String   // PAYMENT, RECEIPT, JOURNAL, CONTRA
+  voucherNo   String   @unique
+  date        DateTime @default(now())
+  amount      Float
+  debitAcc    String
+  creditAcc   String
+  narration   String   @db.Text
+  prevHash    String   // Hash of the previous block
+  blockHash   String   // SHA-256 hash of: blockIndex + voucherNo + amount + prevHash + timestamp
+  createdAt   DateTime @default(now())
+}
+
+// Chart of Accounts
+model Account {
+  id        String   @id @default(uuid())
+  code      String   @unique // e.g. "1000", "2000"
+  name      String   @unique
+  type      String   // ASSET, LIABILITY, EQUITY, REVENUE, EXPENSE
+  balance   Float    @default(0.0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Supplier registry with evaluation matrices
+model Supplier {
+  id            String   @id @default(uuid())
+  name          String
+  email         String   @unique
+  phone         String?
+  address       String?
+  deliveryScore Float    @default(100.0) // 0-100
+  qualityScore  Float    @default(100.0) // 0-100
+  priceScore    Float    @default(100.0) // 0-100
+  overallScore  Float    @default(100.0) // 0-100
+  createdAt     DateTime @default(now())
+  
+  purchaseOrders PurchaseOrder[]
+  goodsReceipts  GoodsReceipt[]
+  invoices       SupplierInvoice[]
+}
+
+// Purchase Requisition
+model PurchaseRequisition {
+  id          String   @id @default(uuid())
+  prNo        String   @unique
+  requestedBy String
+  department  String
+  status      String   // PENDING, APPROVED, REJECTED
+  items       String   @db.Text // JSON string of requested items
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  rfqs        RFQ[]
+}
+
+// Request for Quote (RFQ)
+model RFQ {
+  id                    String              @id @default(uuid())
+  rfqNo                 String              @unique
+  purchaseRequisitionId String?
+  status                String              // SENT, RECEIVED_QUOTES, CLOSED
+  items                 String              @db.Text // JSON string of items
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+  
+  purchaseRequisition   PurchaseRequisition? @relation(fields: [purchaseRequisitionId], references: [id], onDelete: SetNull)
+  purchaseOrders        PurchaseOrder[]
+
+  @@index([purchaseRequisitionId])
+}
+
+// Purchase Order (PO)
+model PurchaseOrder {
+  id            String            @id @default(uuid())
+  poNo          String            @unique
+  supplierId    String
+  rfqId         String?
+  status        String            // DRAFT, APPROVED, SHIPPED, COMPLETED
+  items         String            @db.Text // JSON string: array of { itemId, desc, qty, price }
+  totalAmount   Float
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  
+  supplier      Supplier          @relation(fields: [supplierId], references: [id])
+  rfq           RFQ?              @relation(fields: [rfqId], references: [id], onDelete: SetNull)
+  goodsReceipts GoodsReceipt[]
+  invoices      SupplierInvoice[]
+
+  @@index([supplierId])
+  @@index([rfqId])
+}
+
+// Goods Receipt Note (GRN)
+model GoodsReceipt {
+  id              String         @id @default(uuid())
+  grnNo           String         @unique
+  purchaseOrderId String
+  supplierId      String
+  receivedBy      String
+  receivedItems   String         @db.Text // JSON string: array of { itemId, qtyReceived, qualityStatus }
+  createdAt       DateTime       @default(now())
+  
+  purchaseOrder   PurchaseOrder  @relation(fields: [purchaseOrderId], references: [id])
+  supplier        Supplier       @relation(fields: [supplierId], references: [id])
+
+  @@index([purchaseOrderId])
+  @@index([supplierId])
+}
+
+// Supplier Invoice
+model SupplierInvoice {
+  id              String        @id @default(uuid())
+  invoiceNo       String        @unique
+  purchaseOrderId String
+  supplierId      String
+  items           String        @db.Text // JSON string: array of { itemId, qty, price }
+  totalAmount     Float
+  taxAmount       Float         @default(0.0) // TDS or GST
+  status          String        // UNPAID, PAID, MATCH_FAILED, MATCH_PASSED
+  matchingLog     String?       @db.Text // JSON string of 3-way matching logs
+  createdAt       DateTime      @default(now())
+  
+  purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id])
+  supplier        Supplier      @relation(fields: [supplierId], references: [id])
+
+  @@index([purchaseOrderId])
+  @@index([supplierId])
+}
+
+// Phase 3: Org Management
+model Department {
+  id        String     @id @default(uuid())
+  code      String     @unique // e.g., "HR", "FIN", "ENG"
+  name      String     @unique
+  parentId  String?
+  parent    Department? @relation("DeptHierarchy", fields: [parentId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  children  Department[] @relation("DeptHierarchy")
+  employees Employee[]
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  @@index([parentId])
+}
+
+model Employee {
+  id           String          @id @default(uuid())
+  employeeCode String          @unique // e.g. "EMP-001"
+  firstName    String
+  lastName     String
+  email        String          @unique
+  phone        String?
+  departmentId String
+  jobTitle     String
+  managerId    String?
+  baseSalary   Float
+  joiningDate  DateTime        @default(now())
+  isActive     Boolean         @default(true)
+  
+  department   Department      @relation(fields: [departmentId], references: [id])
+  manager      Employee?       @relation("ManagerToEmployee", fields: [managerId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  subordinates Employee[]      @relation("ManagerToEmployee")
+  
+  leaveRequests LeaveRequest[]
+  attendanceLogs AttendanceLog[]
+  paySlips     PaySlip[]
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  @@index([departmentId])
+  @@index([managerId])
+}
+
+// Recruitment Pipeline
+model Candidate {
+  id         String   @id @default(uuid())
+  name       String
+  email      String   @unique
+  phone      String?
+  jobTitle   String
+  status     String   // APPLIED, INTERVIEW, OFFERED, REJECTED
+  resumeUrl  String?
+  offerSent  Boolean  @default(false)
+  offerPay   Float?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+// Leave & Attendance
+model LeaveRequest {
+  id          String   @id @default(uuid())
+  employeeId  String
+  leaveType   String   // CASUAL, SICK, ANNUAL, MATERNITY
+  startDate   DateTime
+  endDate     DateTime
+  status      String   // PENDING, APPROVED, REJECTED
+  reason      String?  @db.Text
+  approvedBy  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  employee    Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId])
+}
+
+model AttendanceLog {
+  id                String   @id @default(uuid())
+  employeeId        String
+  date              DateTime
+  checkIn           DateTime?
+  checkOut          DateTime?
+  status            String   // PRESENT, ABSENT, LATE, HALF_DAY
+  verificationMethod String  // BIOMETRIC, FACE_SCAN, MANUAL
+  createdAt         DateTime @default(now())
+
+  employee          Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  @@unique([employeeId, date])
+  @@index([employeeId])
+}
+
+// Payroll Engine
+model PaySlip {
+  id           String   @id @default(uuid())
+  employeeId   String
+  month        Int      // 1 to 12
+  year         Int
+  baseSalary   Float
+  pfDeduction  Float    // Provident Fund (e.g. 12%)
+  esiDeduction Float    // Employee State Insurance (e.g. 0.75%)
+  tdsDeduction Float    // Tax Deducted at Source
+  netPay       Float
+  status       String   // UNPAID, PAID
+  processedAt  DateTime @default(now())
+
+  employee     Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId])
+}
+
+// CRM Models
+model Lead {
+  id           String        @id @default(uuid())
+  name         String
+  company      String
+  email        String
+  phone        String?
+  status       String        // NEW, CONTACTED, QUALIFIED, LOST
+  source       String?       // e.g. WEBSITE, REFERRAL, EVENT
+  value        Float         @default(0.0)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  contacts     Contact[]
+  opportunities Opportunity[]
+}
+
+model Contact {
+  id        String   @id @default(uuid())
+  name      String
+  email     String   @unique
+  phone     String?
+  company   String?
+  leadId    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  lead      Lead?    @relation(fields: [leadId], references: [id], onDelete: SetNull)
+
+  @@index([leadId])
+}
+
+model CustomerAccount {
+  id            String        @id @default(uuid())
+  name          String        @unique
+  industry      String?
+  phone         String?
+  billingAddress String?
+  isReturning   Boolean       @default(false)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  opportunities Opportunity[]
+}
+
+model Opportunity {
+  id           String           @id @default(uuid())
+  name         String
+  stage        String           // QUALIFICATION, PROPOSAL, NEGOTIATION, WON, LOST
+  value        Float
+  closeDate    DateTime?
+  leadId       String?
+  accountId    String?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  lead         Lead?            @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  account      CustomerAccount? @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  quotes       Quote[]
+
+  @@index([leadId])
+  @@index([accountId])
+}
+
+model Quote {
+  id                 String      @id @default(uuid())
+  quoteNo            String      @unique
+  opportunityId      String
+  items              String      @db.Text // JSON string of items: Array of { desc, qty, price }
+  subtotal           Float
+  discount           Float
+  taxAmount          Float
+  total              Float
+  status             String      // DRAFT, SENT, ACCEPTED, EXPIRED
+  discountExplanation String?    @db.Text
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
+
+  opportunity        Opportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+
+  @@index([opportunityId])
+}
+
+// Phase 4: Inventory & Warehouse
+model Product {
+  id           String             @id @default(uuid())
+  code         String             @unique // e.g., "PROD-001"
+  name         String
+  description  String?            @db.Text
+  type         String             // RAW_MATERIAL or FINISHED_GOOD
+  reorderPoint Float              @default(10.0)
+  safetyStock  Float              @default(5.0)
+  currentStock Float              @default(0.0)
+  costPrice    Float              @default(0.0)
+  salePrice    Float              @default(0.0)
+  expiryDate   DateTime?
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+
+  stockTransactions StockTransaction[]
+  bomComponents     BOMComponent[]
+  boms              BillOfMaterials[]  @relation("FinishedProduct")
+  productionOrders  ProductionOrder[]
+}
+
+model Warehouse {
+  id        String             @id @default(uuid())
+  name      String             @unique // e.g. "Main Godown"
+  location  String?
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+
+  stockTransactions StockTransaction[]
+}
+
+model StockTransaction {
+  id              String    @id @default(uuid())
+  productId       String
+  warehouseId     String
+  quantity        Float     // Positive for receipt, negative for issue
+  unitCost        Float
+  type            String    // RECEIPT, ISSUE, TRANSFER
+  referenceNo     String?
+  transactionDate DateTime  @default(now())
+
+  product   Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  warehouse Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
+  @@index([warehouseId])
+}
+
+// Phase 4: Manufacturing
+model BillOfMaterials {
+  id                String         @id @default(uuid())
+  bomNo             String         @unique // e.g., "BOM-1001"
+  finishedProductId String
+  name              String
+  quantity          Float          @default(1.0)
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  finishedProduct Product        @relation("FinishedProduct", fields: [finishedProductId], references: [id], onDelete: Cascade)
+  components      BOMComponent[]
+  productionOrders ProductionOrder[]
+
+  @@index([finishedProductId])
+}
+
+model BOMComponent {
+  id        String   @id @default(uuid())
+  bomId     String
+  productId String
+  quantity  Float
+
+  bom     BillOfMaterials @relation(fields: [bomId], references: [id], onDelete: Cascade)
+  product Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([bomId])
+  @@index([productId])
+}
+
+model WorkCenter {
+  id            String   @id @default(uuid())
+  name          String   @unique
+  capacityHours Float    @default(8.0) // Capacity in hours per day
+  laborRate     Float    @default(0.0) // Cost per hour
+  machineRate   Float    @default(0.0) // Cost per hour
+  efficiency    Float    @default(1.0) // E.g., 0.95 for 95%
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  productionOrders ProductionOrder[]
+  oeeLogs          OEELog[]
+}
+
+model ProductionOrder {
+  id                String    @id @default(uuid())
+  orderNo           String    @unique // e.g. "PRD-2026-001"
+  finishedProductId String
+  bomId             String
+  workCenterId      String?
+  quantity          Float
+  status            String    // PLANNED, IN_PROGRESS, COMPLETED, CANCELLED
+  startDate         DateTime?
+  endDate           DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  finishedProduct Product          @relation(fields: [finishedProductId], references: [id], onDelete: Cascade)
+  bom             BillOfMaterials  @relation(fields: [bomId], references: [id], onDelete: Cascade)
+  workCenter      WorkCenter?      @relation(fields: [workCenterId], references: [id], onDelete: SetNull)
+
+  @@index([finishedProductId])
+  @@index([bomId])
+  @@index([workCenterId])
+}
+
+model OEELog {
+  id                    String   @id @default(uuid())
+  workCenterId          String
+  date                  DateTime
+  plannedProductionTime Float    // in minutes (e.g. 480)
+  runTime               Float    // in minutes (e.g. 420)
+  plannedQuantity       Float    // target output quantity
+  totalQuantity         Float    // actual output quantity (including defects)
+  goodQuantity          Float    // good quality output quantity
+  availability          Float    // runTime / plannedProductionTime
+  performance           Float    // rate of production
+  quality               Float    // goodQuantity / totalQuantity
+  oeeScore              Float    // availability * performance * quality
+  createdAt             DateTime @default(now())
+
+  workCenter WorkCenter @relation(fields: [workCenterId], references: [id], onDelete: Cascade)
+
+  @@index([workCenterId])
+}
+
+// ─────────────────────────────────────────────────
+// Phase 5: E-Commerce Store
+// ─────────────────────────────────────────────────
+
+model StoreProduct {
+  id           String       @id @default(uuid())
+  sku          String       @unique
+  name         String
+  description  String?      @db.Text
+  category     String       // e.g. "Electronics", "Apparel"
+  price        Float
+  salePrice    Float?
+  imageUrl     String?
+  stock        Int          @default(0)
+  isPublished  Boolean      @default(true)
+  loyaltyPts   Int          @default(0)  // Points earned per purchase
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  orderItems   OrderItem[]
+}
+
+model CustomerOrder {
+  id              String        @id @default(uuid())
+  orderNo         String        @unique
+  customerName    String
+  customerEmail   String
+  totalAmount     Float
+  discountAmount  Float         @default(0.0)
+  loyaltyRedeemed Int           @default(0)
+  status          String        // PLACED, PROCESSING, SHIPPED, DELIVERED, CANCELLED
+  shippingAddress String?       @db.Text
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  items           OrderItem[]
+  loyalty         LoyaltyAccount? @relation(fields: [customerEmail], references: [customerEmail])
+
+  @@index([customerEmail])
+}
+
+model OrderItem {
+  id         String        @id @default(uuid())
+  orderId    String
+  productId  String
+  quantity   Int
+  unitPrice  Float
+  totalPrice Float
+
+  order   CustomerOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product StoreProduct  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@index([productId])
+}
+
+model LoyaltyAccount {
+  id            String          @id @default(uuid())
+  customerEmail String          @unique
+  customerName  String
+  points        Int             @default(0)
+  tier          String          @default("BRONZE") // BRONZE, SILVER, GOLD, PLATINUM
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  orders        CustomerOrder[]
+}
+
+// ─────────────────────────────────────────────────
+// Phase 5: Fixed Assets & Maintenance
+// ─────────────────────────────────────────────────
+
+model FixedAsset {
+  id              String            @id @default(uuid())
+  assetCode       String            @unique  // e.g., "ASSET-001"
+  name            String
+  category        String            // e.g., "Machinery", "Vehicles", "IT Equipment"
+  location        String?
+  serialNo        String?
+  purchaseDate    DateTime
+  purchaseCost    Float
+  salvageValue    Float             @default(0.0)
+  usefulLifeYears Int               @default(5)
+  depMethod       String            @default("STRAIGHT_LINE") // STRAIGHT_LINE or DECLINING_BALANCE
+  depRate         Float             @default(0.2)  // For declining balance (e.g. 20%)
+  currentBookValue Float
+  status          String            @default("ACTIVE") // ACTIVE, DISPOSED, UNDER_MAINTENANCE
+  disposalDate    DateTime?
+  disposalValue   Float?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  depreciationLogs   DepreciationLog[]
+  maintenanceOrders  MaintenanceOrder[]
+}
+
+model DepreciationLog {
+  id           String     @id @default(uuid())
+  assetId      String
+  year         Int
+  openingValue Float
+  depAmount    Float
+  closingValue Float
+  method       String     // STRAIGHT_LINE or DECLINING_BALANCE
+  createdAt    DateTime   @default(now())
+
+  asset FixedAsset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@index([assetId])
+}
+
+model MaintenanceOrder {
+  id             String     @id @default(uuid())
+  workOrderNo    String     @unique
+  assetId        String?
+  title          String
+  description    String?    @db.Text
+  type           String     // PREVENTIVE, CORRECTIVE, PREDICTIVE
+  priority       String     @default("MEDIUM") // LOW, MEDIUM, HIGH, CRITICAL
+  assignedTo     String?
+  scheduledDate  DateTime?
+  completedDate  DateTime?
+  cost           Float      @default(0.0)
+  status         String     @default("OPEN") // OPEN, IN_PROGRESS, COMPLETED, CANCELLED
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  asset FixedAsset? @relation(fields: [assetId], references: [id], onDelete: SetNull)
+
+  @@index([assetId])
+}
