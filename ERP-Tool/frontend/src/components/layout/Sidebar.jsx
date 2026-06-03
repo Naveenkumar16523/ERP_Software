@@ -67,7 +67,8 @@ export default function Sidebar() {
     setMobileSidebar,
     currentUser,
     logout,
-    userPermissions
+    userPermissions,
+    demoMode
   } = useERPStore();
 
   const handleNavClick = (moduleId) => {
@@ -77,8 +78,14 @@ export default function Sidebar() {
 
   // Filter modules based on user permissions
   const allowedModules = MODULES_CONFIG.filter((mod) => {
+    // Show all modules in demo mode or when not authenticated
+    if (demoMode || !currentUser) return true;
+    
     // CEO has access to all modules
     if (currentUser?.isCEO) return true;
+    
+    // If no permissions are set, show all modules (fallback)
+    if (!userPermissions || userPermissions.length === 0) return true;
     
     // Check if user has permission for this module
     const hasPermission = userPermissions?.some(

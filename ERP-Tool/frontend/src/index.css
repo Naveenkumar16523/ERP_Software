@@ -852,6 +852,13 @@ html[data-theme='dark'] .table tr:hover td {
   }
 }
 
+/* Ensure sidebar is visible on desktop */
+@media (min-width: 769px) {
+  .sidebar {
+    transform: translateX(0) !important;
+  }
+}
+
 /* --- Main Content --- */
 .main-content {
   margin-left: var(--sidebar-width);
