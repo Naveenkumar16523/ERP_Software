@@ -2,7 +2,7 @@
 // Implements transparent offline-first fallbacks using our Zustand store.
 import { useERPStore } from '../store/useERPStore';
 
-const API_URL = import.meta.env.VITE_API_URL || '';
+const API_URL = import.meta.env.VITE_API_URL || 'https://erp-software-hmfd.onrender.com';
 const BASE_URL = `${API_URL}/api/v1`;
 
 // Helper to get authorization headers
@@ -46,7 +46,7 @@ export const api = {
   // ── Database Health ──
   async getHealth() {
     try {
-      const res = await fetch(`${API_URL}/api/health`);
+      const res = await fetch(`${API_URL}/api/v1/health`);
       if (res.ok) {
         const data = await res.json();
         useERPStore.getState().setDbLive(data.status === 'UP');

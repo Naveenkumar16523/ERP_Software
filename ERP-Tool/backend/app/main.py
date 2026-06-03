@@ -29,17 +29,37 @@ load_dotenv()
 app = FastAPI(title="NexusERP Python API", version="2.0.0")
 
 # Configure CORS origins
+cors_env = os.getenv("CORS_ORIGINS", "")
+frontend_env = os.getenv("FRONTEND_ORIGIN", "")
+
+# Static allowed origins (production + localhost dev)
 allowed_origins = [
     "http://localhost:5173",
     "http://localhost:3000",
     "http://localhost:8080",
-    os.getenv("FRONTEND_ORIGIN", "")
+    "https://erp-software-cyan.vercel.app",
+    # Add any specific production Vercel URLs here
+    "https://erp-software-iyiexnm2x-naveenkumar16523s-projects.vercel.app",
+    "https://erp-software-ox6nz7ucc-naveenkumar16523s-projects.vercel.app",
 ]
-allowed_origins = [origin for origin in allowed_origins if origin]
+if cors_env:
+    allowed_origins.extend([o.strip() for o in cors_env.split(",")])
+if frontend_env:
+    allowed_origins.extend([o.strip() for o in frontend_env.split(",")])
+
+allowed_origins = list(set([origin for origin in allowed_origins if origin]))
+
+# Regex to allow ALL Vercel preview deployments for this project automatically
+# This covers URLs like: https://erp-software-<hash>-naveenkumar16523s-projects.vercel.app
+allow_origin_regex = (
+    r"https://erp-software(-[a-zA-Z0-9]+)*\.vercel\.app"
+    r"|https://erp-software(-[a-zA-Z0-9]+)*-naveenkumar16523s-projects\.vercel\.app"
+)
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
+    allow_origin_regex=allow_origin_regex,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization", "X-Requested-With"],
@@ -100,6 +120,11 @@ async def health_check():
             }
         }
     )
+
+# Health diagnostic endpoint (v1 path)
+@app.get("/api/v1/health")
+async def health_check_v1():
+    return await health_check()
 
 # Root Index
 @app.get("/api/v1")
