@@ -22,6 +22,7 @@ from app.routers.inventory import router as inventory_router
 from app.routers.manufacturing import router as manufacturing_router
 from app.routers.ecommerce import router as ecommerce_router
 from app.routers.assets import router as assets_router
+from app.routers.dashboard import router as dashboard_router
 
 load_dotenv()
 
@@ -121,3 +122,4 @@ app.include_router(inventory_router, prefix="/api/v1")
 app.include_router(manufacturing_router, prefix="/api/v1")
 app.include_router(ecommerce_router, prefix="/api/v1")
 app.include_router(assets_router, prefix="/api/v1")
+app.include_router(dashboard_router, prefix="/api/v1")

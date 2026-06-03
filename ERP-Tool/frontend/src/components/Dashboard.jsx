@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
   TrendingUp,
@@ -13,7 +13,12 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   ChevronDown,
-  Star
+  Star,
+  Package,
+  Truck,
+  Factory,
+  DollarSign,
+  Building
 } from 'lucide-react';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid, PieChart, Pie, Cell } from 'recharts';
 import { useERPStore } from '../store/useERPStore';
@@ -32,6 +37,32 @@ const PIE_COLORS = ['#4f46e5', '#f59e0b', '#ef4444', '#10b981'];
 
 export default function Dashboard() {
   const { employees, products, notifications } = useERPStore();
+  const [dashboardData, setDashboardData] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchDashboardData();
+  }, []);
+
+  const fetchDashboardData = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch('http://localhost:5000/api/v1/dashboard/metrics', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setDashboardData(data);
+      }
+    } catch (error) {
+      console.error('Error fetching dashboard data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const revenueExpensesData = [
     { name: '1', current: 1400, previous: 900 },
@@ -45,45 +76,82 @@ export default function Dashboard() {
     { name: '9', current: 2800, previous: 1900 },
   ];
 
-  const learnerEngagementData = [
-    { name: 'Active Learners', value: 1923 },
-    { name: 'Inactive Learners', value: 924 },
-    { name: 'At-risk Learners', value: 308 }
+  const inventoryStatusData = dashboardData ? [
+    { name: 'In Stock', value: dashboardData.inventory?.totalProducts - dashboardData.inventory?.lowStockProducts || 0 },
+    { name: 'Low Stock', value: dashboardData.inventory?.lowStockProducts || 0 }
+  ] : [
+    { name: 'In Stock', value: 4 },
+    { name: 'Low Stock', value: 1 }
   ];
 
-  const kpis = [
+  const kpis = dashboardData ? [
     {
-      label: 'Total Learners',
-      value: '10,590',
-      change: '+8.2%',
+      label: 'Total Employees',
+      value: dashboardData.hr?.totalEmployees?.toString() || '0',
+      change: '+5.2%',
       up: true,
       icon: Users,
       color: 'bg-indigo-50 text-indigo-600',
     },
     {
       label: 'Total Revenue',
-      value: '$142.8K',
-      subValue: 'of $500.0K',
-      change: '+18%',
+      value: `$${(dashboardData.ecommerce?.totalRevenue || 0).toFixed(2)}`,
+      subValue: 'From orders',
+      change: '+12%',
       up: true,
-      icon: CreditCard,
+      icon: DollarSign,
       color: 'bg-emerald-50 text-emerald-600',
     },
     {
-      label: 'Avg Instructor Rating',
-      value: '4.2',
-      subValue: 'Based on student reviews',
-      change: '+8%',
+      label: 'Active Suppliers',
+      value: dashboardData.procurement?.totalSuppliers?.toString() || '0',
+      subValue: 'Avg score: 91.7',
+      change: '+3.2%',
       up: true,
-      icon: Star,
+      icon: Truck,
       color: 'bg-amber-50 text-amber-600',
     },
     {
-      label: 'Total Courses',
-      value: '248',
-      change: '-12.5%',
-      up: false,
-      icon: Target,
+      label: 'Total Products',
+      value: dashboardData.inventory?.totalProducts?.toString() || '0',
+      change: '+8.5%',
+      up: true,
+      icon: Package,
+      color: 'bg-rose-50 text-rose-600',
+    }
+  ] : [
+    {
+      label: 'Total Employees',
+      value: '0',
+      change: '+0%',
+      up: true,
+      icon: Users,
+      color: 'bg-indigo-50 text-indigo-600',
+    },
+    {
+      label: 'Total Revenue',
+      value: '$0',
+      subValue: 'From orders',
+      change: '+0%',
+      up: true,
+      icon: DollarSign,
+      color: 'bg-emerald-50 text-emerald-600',
+    },
+    {
+      label: 'Active Suppliers',
+      value: '0',
+      subValue: 'Avg score: 0',
+      change: '+0%',
+      up: true,
+      icon: Truck,
+      color: 'bg-amber-50 text-amber-600',
+    },
+    {
+      label: 'Total Products',
+      value: '0',
+      change: '+0%',
+      up: true,
+      icon: Package,
       color: 'bg-rose-50 text-rose-600',
     }
   ];
@@ -139,36 +207,33 @@ export default function Dashboard() {
         {/* Data Table Card */}
         <motion.div variants={itemVariants} className="lg:col-span-2 theme-card flex flex-col">
           <div className="p-5 border-b border-main flex items-center justify-between">
-            <h3 className="text-base font-bold text-main">Top Courses Performance</h3>
+            <h3 className="text-base font-bold text-main">Top Products by Stock Value</h3>
             <button className="flex items-center gap-2 px-3 py-1.5 btn-secondary text-sm rounded-lg transition-all">
-              Enrollments <ChevronDown className="w-4 h-4" />
+              Stock Level <ChevronDown className="w-4 h-4" />
             </button>
           </div>
           <div className="p-0 overflow-x-auto flex-1">
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr>
-                  <th className="px-5 py-4 text-xs font-semibold text-muted bg-surface uppercase tracking-wider border-b border-main">Course Name</th>
-                  <th className="px-5 py-4 text-xs font-semibold text-muted bg-surface uppercase tracking-wider border-b border-main">Completion</th>
-                  <th className="px-5 py-4 text-xs font-semibold text-muted bg-surface uppercase tracking-wider border-b border-main">Trend</th>
+                  <th className="px-5 py-4 text-xs font-semibold text-muted bg-surface uppercase tracking-wider border-b border-main">Product Name</th>
+                  <th className="px-5 py-4 text-xs font-semibold text-muted bg-surface uppercase tracking-wider border-b border-main">Stock</th>
+                  <th className="px-5 py-4 text-xs font-semibold text-muted bg-surface uppercase tracking-wider border-b border-main">Value</th>
                 </tr>
               </thead>
               <tbody>
                 {[
-                  { name: 'Advanced JavaScript Programming', comp: '1,245 learners', trend: '+ 12.5%', up: true },
-                  { name: 'UI/UX Design Fundamentals', comp: '1,245 learners', trend: '+ 12.5%', up: true },
-                  { name: 'Data Science with Python', comp: '1,245 learners', trend: '+ 12.5%', up: true },
-                  { name: 'Digital Marketing Masterclass', comp: '1,245 learners', trend: '- 12.5%', up: false },
-                  { name: 'Mobile App Development', comp: '1,245 learners', trend: '+ 12.5%', up: true }
+                  { name: 'Conveyor Belt System', stock: '15 units', value: '$30,000', type: 'FINISHED_GOOD' },
+                  { name: 'Industrial Pump', stock: '50 units', value: '$25,000', type: 'FINISHED_GOOD' },
+                  { name: 'Steel Sheet', stock: '500 kg', value: '$12,500', type: 'RAW_MATERIAL' },
+                  { name: 'Aluminum Rod', stock: '800 kg', value: '$12,000', type: 'RAW_MATERIAL' },
+                  { name: 'Plastic Pellets', stock: '1,500 kg', value: '$3,750', type: 'RAW_MATERIAL' }
                 ].map((row, idx) => (
                   <tr key={idx} className="hover:bg-surface/30 transition-colors group">
                     <td className="px-5 py-4 text-sm font-semibold text-main border-b border-main/50 group-last:border-0">{row.name}</td>
-                    <td className="px-5 py-4 text-sm text-muted border-b border-main/50 group-last:border-0">{row.comp}</td>
+                    <td className="px-5 py-4 text-sm text-muted border-b border-main/50 group-last:border-0">{row.stock}</td>
                     <td className="px-5 py-4 text-sm font-medium border-b border-main/50 group-last:border-0">
-                      <span className={`flex items-center gap-1 ${row.up ? 'text-emerald-500' : 'text-rose-500'}`}>
-                        {row.up ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
-                        {row.trend}
-                      </span>
+                      <span className="text-emerald-500 font-bold">{row.value}</span>
                     </td>
                   </tr>
                 ))}
@@ -181,7 +246,7 @@ export default function Dashboard() {
         <motion.div variants={itemVariants} className="theme-card p-5 flex flex-col">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-base font-bold text-main flex items-center gap-2">
-              Learner Engagement <AlertCircle className="w-4 h-4 text-muted" />
+              Inventory Status <AlertCircle className="w-4 h-4 text-muted" />
             </h3>
             <button className="p-1 btn-secondary rounded">
               <MoreHorizontal className="w-5 h-5" />
@@ -192,14 +257,14 @@ export default function Dashboard() {
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
-                  data={learnerEngagementData}
+                  data={inventoryStatusData}
                   innerRadius={70}
                   outerRadius={90}
                   paddingAngle={5}
                   dataKey="value"
                   stroke="none"
                 >
-                  {learnerEngagementData.map((entry, index) => (
+                  {inventoryStatusData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
                   ))}
                 </Pie>
@@ -207,16 +272,16 @@ export default function Dashboard() {
             </ResponsiveContainer>
             {/* Center Label inside Donut */}
             <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-              <p className="text-[11px] font-semibold text-muted uppercase tracking-wider mb-1">Average Completion</p>
-              <p className="text-4xl font-bold text-main">68.4%</p>
+              <p className="text-[11px] font-semibold text-muted uppercase tracking-wider mb-1">Total Products</p>
+              <p className="text-4xl font-bold text-main">{dashboardData?.inventory?.totalProducts || '0'}</p>
               <p className="text-xs font-semibold text-indigo-500 mt-1 flex items-center gap-1">
-                <TrendingUp className="w-3 h-3" /> 5.2% from target
+                <Package className="w-3 h-3" /> {dashboardData?.inventory?.lowStockProducts || '0'} low stock
               </p>
             </div>
           </div>
 
           <div className="mt-4 space-y-3">
-            {learnerEngagementData.map((item, idx) => (
+            {inventoryStatusData.map((item, idx) => (
               <div key={item.name} className="flex items-center justify-between text-sm">
                 <div className="flex items-center gap-2">
                   <div className="w-2 h-6 rounded-full" style={{ backgroundColor: PIE_COLORS[idx % PIE_COLORS.length] }} />
@@ -242,10 +307,10 @@ export default function Dashboard() {
           </h3>
           
           {[
-            { title: 'New instructor awaiting approval', sub: 'Jeje Sunandar', icon: Users, color: 'indigo' },
-            { title: 'Low completion rate detected', sub: 'Completion has dropped below the target', icon: TrendingDown, color: 'rose' },
-            { title: 'New instructor awaiting approval', sub: 'Stephen Lance', icon: Users, color: 'amber' },
-            { title: 'Monthly revenue target achieved', sub: 'Your platform has reached revenue goal', icon: TrendingUp, color: 'emerald' }
+            { title: 'Low stock alert', sub: 'Steel Sheet below reorder point', icon: Package, color: 'rose' },
+            { title: 'New supplier registered', sub: 'TechSupply Corp pending approval', icon: Truck, color: 'indigo' },
+            { title: 'Production order delayed', sub: 'PO-2024-MFG-002 behind schedule', icon: Factory, color: 'amber' },
+            { title: 'Monthly revenue target achieved', sub: 'E-commerce sales exceeded goal', icon: TrendingUp, color: 'emerald' }
           ].map((alert, idx) => {
             const Icon = alert.icon;
             
@@ -341,10 +406,10 @@ export default function Dashboard() {
         
         <div className="space-y-6">
           {[
-            { img: 'bg-indigo-100 text-indigo-750 dark:bg-indigo-500/10 dark:text-indigo-400', name: 'Daniel Roe', action: 'registered as a', target: 'New Learner', time: '15 minutes ago' },
-            { img: 'bg-emerald-100 text-emerald-750 dark:bg-emerald-500/10 dark:text-emerald-400', name: 'Maria Smith', action: 'published a new course with', target: 'Emily Stanton', time: '30 minutes ago' },
-            { img: 'bg-amber-100 text-amber-750 dark:bg-amber-500/10 dark:text-amber-400', name: 'Sarah Lee', action: 'posted an update', target: 'Advanced UI Systems', time: '1 hour ago', note: 'The instructor added a note in Advanced UI Systems: "Slides for today\'s session are now available."' },
-            { img: 'bg-teal-100 text-teal-750 dark:bg-teal-500/10 dark:text-teal-400', name: 'Stephen Lance', action: 'uploaded', target: "David Wilson's lab Results", time: '2 hours ago' }
+            { img: 'bg-indigo-100 text-indigo-750 dark:bg-indigo-500/10 dark:text-indigo-400', name: 'John Smith', action: 'created purchase order', target: 'PO-2024-002', time: '15 minutes ago' },
+            { img: 'bg-emerald-100 text-emerald-750 dark:bg-emerald-500/10 dark:text-emerald-400', name: 'Sarah Johnson', action: 'completed production order', target: 'PO-2024-MFG-001', time: '30 minutes ago' },
+            { img: 'bg-amber-100 text-amber-750 dark:bg-amber-500/10 dark:text-amber-400', name: 'Mike Wilson', action: 'received goods from', target: 'TechSupply Corp', time: '1 hour ago', note: 'Goods receipt GRN-2024-001 processed successfully. All items verified and quality checked.' },
+            { img: 'bg-teal-100 text-teal-750 dark:bg-teal-500/10 dark:text-teal-400', name: 'Emily Davis', action: 'approved supplier invoice', target: 'INV-2024-001', time: '2 hours ago' }
           ].map((item, idx) => (
             <div key={idx} className="flex gap-4">
               <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 font-bold ${item.img}`}>
