@@ -66,13 +66,27 @@ export default function Sidebar() {
     mobileSidebarOpen,
     setMobileSidebar,
     currentUser,
-    logout
+    logout,
+    userPermissions
   } = useERPStore();
 
   const handleNavClick = (moduleId) => {
     setActiveModule(moduleId);
     setMobileSidebar(false);
   };
+
+  // Filter modules based on user permissions
+  const allowedModules = MODULES_CONFIG.filter((mod) => {
+    // CEO has access to all modules
+    if (currentUser?.isCEO) return true;
+    
+    // Check if user has permission for this module
+    const hasPermission = userPermissions?.some(
+      (perm) => perm.moduleKey === mod.id && perm.canRead
+    );
+    
+    return hasPermission;
+  });
 
   return (
     <>
@@ -124,7 +138,7 @@ export default function Sidebar() {
 
         {/* Navigation */}
         <nav className="sidebar-nav custom-scrollbar flex-1 overflow-y-auto">
-          {MODULES_CONFIG.map((mod) => {
+          {allowedModules.map((mod) => {
             const Icon = mod.icon;
             const isActive = activeModule === mod.id;
             return (

@@ -632,3 +632,72 @@ class OEELog(Base):
     createdAt = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     workCenter = relationship("WorkCenter", back_populates="oeeLogs")
+
+# ─── RBAC System for Logistics ERP ───────────────────────────────────────────────
+
+class ERPRole(Base):
+    __tablename__ = "ERPRole"
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    name = Column(String(191), unique=True, nullable=False, index=True)
+    description = Column(String(191), nullable=True)
+    departmentId = Column(String(36), ForeignKey("ERPDepartment.id", ondelete="CASCADE"), nullable=False, index=True)
+    createdAt = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    department = relationship("ERPDepartment", back_populates="roles")
+    moduleAccess = relationship("ModuleAccess", back_populates="role", cascade="all, delete-orphan")
+
+class ERPDepartment(Base):
+    __tablename__ = "ERPDepartment"
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    name = Column(String(191), unique=True, nullable=False, index=True)
+    code = Column(String(191), unique=True, nullable=False, index=True)
+    createdAt = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    roles = relationship("ERPRole", back_populates="department")
+
+class ModuleAccess(Base):
+    __tablename__ = "ModuleAccess"
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    roleId = Column(String(36), ForeignKey("ERPRole.id", ondelete="CASCADE"), nullable=False, index=True)
+    moduleKey = Column(String(191), nullable=False, index=True)
+    canRead = Column(Boolean, default=True, nullable=False)
+    canWrite = Column(Boolean, default=False, nullable=False)
+    canExport = Column(Boolean, default=False, nullable=False)
+    createdAt = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    role = relationship("ERPRole", back_populates="moduleAccess")
+
+    __table_args__ = (
+        UniqueConstraint("roleId", "moduleKey", name="ModuleAccess_roleId_moduleKey_key"),
+    )
+
+class ERPUser(Base):
+    __tablename__ = "ERPUser"
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    username = Column(String(191), unique=True, nullable=False, index=True)
+    passwordHash = Column(String(191), nullable=False)
+    fullName = Column(String(191), nullable=False)
+    email = Column(String(191), unique=True, nullable=False, index=True)
+    roleId = Column(String(36), ForeignKey("ERPRole.id", ondelete="CASCADE"), nullable=False, index=True)
+    departmentId = Column(String(36), ForeignKey("ERPDepartment.id", ondelete="CASCADE"), nullable=False, index=True)
+    isActive = Column(Boolean, default=True, nullable=False)
+    isCEO = Column(Boolean, default=False, nullable=False)
+    createdAt = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updatedAt = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    role = relationship("ERPRole")
+    department = relationship("ERPDepartment")
+
+class AccessRequest(Base):
+    __tablename__ = "AccessRequest"
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    fullName = Column(String(191), nullable=False)
+    email = Column(String(191), nullable=False)
+    department = Column(String(191), nullable=False)
+    reason = Column(Text, nullable=False)
+    status = Column(String(191), default="pending", nullable=False, index=True)  # pending, approved, denied
+    reviewedBy = Column(String(36), ForeignKey("ERPUser.id", ondelete="SET NULL"), nullable=True)
+    reviewedAt = Column(DateTime, nullable=True)
+    createdAt = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    reviewer = relationship("ERPUser", foreign_keys=[reviewedBy])

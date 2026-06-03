@@ -12,6 +12,8 @@ from app.utils.mongodb import connect_mongodb, get_mongo_connection_status
 
 # Routers
 from app.routers.auth import router as auth_router
+from app.routers.rbac import router as rbac_router
+from app.routers.rbac_auth import router as rbac_auth_router
 from app.routers.finance import router as finance_router
 from app.routers.procurement import router as procurement_router
 from app.routers.hr import router as hr_router
@@ -109,6 +111,8 @@ async def root_index():
 
 # Mount all modules
 app.include_router(auth_router, prefix="/api/v1")
+app.include_router(rbac_auth_router, prefix="/api/v1")
+app.include_router(rbac_router, prefix="/api/v1")
 app.include_router(finance_router, prefix="/api/v1")
 app.include_router(procurement_router, prefix="/api/v1")
 app.include_router(hr_router, prefix="/api/v1")

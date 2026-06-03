@@ -23,6 +23,14 @@ export const useERPStore = create((set, get) => ({
       return null;
     }
   })(),
+  userPermissions: (() => {
+    try {
+      const stored = localStorage.getItem('erp_permissions');
+      return stored ? JSON.parse(stored) : [];
+    } catch {
+      return [];
+    }
+  })(),
 
   // ── Notifications & Toasts ────────────────────────────────────────
   notifications: seedData.notifications || [],
@@ -187,13 +195,17 @@ export const useERPStore = create((set, get) => ({
     }
     set({ token: t });
   },
-  setCurrentUser: (u) => {
+  setCurrentUser: (u, permissions = []) => {
     if (u) {
       localStorage.setItem('erp_user', JSON.stringify(u));
     } else {
       localStorage.removeItem('erp_user');
     }
-    set({ currentUser: u });
+    set({ currentUser: u, userPermissions: permissions });
+  },
+  setUserPermissions: (permissions) => {
+    localStorage.setItem('erp_permissions', JSON.stringify(permissions));
+    set({ userPermissions: permissions });
   },
   setDemoMode: (d) => {
     localStorage.setItem('erp_demo', d ? 'true' : 'false');
@@ -203,8 +215,9 @@ export const useERPStore = create((set, get) => ({
     localStorage.removeItem('erp_token');
     localStorage.removeItem('erp_refresh_token');
     localStorage.removeItem('erp_user');
+    localStorage.removeItem('erp_permissions');
     localStorage.setItem('erp_demo', 'false');
-    set({ token: null, currentUser: null, demoMode: false, activeModule: 'dashboard' });
+    set({ token: null, currentUser: null, userPermissions: [], demoMode: false, activeModule: 'dashboard' });
   },
 
   // ── Toasts ────────────────────────────────────────────────────────
