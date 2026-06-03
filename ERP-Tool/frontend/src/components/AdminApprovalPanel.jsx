@@ -22,7 +22,8 @@ const AdminApprovalPanel = ({ token }) => {
 
   const fetchRequests = async () => {
     try {
-      const response = await fetch(`http://localhost:5000/api/v1/rbac/access-requests?status_filter=${filter}`, {
+      const API_URL = import.meta.env.VITE_API_URL || '';
+      const response = await fetch(`${API_URL}/api/v1/rbac/access-requests?status_filter=${filter}`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -38,7 +39,8 @@ const AdminApprovalPanel = ({ token }) => {
 
   const fetchRoles = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/v1/rbac/roles', {
+      const API_URL = import.meta.env.VITE_API_URL || '';
+      const response = await fetch(`${API_URL}/api/v1/rbac/roles`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -64,7 +66,8 @@ const AdminApprovalPanel = ({ token }) => {
     if (!confirm('Are you sure you want to deny this request?')) return;
 
     try {
-      const response = await fetch(`http://localhost:5000/api/v1/rbac/access-requests/${requestId}/deny`, {
+      const API_URL = import.meta.env.VITE_API_URL || '';
+      const response = await fetch(`${API_URL}/api/v1/rbac/access-requests/${requestId}/deny`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -88,7 +91,8 @@ const AdminApprovalPanel = ({ token }) => {
     e.preventDefault();
     
     try {
-      const response = await fetch(`http://localhost:5000/api/v1/rbac/access-requests/${selectedRequest.id}/approve`, {
+      const API_URL = import.meta.env.VITE_API_URL || '';
+      const response = await fetch(`${API_URL}/api/v1/rbac/access-requests/${selectedRequest.id}/approve`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
