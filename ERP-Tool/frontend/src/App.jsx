@@ -31,6 +31,8 @@ const AIModule           = lazy(() => import('./components/AIModule'));
 const SupportModule      = lazy(() => import('./components/SupportModule'));
 const AutomationModule   = lazy(() => import('./components/AutomationModule'));
 
+import SignIn from './components/auth/SignIn';
+
 const MODULE_MAP = {
   dashboard:      Dashboard,
   finance:        FinanceModule,
@@ -67,7 +69,7 @@ const ModuleFallback = () => (
 );
 
 export default function App() {
-  const { activeModule, theme } = useERPStore();
+  const { activeModule, theme, currentUser, token, demoMode } = useERPStore();
   const ActiveComponent = MODULE_MAP[activeModule] || Dashboard;
 
   useEffect(() => {
@@ -78,6 +80,17 @@ export default function App() {
       document.documentElement.classList.remove('dark');
     }
   }, [theme]);
+
+  const isAuthenticated = demoMode || (currentUser && token);
+
+  if (!isAuthenticated) {
+    return (
+      <>
+        <FollowCursor />
+        <SignIn />
+      </>
+    );
+  }
 
   return (
     <AppShell>

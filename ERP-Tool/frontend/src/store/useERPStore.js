@@ -12,9 +12,17 @@ export const useERPStore = create((set, get) => ({
   theme: localStorage.getItem('erp-theme') || 'dark',
   searchQuery: '',
   searchResults: [],
-  isSearching: false,
   dbLive: true,
-  currentUser: { id: 'emp-1', name: 'John Doe', role: 'Admin', avatar: null },
+  token: localStorage.getItem('erp_token') || null,
+  demoMode: localStorage.getItem('erp_demo') === 'true',
+  currentUser: (() => {
+    try {
+      const stored = localStorage.getItem('erp_user');
+      return stored ? JSON.parse(stored) : null;
+    } catch {
+      return null;
+    }
+  })(),
 
   // ── Notifications & Toasts ────────────────────────────────────────
   notifications: seedData.notifications || [],
@@ -170,9 +178,34 @@ export const useERPStore = create((set, get) => ({
   }),
   setSearchQuery: (q) => set({ searchQuery: q }),
   setSearchResults: (r) => set({ searchResults: r }),
-  setIsSearching: (v) => set({ isSearching: v }),
   setDbLive: (v) => set({ dbLive: v }),
-  logout: () => set({ currentUser: null, activeModule: 'dashboard' }),
+  setToken: (t) => {
+    if (t) {
+      localStorage.setItem('erp_token', t);
+    } else {
+      localStorage.removeItem('erp_token');
+    }
+    set({ token: t });
+  },
+  setCurrentUser: (u) => {
+    if (u) {
+      localStorage.setItem('erp_user', JSON.stringify(u));
+    } else {
+      localStorage.removeItem('erp_user');
+    }
+    set({ currentUser: u });
+  },
+  setDemoMode: (d) => {
+    localStorage.setItem('erp_demo', d ? 'true' : 'false');
+    set({ demoMode: d });
+  },
+  logout: () => {
+    localStorage.removeItem('erp_token');
+    localStorage.removeItem('erp_refresh_token');
+    localStorage.removeItem('erp_user');
+    localStorage.setItem('erp_demo', 'false');
+    set({ token: null, currentUser: null, demoMode: false, activeModule: 'dashboard' });
+  },
 
   // ── Toasts ────────────────────────────────────────────────────────
   addToast: (message, type = 'info') => set((s) => ({
