@@ -69,6 +69,14 @@ app.add_middleware(
 # Startup connections
 @app.on_event("startup")
 async def startup_connections():
+    # Create database tables if they don't exist
+    from app.utils.db import engine, Base
+    try:
+        Base.metadata.create_all(bind=engine)
+        print("Database tables created/verified successfully")
+    except Exception as e:
+        print(f"Error creating database tables: {e}")
+    
     connect_redis()
     await connect_mongodb()
 
@@ -125,6 +133,11 @@ async def health_check():
 @app.get("/api/v1/health")
 async def health_check_v1():
     return await health_check()
+
+# Simple health check without database dependencies
+@app.get("/api/v1/health/simple")
+async def health_check_simple():
+    return {"status": "ok"}
 
 # Root Index
 @app.get("/api/v1")

@@ -27,7 +27,7 @@ services:
       - key: SECRET_KEY
         generateValue: true
       - key: CORS_ORIGINS
-        value: https://your-frontend-domain.com
+        value: https://erp-software-iyiexnm2x-naveenkumar16523s-projects.vercel.app
 
 databases:
   - name: erp-database
