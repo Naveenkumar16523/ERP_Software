@@ -2,7 +2,7 @@
 // Implements transparent offline-first fallbacks using our Zustand store.
 import { useERPStore } from '../store/useERPStore';
 
-const API_URL = import.meta.env.VITE_API_URL || 'https://erp-software-hmfd.onrender.com';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 const BASE_URL = `${API_URL}/api/v1`;
 
 // Helper to get authorization headers
@@ -69,6 +69,9 @@ export const api = {
     },
     async login(credentials) {
       return request('/auth/login', { method: 'POST', body: JSON.stringify(credentials) });
+    },
+    async ceoLogin(credentials) {
+      return request('/auth/admin/login', { method: 'POST', body: JSON.stringify(credentials) });
     },
     async logout() {
       try { return await request('/auth/logout', { method: 'POST' }); } catch { /* offline ok */ }
