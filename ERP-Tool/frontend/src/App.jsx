@@ -129,6 +129,12 @@ export default function App() {
     // Dashboard is always accessible
     if (activeModule === 'dashboard') return true;
     
+    // Change password is always accessible
+    if (activeModule === 'change-password') return true;
+    
+    // Common modules for all users
+    if (['support', 'ai', 'security'].includes(activeModule)) return true;
+    
     // Admin module is CEO-only
     if (activeModule === 'admin') return false;
     

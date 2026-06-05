@@ -101,6 +101,9 @@ export default function Sidebar() {
     // Dashboard is always accessible
     if (mod.id === 'dashboard') return true;
     
+    // Support, AI Companion, and Security are always accessible for all users
+    if (['support', 'ai', 'security'].includes(mod.id)) return true;
+    
     // If allowed_modules contains "all", show all modules (shouldn't happen for non-CEO but safe fallback)
     if (allowedModules.includes('all')) return true;
     
