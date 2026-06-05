@@ -1,10 +1,16 @@
 import React, { useState } from 'react';
-import { Plus } from 'lucide-react';
+import { Plus, CreditCard, TrendingUp, Wallet } from 'lucide-react';
 import { useERPStore } from '../store/useERPStore';
 import Modal from './ui/Modal';
 
 export default function BankingModule() {
-  const { bankingAccounts, bankingTransactions, bankingLoans, postBankingTransaction, addToast } = useERPStore();
+  const {
+    bankingAccounts, addBankingAccount,
+    bankingTransactions, addBankingTransaction,
+    bankingLoans, addBankingLoan,
+    addToast
+  } = useERPStore();
+  const [activeTab, setActiveTab] = useState('accounts');
   const [modal, setModal] = useState(false);
   const [form, setForm] = useState({ accountId: '', description: '', amount: 0, type: 'CREDIT' });
 
@@ -13,11 +19,17 @@ export default function BankingModule() {
 
   const handlePost = () => {
     if (!form.accountId || !form.amount) return addToast('All fields required', 'error');
-    postBankingTransaction({ ...form, amount: parseFloat(form.amount) });
+    addBankingTransaction({ ...form, amount: parseFloat(form.amount), date: new Date().toISOString().split('T')[0] });
     addToast(`Transaction posted: ₹${parseFloat(form.amount).toLocaleString('en-IN')}`, 'success');
     setModal(false);
     setForm({ accountId: '', description: '', amount: 0, type: 'CREDIT' });
   };
+
+  const TABS = [
+    { id: 'accounts', label: 'Accounts', icon: Wallet },
+    { id: 'transactions', label: 'Transactions', icon: CreditCard },
+    { id: 'loans', label: 'Loans', icon: TrendingUp }
+  ];
 
   return (
     <div className="p-6 space-y-6">
@@ -31,74 +43,140 @@ export default function BankingModule() {
         </button>
       </div>
 
-      {/* Account Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {bankingAccounts.map(acc => (
-          <div key={acc.id} className="theme-card p-5 hover:border-indigo-500/40 transition-all cursor-default">
-            <div className="flex items-center justify-between mb-3">
-              <div>
-                <p className="text-xs text-dimmed">{acc.bank}</p>
-                <p className="text-sm font-semibold text-main">{acc.name}</p>
-                <p className="text-xs font-mono text-dimmed mt-0.5">{acc.accountNo}</p>
-              </div>
-              <span className={`text-xs px-2 py-0.5 rounded-full border ${
-                acc.type === 'FD' ? 'bg-violet-500/10 border-violet-500/20 text-violet-400' :
-                acc.type === 'SAVINGS' ? 'bg-sky-500/10 border-sky-500/20 text-sky-400' :
-                'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
-              }`}>{acc.type}</span>
-            </div>
-            <p className="text-2xl font-bold font-data text-main">₹{acc.balance.toLocaleString('en-IN')}</p>
+      {/* Stats */}
+      <div className="grid grid-cols-3 gap-3">
+        {[
+          { label: 'Total Balance', value: `₹${totalBalance.toLocaleString('en-IN')}`, color: 'text-emerald-400' },
+          { label: 'Accounts', value: bankingAccounts.length, color: 'text-indigo-400' },
+          { label: 'Outstanding Loans', value: `₹${totalOutstanding.toLocaleString('en-IN')}`, color: 'text-rose-400' },
+        ].map(s => (
+          <div key={s.label} className="theme-card p-4">
+            <p className="text-xs text-dimmed">{s.label}</p>
+            <p className={`text-xl font-bold mt-1 font-data ${s.color}`}>{s.value}</p>
           </div>
         ))}
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
-        {/* Recent Transactions */}
-        <div className="theme-card p-5">
-          <h3 className="text-sm font-semibold text-main mb-4">Recent Transactions</h3>
-          <div className="space-y-2">
-            {bankingTransactions.slice(0, 5).map(tx => (
-              <div key={tx.id} className="flex items-center justify-between py-2 border-b border-main last:border-0">
-                <div>
-                  <p className="text-xs font-medium text-main">{tx.description}</p>
-                  <p className="text-[10px] text-dimmed">{tx.date}</p>
-                </div>
-                <span className={`text-sm font-data font-bold ${tx.type === 'CREDIT' ? 'text-emerald-400' : 'text-rose-400'}`}>
-                  {tx.type === 'CREDIT' ? '+' : '-'}₹{Math.abs(tx.amount).toLocaleString('en-IN')}
-                </span>
-              </div>
-            ))}
-            {bankingTransactions.length === 0 && (
-              <p className="text-xs text-dimmed text-center py-4">No transactions yet</p>
-            )}
-          </div>
-        </div>
-
-        {/* Active Loans */}
-        <div className="theme-card p-5">
-          <h3 className="text-sm font-semibold text-main mb-4">Active Loans</h3>
-          <div className="space-y-4">
-            {bankingLoans.map(loan => {
-              const pct = Math.round((loan.outstanding / loan.principal) * 100);
-              return (
-                <div key={loan.id} className="space-y-1.5">
-                  <div className="flex justify-between text-xs">
-                    <span className="text-muted">{loan.type} — {loan.lender}</span>
-                    <span className="text-rose-400 font-data font-semibold">₹{loan.outstanding.toLocaleString('en-IN')}</span>
-                  </div>
-                  <div className="h-1.5 bg-surface rounded-full border border-main/30">
-                    <div className="h-full bg-rose-500 rounded-full" style={{ width: `${pct}%` }} />
-                  </div>
-                  <p className="text-[10px] text-dimmed">EMI: ₹{loan.emi.toLocaleString()} · Next due: {loan.nextDue}</p>
-                </div>
-              );
-            })}
-            {bankingLoans.length === 0 && (
-              <p className="text-xs text-dimmed text-center py-4">No active loans</p>
-            )}
-          </div>
-        </div>
+      {/* Tabs */}
+      <div className="flex gap-1 bg-surface p-1 rounded-xl w-fit border border-main">
+        {TABS.map(tab => {
+          const Icon = tab.icon;
+          return (
+            <button key={tab.id} onClick={() => setActiveTab(tab.id)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${activeTab === tab.id ? 'bg-indigo-600 text-white' : 'text-muted hover:text-main'}`}>
+              <Icon className="w-3.5 h-3.5" />{tab.label}
+            </button>
+          );
+        })}
       </div>
+
+      {activeTab === 'accounts' && (
+        <div className="theme-card overflow-hidden">
+          <div className="px-4 py-3 border-b border-main">
+            <h3 className="text-sm font-semibold text-main">Bank Accounts ({bankingAccounts.length})</h3>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead><tr className="text-left text-xs text-dimmed border-b border-main">
+                <th className="px-4 py-2.5">Account Name</th>
+                <th className="px-4 py-2.5">Bank</th>
+                <th className="px-4 py-2.5">Account No</th>
+                <th className="px-4 py-2.5">Type</th>
+                <th className="px-4 py-2.5 text-right">Balance</th>
+              </tr></thead>
+              <tbody>
+                {bankingAccounts.map(acc => (
+                  <tr key={acc.id} className="border-b border-main hover:bg-surface/60 transition-colors">
+                    <td className="px-4 py-2.5 text-sm text-main">{acc.name}</td>
+                    <td className="px-4 py-2.5 text-xs text-muted">{acc.bank}</td>
+                    <td className="px-4 py-2.5 text-xs font-mono text-indigo-400">{acc.accountNo}</td>
+                    <td className="px-4 py-2.5">
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${acc.type === 'FD' ? 'bg-violet-500/10 text-violet-400' : acc.type === 'SAVINGS' ? 'bg-sky-500/10 text-sky-400' : 'bg-emerald-500/10 text-emerald-400'}`}>
+                        {acc.type}
+                      </span>
+                    </td>
+                    <td className="px-4 py-2.5 text-right text-sm font-data text-main">₹{acc.balance.toLocaleString('en-IN')}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'transactions' && (
+        <div className="theme-card overflow-hidden">
+          <div className="px-4 py-3 border-b border-main">
+            <h3 className="text-sm font-semibold text-main">Transactions ({bankingTransactions.length})</h3>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead><tr className="text-left text-xs text-dimmed border-b border-main">
+                <th className="px-4 py-2.5">Date</th>
+                <th className="px-4 py-2.5">Description</th>
+                <th className="px-4 py-2.5">Category</th>
+                <th className="px-4 py-2.5">Type</th>
+                <th className="px-4 py-2.5 text-right">Amount</th>
+              </tr></thead>
+              <tbody>
+                {bankingTransactions.map(tx => (
+                  <tr key={tx.id} className="border-b border-main hover:bg-surface/60 transition-colors">
+                    <td className="px-4 py-2.5 text-xs text-muted">{tx.date}</td>
+                    <td className="px-4 py-2.5 text-sm text-main">{tx.description}</td>
+                    <td className="px-4 py-2.5 text-xs text-muted">{tx.category}</td>
+                    <td className="px-4 py-2.5">
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${tx.type === 'CREDIT' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'}`}>
+                        {tx.type}
+                      </span>
+                    </td>
+                    <td className="px-4 py-2.5 text-right text-sm font-data font-bold">{tx.type === 'CREDIT' ? '+' : '-'}₹{Math.abs(tx.amount).toLocaleString('en-IN')}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'loans' && (
+        <div className="theme-card overflow-hidden">
+          <div className="px-4 py-3 border-b border-main">
+            <h3 className="text-sm font-semibold text-main">Loans ({bankingLoans.length})</h3>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead><tr className="text-left text-xs text-dimmed border-b border-main">
+                <th className="px-4 py-2.5">Loan No</th>
+                <th className="px-4 py-2.5">Type</th>
+                <th className="px-4 py-2.5">Lender</th>
+                <th className="px-4 py-2.5 text-right">Principal</th>
+                <th className="px-4 py-2.5 text-right">Outstanding</th>
+                <th className="px-4 py-2.5 text-right">EMI</th>
+                <th className="px-4 py-2.5">Next Due</th>
+                <th className="px-4 py-2.5">Status</th>
+              </tr></thead>
+              <tbody>
+                {bankingLoans.map(loan => (
+                  <tr key={loan.id} className="border-b border-main hover:bg-surface/60 transition-colors">
+                    <td className="px-4 py-2.5 text-xs font-mono text-indigo-400">{loan.loanNo}</td>
+                    <td className="px-4 py-2.5 text-xs text-muted">{loan.type}</td>
+                    <td className="px-4 py-2.5 text-sm text-main">{loan.lender}</td>
+                    <td className="px-4 py-2.5 text-right text-sm font-data text-main">₹{loan.principal.toLocaleString('en-IN')}</td>
+                    <td className="px-4 py-2.5 text-right text-sm font-data text-rose-400">₹{loan.outstanding.toLocaleString('en-IN')}</td>
+                    <td className="px-4 py-2.5 text-right text-sm font-data text-main">₹{loan.emi.toLocaleString('en-IN')}</td>
+                    <td className="px-4 py-2.5 text-xs text-muted">{loan.nextDue}</td>
+                    <td className="px-4 py-2.5">
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${loan.status === 'ACTIVE' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'}`}>
+                        {loan.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       <Modal isOpen={modal} onClose={() => setModal(false)} title="Post Bank Transaction">
         <div className="space-y-4">

@@ -1,10 +1,18 @@
 import React, { useState } from 'react';
-import { Plus, Check } from 'lucide-react';
+import { Plus, Check, FileText, Clock, Settings } from 'lucide-react';
 import { useERPStore } from '../store/useERPStore';
 import Modal from './ui/Modal';
 
 export default function PayrollModule() {
-  const { employees, payrolls, addPayrollEntry, processPayroll, addToast } = useERPStore();
+  const {
+    employees, payrolls, addPayrollEntry, processPayroll,
+    salaryStructures, addSalaryStructure,
+    payslips, generatePayslip,
+    attendanceLogs,
+    addToast
+  } = useERPStore();
+
+  const [activeTab, setActiveTab] = useState('payslips');
   const [modal, setModal] = useState(false);
   const [form, setForm] = useState({
     employeeId: '',
@@ -36,6 +44,12 @@ export default function PayrollModule() {
     setModal(false);
   };
 
+  const TABS = [
+    { id: 'payslips', label: 'Payslips', icon: FileText },
+    { id: 'structures', label: 'Salary Structures', icon: Settings },
+    { id: 'attendance', label: 'Time Tracking', icon: Clock }
+  ];
+
   const totalNetPay = payrolls.reduce((s, p) => s + (p.netPay || 0), 0);
   const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
@@ -64,56 +78,141 @@ export default function PayrollModule() {
         ))}
       </div>
 
-      <div className="theme-card overflow-hidden">
-        <div className="px-4 py-3 border-b border-main">
-          <h3 className="text-sm font-semibold text-main">Payslips ({payrolls.length})</h3>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="text-left text-xs text-dimmed border-b border-main">
-                <th className="px-4 py-2.5">Employee</th>
-                <th className="px-4 py-2.5">Period</th>
-                <th className="px-4 py-2.5 text-right">Gross</th>
-                <th className="px-4 py-2.5 text-right">PF</th>
-                <th className="px-4 py-2.5 text-right">ESI</th>
-                <th className="px-4 py-2.5 text-right">TDS</th>
-                <th className="px-4 py-2.5 text-right">Net Pay</th>
-                <th className="px-4 py-2.5">Status</th>
-                <th className="px-4 py-2.5">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {payrolls.map(p => (
-                <tr key={p.id} className="border-b border-main hover:bg-surface/60 transition-colors">
-                  <td className="px-4 py-2.5 text-sm text-main">{p.employeeName}</td>
-                  <td className="px-4 py-2.5 text-xs text-muted">{MONTHS[(p.month || 1) - 1]} {p.year}</td>
-                  <td className="px-4 py-2.5 text-right text-sm font-data text-main">₹{(p.baseSalary || 0).toLocaleString('en-IN')}</td>
-                  <td className="px-4 py-2.5 text-right text-xs font-data text-rose-400">-₹{(p.pfDeduction || 0).toLocaleString()}</td>
-                  <td className="px-4 py-2.5 text-right text-xs font-data text-rose-400">-₹{(p.esiDeduction || 0).toLocaleString()}</td>
-                  <td className="px-4 py-2.5 text-right text-xs font-data text-rose-400">-₹{(p.tdsDeduction || 0).toLocaleString()}</td>
-                  <td className="px-4 py-2.5 text-right text-sm font-data font-bold text-emerald-400">₹{(p.netPay || 0).toLocaleString('en-IN')}</td>
-                  <td className="px-4 py-2.5">
-                    <span className={`text-xs px-2 py-0.5 rounded-full ${p.status === 'PAID' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400'}`}>
-                      {p.status}
-                    </span>
-                  </td>
-                  <td className="px-4 py-2.5">
-                    {p.status === 'PENDING' && (
-                      <button
-                        onClick={() => { processPayroll(p.id); addToast('Payslip processed & paid', 'success'); }}
-                        className="text-xs text-emerald-400 hover:underline flex items-center gap-1"
-                      >
-                        <Check className="w-3 h-3" /> Pay
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+      {/* Tabs */}
+      <div className="flex gap-1 bg-surface p-1 rounded-xl w-fit border border-main">
+        {TABS.map(tab => {
+          const Icon = tab.icon;
+          return (
+            <button key={tab.id} onClick={() => setActiveTab(tab.id)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${activeTab === tab.id ? 'bg-indigo-600 text-white' : 'text-muted hover:text-main'}`}>
+              <Icon className="w-3.5 h-3.5" />{tab.label}
+            </button>
+          );
+        })}
       </div>
+
+      {activeTab === 'payslips' && (
+        <div className="theme-card overflow-hidden">
+          <div className="px-4 py-3 border-b border-main">
+            <h3 className="text-sm font-semibold text-main">Payslips ({payrolls.length})</h3>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="text-left text-xs text-dimmed border-b border-main">
+                  <th className="px-4 py-2.5">Employee</th>
+                  <th className="px-4 py-2.5">Period</th>
+                  <th className="px-4 py-2.5 text-right">Gross</th>
+                  <th className="px-4 py-2.5 text-right">PF</th>
+                  <th className="px-4 py-2.5 text-right">ESI</th>
+                  <th className="px-4 py-2.5 text-right">TDS</th>
+                  <th className="px-4 py-2.5 text-right">Net Pay</th>
+                  <th className="px-4 py-2.5">Status</th>
+                  <th className="px-4 py-2.5">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {payrolls.map(p => (
+                  <tr key={p.id} className="border-b border-main hover:bg-surface/60 transition-colors">
+                    <td className="px-4 py-2.5 text-sm text-main">{p.employeeName}</td>
+                    <td className="px-4 py-2.5 text-xs text-muted">{MONTHS[(p.month || 1) - 1]} {p.year}</td>
+                    <td className="px-4 py-2.5 text-right text-sm font-data text-main">₹{(p.baseSalary || 0).toLocaleString('en-IN')}</td>
+                    <td className="px-4 py-2.5 text-right text-xs font-data text-rose-400">-₹{(p.pfDeduction || 0).toLocaleString()}</td>
+                    <td className="px-4 py-2.5 text-right text-xs font-data text-rose-400">-₹{(p.esiDeduction || 0).toLocaleString()}</td>
+                    <td className="px-4 py-2.5 text-right text-xs font-data text-rose-400">-₹{(p.tdsDeduction || 0).toLocaleString()}</td>
+                    <td className="px-4 py-2.5 text-right text-sm font-data font-bold text-emerald-400">₹{(p.netPay || 0).toLocaleString('en-IN')}</td>
+                    <td className="px-4 py-2.5">
+                      <span className={`text-xs px-2 py-0.5 rounded-full ${p.status === 'PAID' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400'}`}>
+                        {p.status}
+                      </span>
+                    </td>
+                    <td className="px-4 py-2.5">
+                      {p.status === 'PENDING' && (
+                        <button
+                          onClick={() => { processPayroll(p.id); addToast('Payslip processed & paid', 'success'); }}
+                          className="text-xs text-emerald-400 hover:underline flex items-center gap-1"
+                        >
+                          <Check className="w-3 h-3" /> Pay
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'structures' && (
+        <div className="theme-card overflow-hidden">
+          <div className="px-4 py-3 border-b border-main">
+            <h3 className="text-sm font-semibold text-main">Salary Structures ({salaryStructures.length})</h3>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead><tr className="text-left text-xs text-dimmed border-b border-main">
+                <th className="px-4 py-2.5">Structure Name</th>
+                <th className="px-4 py-2.5 text-right">Basic Salary</th>
+                <th className="px-4 py-2.5 text-right">HRA %</th>
+                <th className="px-4 py-2.5 text-right">DA %</th>
+                <th className="px-4 py-2.5 text-right">PF %</th>
+                <th className="px-4 py-2.5">Tax Bracket</th>
+              </tr></thead>
+              <tbody>
+                {salaryStructures.map(struct => (
+                  <tr key={struct.id} className="border-b border-main hover:bg-surface/60 transition-colors">
+                    <td className="px-4 py-2.5 text-sm text-main">{struct.name}</td>
+                    <td className="px-4 py-2.5 text-right text-sm font-data text-main">₹{struct.basicSalary.toLocaleString('en-IN')}</td>
+                    <td className="px-4 py-2.5 text-right text-sm font-data text-main">{struct.hraPercentage}%</td>
+                    <td className="px-4 py-2.5 text-right text-sm font-data text-main">{struct.daPercentage}%</td>
+                    <td className="px-4 py-2.5 text-right text-sm font-data text-main">{struct.pfPercentage}%</td>
+                    <td className="px-4 py-2.5 text-xs text-muted">{struct.taxBracket}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'attendance' && (
+        <div className="theme-card overflow-hidden">
+          <div className="px-4 py-3 border-b border-main">
+            <h3 className="text-sm font-semibold text-main">Time Tracking ({attendanceLogs.length})</h3>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead><tr className="text-left text-xs text-dimmed border-b border-main">
+                <th className="px-4 py-2.5">Employee</th>
+                <th className="px-4 py-2.5">Date</th>
+                <th className="px-4 py-2.5">Clock In</th>
+                <th className="px-4 py-2.5">Clock Out</th>
+                <th className="px-4 py-2.5 text-right">Hours</th>
+                <th className="px-4 py-2.5 text-right">Overtime</th>
+                <th className="px-4 py-2.5">Status</th>
+              </tr></thead>
+              <tbody>
+                {attendanceLogs.map(log => (
+                  <tr key={log.id} className="border-b border-main hover:bg-surface/60 transition-colors">
+                    <td className="px-4 py-2.5 text-sm text-main">{log.employeeName}</td>
+                    <td className="px-4 py-2.5 text-xs text-muted">{log.date}</td>
+                    <td className="px-4 py-2.5 text-xs text-muted">{log.clockIn || '—'}</td>
+                    <td className="px-4 py-2.5 text-xs text-muted">{log.clockOut || '—'}</td>
+                    <td className="px-4 py-2.5 text-right text-sm font-data text-main">{log.hours}</td>
+                    <td className="px-4 py-2.5 text-right text-sm font-data text-main">{log.overtime}</td>
+                    <td className="px-4 py-2.5">
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${log.status === 'PRESENT' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'}`}>
+                        {log.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       <Modal isOpen={modal} onClose={() => setModal(false)} title="Generate Payslip">
         <div className="space-y-4">

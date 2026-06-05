@@ -1,29 +1,35 @@
 import React, { useState } from 'react';
-import { Leaf, Plus, Zap, Droplets, Recycle } from 'lucide-react';
+import { Leaf, Plus, Zap, Droplets, Recycle, FileText, BarChart3 } from 'lucide-react';
 import { useERPStore } from '../store/useERPStore';
 import Modal from './ui/Modal';
 
 export default function SustainabilityModule() {
-  const { sustainabilityMetrics, sustainabilityOffsets, purchaseCarbonOffset, addToast } = useERPStore();
+  const {
+    carbonFootprints, addCarbonFootprint,
+    esgReports, addESGReport,
+    energyConsumption, addEnergyConsumption,
+    wasteManagement, addWasteManagement,
+    addToast
+  } = useERPStore();
+  const [activeTab, setActiveTab] = useState('carbon');
   const [modal, setModal] = useState(false);
-  const [form, setForm] = useState({ project: '', credits: 0, cost: 0 });
+  const [form, setForm] = useState({ category: '', scope: '', value: 0, unit: '', period: '', target: 0 });
 
-  const handlePurchase = () => {
-    if (!form.project || !form.credits) return addToast('Project and credits required', 'error');
-    purchaseCarbonOffset({ ...form, credits: parseInt(form.credits), cost: parseFloat(form.cost) });
-    addToast(`Carbon offset purchased: ${form.credits} credits`, 'success');
+  const handleAdd = () => {
+    if (!form.category || !form.value) return addToast('Category and value required', 'error');
+    if (activeTab === 'carbon') addCarbonFootprint({ ...form, value: parseFloat(form.value), target: parseFloat(form.target) });
+    else if (activeTab === 'energy') addEnergyConsumption({ ...form, consumption: parseFloat(form.value), cost: parseFloat(form.target) });
+    else if (activeTab === 'waste') addWasteManagement({ ...form, amount: parseFloat(form.value), recycled: parseFloat(form.target) });
+    addToast('Record added successfully', 'success');
     setModal(false);
-    setForm({ project: '', credits: 0, cost: 0 });
+    setForm({ category: '', scope: '', value: 0, unit: '', period: '', target: 0 });
   };
 
-  const metrics = sustainabilityMetrics || {};
-  const totalOffsetCredits = sustainabilityOffsets.reduce((s, o) => s + (o.credits || 0), 0);
-
-  const INDICATORS = [
-    { label: 'Carbon Footprint', value: `${metrics.carbonFootprint || 0} tCO₂`, target: `Target: ${metrics.target?.carbonFootprint || 0} tCO₂`, color: 'text-rose-400', pct: metrics.target?.carbonFootprint ? Math.round(((metrics.target.carbonFootprint) / (metrics.carbonFootprint || 1)) * 100) : 80, barColor: 'bg-rose-500' },
-    { label: 'Renewable Energy', value: `${metrics.renewableEnergy || 0}%`, target: `Target: ${metrics.target?.renewableEnergy || 0}%`, color: 'text-emerald-400', pct: metrics.target?.renewableEnergy ? Math.round((metrics.renewableEnergy / metrics.target.renewableEnergy) * 100) : 63, barColor: 'bg-emerald-500' },
-    { label: 'Waste Recycled', value: `${metrics.wasteRecycled || 0}%`, target: `Target: ${metrics.target?.wasteRecycled || 0}%`, color: 'text-sky-400', pct: metrics.target?.wasteRecycled ? Math.round((metrics.wasteRecycled / metrics.target.wasteRecycled) * 100) : 85, barColor: 'bg-sky-500' },
-    { label: 'Carbon Offsets', value: `${totalOffsetCredits} credits`, target: 'Total purchased', color: 'text-violet-400', pct: 100, barColor: 'bg-violet-500' }
+  const TABS = [
+    { id: 'carbon', label: 'Carbon Footprint', icon: Leaf },
+    { id: 'esg', label: 'ESG Reports', icon: FileText },
+    { id: 'energy', label: 'Energy', icon: Zap },
+    { id: 'waste', label: 'Waste', icon: Recycle }
   ];
 
   return (
@@ -36,54 +42,176 @@ export default function SustainabilityModule() {
         <button onClick={() => setModal(true)} className="btn-primary text-sm flex items-center gap-1.5"><Plus className="w-4 h-4" /> Purchase Offset</button>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        {INDICATORS.map(ind => (
-          <div key={ind.label} className="theme-card p-4">
-            <p className="text-xs text-dimmed">{ind.label}</p>
-            <p className={`text-xl font-bold mt-1 font-data ${ind.color}`}>{ind.value}</p>
-            <p className="text-[10px] text-dimmed mt-0.5">{ind.target}</p>
-            <div className="h-1.5 bg-surface rounded-full mt-2 border border-main/20">
-              <div className={`h-full ${ind.barColor} rounded-full transition-all`} style={{ width: `${Math.min(ind.pct, 100)}%` }} />
-            </div>
+      {/* Stats */}
+      <div className="grid grid-cols-4 gap-3">
+        {[
+          { label: 'Carbon Records', value: carbonFootprints.length, color: 'text-rose-400' },
+          { label: 'ESG Reports', value: esgReports.length, color: 'text-emerald-400' },
+          { label: 'Energy Records', value: energyConsumption.length, color: 'text-sky-400' },
+          { label: 'Waste Records', value: wasteManagement.length, color: 'text-amber-400' },
+        ].map(s => (
+          <div key={s.label} className="theme-card p-4">
+            <p className="text-xs text-dimmed">{s.label}</p>
+            <p className={`text-xl font-bold mt-1 font-data ${s.color}`}>{s.value}</p>
           </div>
         ))}
       </div>
 
-      <div className="theme-card overflow-hidden">
-        <div className="flex items-center justify-between px-4 py-3 border-b border-main bg-surface/30">
-          <h3 className="text-sm font-semibold text-main">Carbon Offset Projects</h3>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead><tr className="text-left text-xs text-dimmed border-b border-main bg-surface/10">
-              <th className="px-4 py-2.5 font-semibold">Project</th><th className="px-4 py-2.5 text-right font-semibold">Credits</th>
-              <th className="px-4 py-2.5 text-right font-semibold">Cost</th><th className="px-4 py-2.5 font-semibold">Date</th><th className="px-4 py-2.5 font-semibold">Status</th>
-            </tr></thead>
-            <tbody>
-              {sustainabilityOffsets.map(o => (
-                <tr key={o.id} className="border-b border-main hover:bg-surface/40 transition-colors">
-                  <td className="px-4 py-2.5 text-sm text-main">{o.project}</td>
-                  <td className="px-4 py-2.5 text-right text-sm font-data text-emerald-400">{o.credits} tCO₂</td>
-                  <td className="px-4 py-2.5 text-right text-sm font-data text-main">₹{(o.cost || 0).toLocaleString('en-IN')}</td>
-                  <td className="px-4 py-2.5 text-xs text-muted">{o.date}</td>
-                  <td className="px-4 py-2.5"><span className="text-xs bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded-full font-medium">{o.status}</span></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+      {/* Tabs */}
+      <div className="flex gap-1 bg-surface p-1 rounded-xl w-fit border border-main">
+        {TABS.map(tab => {
+          const Icon = tab.icon;
+          return (
+            <button key={tab.id} onClick={() => setActiveTab(tab.id)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${activeTab === tab.id ? 'bg-indigo-600 text-white' : 'text-muted hover:text-main'}`}>
+              <Icon className="w-3.5 h-3.5" />{tab.label}
+            </button>
+          );
+        })}
       </div>
 
-      <Modal isOpen={modal} onClose={() => setModal(false)} title="Purchase Carbon Offset">
+      {activeTab === 'carbon' && (
+        <div className="theme-card overflow-hidden">
+          <div className="px-4 py-3 border-b border-main">
+            <h3 className="text-sm font-semibold text-main">Carbon Footprint ({carbonFootprints.length})</h3>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead><tr className="text-left text-xs text-dimmed border-b border-main">
+                <th className="px-4 py-2.5">Category</th>
+                <th className="px-4 py-2.5">Scope</th>
+                <th className="px-4 py-2.5 text-right">Value</th>
+                <th className="px-4 py-2.5">Unit</th>
+                <th className="px-4 py-2.5">Period</th>
+                <th className="px-4 py-2.5 text-right">Target</th>
+              </tr></thead>
+              <tbody>
+                {carbonFootprints.map(cf => (
+                  <tr key={cf.id} className="border-b border-main hover:bg-surface/60 transition-colors">
+                    <td className="px-4 py-2.5 text-sm text-main">{cf.category}</td>
+                    <td className="px-4 py-2.5 text-xs text-muted">{cf.scope}</td>
+                    <td className="px-4 py-2.5 text-right text-sm font-data text-main">{cf.value}</td>
+                    <td className="px-4 py-2.5 text-xs text-muted">{cf.unit}</td>
+                    <td className="px-4 py-2.5 text-xs text-muted">{cf.period}</td>
+                    <td className="px-4 py-2.5 text-right text-sm font-data text-muted">{cf.target}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'esg' && (
+        <div className="theme-card overflow-hidden">
+          <div className="px-4 py-3 border-b border-main">
+            <h3 className="text-sm font-semibold text-main">ESG Reports ({esgReports.length})</h3>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead><tr className="text-left text-xs text-dimmed border-b border-main">
+                <th className="px-4 py-2.5">Report Type</th>
+                <th className="px-4 py-2.5">Period</th>
+                <th className="px-4 py-2.5">Status</th>
+                <th className="px-4 py-2.5">Published Date</th>
+                <th className="px-4 py-2.5 text-right">Score</th>
+              </tr></thead>
+              <tbody>
+                {esgReports.map(report => (
+                  <tr key={report.id} className="border-b border-main hover:bg-surface/60 transition-colors">
+                    <td className="px-4 py-2.5 text-sm text-main">{report.reportType}</td>
+                    <td className="px-4 py-2.5 text-xs text-muted">{report.period}</td>
+                    <td className="px-4 py-2.5">
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${report.status === 'PUBLISHED' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400'}`}>
+                        {report.status}
+                      </span>
+                    </td>
+                    <td className="px-4 py-2.5 text-xs text-muted">{report.publishedDate || '—'}</td>
+                    <td className="px-4 py-2.5 text-right text-sm font-data text-main">{report.score || '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'energy' && (
+        <div className="theme-card overflow-hidden">
+          <div className="px-4 py-3 border-b border-main">
+            <h3 className="text-sm font-semibold text-main">Energy Consumption ({energyConsumption.length})</h3>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead><tr className="text-left text-xs text-dimmed border-b border-main">
+                <th className="px-4 py-2.5">Facility</th>
+                <th className="px-4 py-2.5">Type</th>
+                <th className="px-4 py-2.5 text-right">Consumption</th>
+                <th className="px-4 py-2.5">Unit</th>
+                <th className="px-4 py-2.5 text-right">Cost</th>
+                <th className="px-4 py-2.5 text-right">Efficiency</th>
+              </tr></thead>
+              <tbody>
+                {energyConsumption.map(energy => (
+                  <tr key={energy.id} className="border-b border-main hover:bg-surface/60 transition-colors">
+                    <td className="px-4 py-2.5 text-sm text-main">{energy.facility}</td>
+                    <td className="px-4 py-2.5 text-xs text-muted">{energy.type}</td>
+                    <td className="px-4 py-2.5 text-right text-sm font-data text-main">{energy.consumption}</td>
+                    <td className="px-4 py-2.5 text-xs text-muted">{energy.unit}</td>
+                    <td className="px-4 py-2.5 text-right text-sm font-data text-main">₹{energy.cost.toLocaleString('en-IN')}</td>
+                    <td className="px-4 py-2.5 text-right text-sm font-data text-main">{energy.efficiency}%</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'waste' && (
+        <div className="theme-card overflow-hidden">
+          <div className="px-4 py-3 border-b border-main">
+            <h3 className="text-sm font-semibold text-main">Waste Management ({wasteManagement.length})</h3>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead><tr className="text-left text-xs text-dimmed border-b border-main">
+                <th className="px-4 py-2.5">Type</th>
+                <th className="px-4 py-2.5 text-right">Amount</th>
+                <th className="px-4 py-2.5">Unit</th>
+                <th className="px-4 py-2.5 text-right">Recycled</th>
+                <th className="px-4 py-2.5">Disposal Method</th>
+              </tr></thead>
+              <tbody>
+                {wasteManagement.map(waste => (
+                  <tr key={waste.id} className="border-b border-main hover:bg-surface/60 transition-colors">
+                    <td className="px-4 py-2.5 text-sm text-main">{waste.type}</td>
+                    <td className="px-4 py-2.5 text-right text-sm font-data text-main">{waste.amount}</td>
+                    <td className="px-4 py-2.5 text-xs text-muted">{waste.unit}</td>
+                    <td className="px-4 py-2.5 text-right text-sm font-data text-emerald-400">{waste.recycled}</td>
+                    <td className="px-4 py-2.5 text-xs text-muted">{waste.disposalMethod}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      <Modal isOpen={modal} onClose={() => setModal(false)} title="Add Sustainability Record">
         <div className="space-y-4">
-          <div><label className="form-label">Project Name</label><input className="form-input w-full" value={form.project} onChange={e => setForm({...form, project: e.target.value})} placeholder="e.g. Solar Farm Initiative" /></div>
+          <div><label className="form-label">Category / Facility / Type</label><input className="form-input" value={form.category} onChange={e => setForm({...form, category: e.target.value})} /></div>
           <div className="grid grid-cols-2 gap-3">
-            <div><label className="form-label">Credits (tCO₂)</label><input type="number" className="form-input w-full" value={form.credits} onChange={e => setForm({...form, credits: e.target.value})} /></div>
-            <div><label className="form-label">Cost (₹)</label><input type="number" className="form-input w-full" value={form.cost} onChange={e => setForm({...form, cost: e.target.value})} /></div>
+            <div><label className="form-label">Scope / Period</label><input className="form-input" value={form.scope || form.period} onChange={e => setForm({...form, scope: e.target.value, period: e.target.value})} /></div>
+            <div><label className="form-label">Value / Consumption / Amount</label><input type="number" className="form-input" value={form.value} onChange={e => setForm({...form, value: e.target.value})} /></div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div><label className="form-label">Unit</label><input className="form-input" value={form.unit} onChange={e => setForm({...form, unit: e.target.value})} /></div>
+            <div><label className="form-label">Target / Cost / Recycled</label><input type="number" className="form-input" value={form.target} onChange={e => setForm({...form, target: e.target.value})} /></div>
           </div>
           <div className="flex gap-2 justify-end pt-2">
             <button onClick={() => setModal(false)} className="btn-secondary text-sm">Cancel</button>
-            <button onClick={handlePurchase} className="btn-primary text-sm">Purchase</button>
+            <button onClick={handleAdd} className="btn-primary text-sm">Add Record</button>
           </div>
         </div>
       </Modal>

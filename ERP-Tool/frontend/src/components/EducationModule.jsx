@@ -1,34 +1,34 @@
 import React, { useState } from 'react';
-import { Plus } from 'lucide-react';
+import { Plus, Users, BookOpen, FileCheck, Calendar } from 'lucide-react';
 import { useERPStore } from '../store/useERPStore';
 import Modal from './ui/Modal';
 
 export default function EducationModule() {
-  const { educationStudents, admitStudent, addToast } = useERPStore();
+  const {
+    students, addStudent,
+    courses, addCourse,
+    grades, addGrade,
+    studentAttendance, addStudentAttendance,
+    addToast
+  } = useERPStore();
+  const [activeTab, setActiveTab] = useState('students');
   const [modal, setModal] = useState(false);
-  const [form, setForm] = useState({ name: '', grade: '', fees: 'PENDING' });
-  const [search, setSearch] = useState('');
+  const [form, setForm] = useState({ name: '', rollNo: '', grade: '', section: '', dob: '', guardian: '', contact: '', email: '' });
 
-  const handleAdmit = () => {
-    if (!form.name || !form.grade) return addToast('Name and grade required', 'error');
-    admitStudent({ ...form, gpa: 0, attendance: 0 });
-    addToast(`${form.name} enrolled successfully`, 'success');
-    setForm({ name: '', grade: '', fees: 'PENDING' });
+  const handleAddStudent = () => {
+    if (!form.name || !form.rollNo) return addToast('Name and roll number required', 'error');
+    addStudent(form);
+    addToast('Student enrolled successfully', 'success');
     setModal(false);
+    setForm({ name: '', rollNo: '', grade: '', section: '', dob: '', guardian: '', contact: '', email: '' });
   };
 
-  const filtered = educationStudents.filter(s =>
-    s.name?.toLowerCase().includes(search.toLowerCase()) ||
-    s.grade?.toLowerCase().includes(search.toLowerCase())
-  );
-
-  const avgGpa = educationStudents.length > 0
-    ? (educationStudents.reduce((s, st) => s + (st.gpa || 0), 0) / educationStudents.length).toFixed(2)
-    : 0;
-
-  const avgAttendance = educationStudents.length > 0
-    ? Math.round(educationStudents.reduce((s, st) => s + (st.attendance || 0), 0) / educationStudents.length)
-    : 0;
+  const TABS = [
+    { id: 'students', label: 'Students', icon: Users },
+    { id: 'courses', label: 'Courses', icon: BookOpen },
+    { id: 'grades', label: 'Grades', icon: FileCheck },
+    { id: 'attendance', label: 'Attendance', icon: Calendar }
+  ];
 
   return (
     <div className="p-6 space-y-6">
@@ -42,12 +42,13 @@ export default function EducationModule() {
         </button>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      {/* Stats */}
+      <div className="grid grid-cols-4 gap-3">
         {[
-          { label: 'Total Students', value: educationStudents.length, color: 'text-indigo-400' },
-          { label: 'Avg GPA', value: avgGpa, color: 'text-emerald-400' },
-          { label: 'Avg Attendance', value: `${avgAttendance}%`, color: 'text-sky-400' },
-          { label: 'Fees Pending', value: educationStudents.filter(s => s.fees === 'PENDING').length, color: 'text-amber-400' },
+          { label: 'Total Students', value: students.length, color: 'text-indigo-400' },
+          { label: 'Courses', value: courses.length, color: 'text-sky-400' },
+          { label: 'Grades Recorded', value: grades.length, color: 'text-emerald-400' },
+          { label: 'Attendance Records', value: studentAttendance.length, color: 'text-amber-400' },
         ].map(s => (
           <div key={s.label} className="theme-card p-4">
             <p className="text-xs text-dimmed">{s.label}</p>
@@ -56,78 +57,168 @@ export default function EducationModule() {
         ))}
       </div>
 
-      <div className="theme-card overflow-hidden">
-        <div className="flex items-center justify-between px-4 py-3 border-b border-main">
-          <h3 className="text-sm font-semibold text-main">Student Directory ({filtered.length})</h3>
-          <input
-            type="text"
-            placeholder="Search..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            className="form-input text-xs w-40 py-1.5"
-          />
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="text-left text-xs text-dimmed border-b border-main">
-                <th className="px-4 py-2.5">Student</th>
-                <th className="px-4 py-2.5">ID</th>
-                <th className="px-4 py-2.5">Grade</th>
-                <th className="px-4 py-2.5 text-right">GPA</th>
-                <th className="px-4 py-2.5 text-right">Attendance</th>
-                <th className="px-4 py-2.5">Fees</th>
-                <th className="px-4 py-2.5">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map(s => (
-                <tr key={s.id} className="border-b border-main hover:bg-surface/60 transition-colors">
-                  <td className="px-4 py-2.5 text-sm text-main font-medium">{s.name}</td>
-                  <td className="px-4 py-2.5 text-xs font-mono text-dimmed">{s.studentId}</td>
-                  <td className="px-4 py-2.5 text-sm text-muted">{s.grade}</td>
-                  <td className="px-4 py-2.5 text-right">
-                    <span className={`text-sm font-data font-bold ${
-                      s.gpa >= 8 ? 'text-emerald-400' : s.gpa >= 6 ? 'text-amber-400' : 'text-rose-400'
-                    }`}>{s.gpa}</span>
-                  </td>
-                  <td className="px-4 py-2.5 text-right">
-                    <span className={`text-sm font-data ${
-                      s.attendance >= 85 ? 'text-emerald-400' : s.attendance >= 70 ? 'text-amber-400' : 'text-rose-400'
-                    }`}>{s.attendance}%</span>
-                  </td>
-                  <td className="px-4 py-2.5">
-                    <span className={`text-xs px-2 py-0.5 rounded-full ${
-                      s.fees === 'PAID' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400'
-                    }`}>{s.fees}</span>
-                  </td>
-                  <td className="px-4 py-2.5">
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-sky-500/10 text-sky-400">{s.status}</span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+      {/* Tabs */}
+      <div className="flex gap-1 bg-surface p-1 rounded-xl w-fit border border-main">
+        {TABS.map(tab => {
+          const Icon = tab.icon;
+          return (
+            <button key={tab.id} onClick={() => setActiveTab(tab.id)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${activeTab === tab.id ? 'bg-indigo-600 text-white' : 'text-muted hover:text-main'}`}>
+              <Icon className="w-3.5 h-3.5" />{tab.label}
+            </button>
+          );
+        })}
       </div>
+
+      {activeTab === 'students' && (
+        <div className="theme-card overflow-hidden">
+          <div className="px-4 py-3 border-b border-main">
+            <h3 className="text-sm font-semibold text-main">Students ({students.length})</h3>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead><tr className="text-left text-xs text-dimmed border-b border-main">
+                <th className="px-4 py-2.5">Name</th>
+                <th className="px-4 py-2.5">Roll No</th>
+                <th className="px-4 py-2.5">Grade</th>
+                <th className="px-4 py-2.5">Section</th>
+                <th className="px-4 py-2.5">Guardian</th>
+                <th className="px-4 py-2.5">Contact</th>
+              </tr></thead>
+              <tbody>
+                {students.map(student => (
+                  <tr key={student.id} className="border-b border-main hover:bg-surface/60 transition-colors">
+                    <td className="px-4 py-2.5 text-sm text-main">{student.name}</td>
+                    <td className="px-4 py-2.5 text-xs font-mono text-indigo-400">{student.rollNo}</td>
+                    <td className="px-4 py-2.5 text-xs text-muted">{student.grade}</td>
+                    <td className="px-4 py-2.5 text-xs text-muted">{student.section}</td>
+                    <td className="px-4 py-2.5 text-xs text-muted">{student.guardian}</td>
+                    <td className="px-4 py-2.5 text-xs text-muted">{student.contact}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'courses' && (
+        <div className="theme-card overflow-hidden">
+          <div className="px-4 py-3 border-b border-main">
+            <h3 className="text-sm font-semibold text-main">Courses ({courses.length})</h3>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead><tr className="text-left text-xs text-dimmed border-b border-main">
+                <th className="px-4 py-2.5">Code</th>
+                <th className="px-4 py-2.5">Name</th>
+                <th className="px-4 py-2.5">Grade</th>
+                <th className="px-4 py-2.5 text-right">Credits</th>
+                <th className="px-4 py-2.5">Teacher</th>
+                <th className="px-4 py-2.5">Schedule</th>
+              </tr></thead>
+              <tbody>
+                {courses.map(course => (
+                  <tr key={course.id} className="border-b border-main hover:bg-surface/60 transition-colors">
+                    <td className="px-4 py-2.5 text-xs font-mono text-indigo-400">{course.code}</td>
+                    <td className="px-4 py-2.5 text-sm text-main">{course.name}</td>
+                    <td className="px-4 py-2.5 text-xs text-muted">{course.grade}</td>
+                    <td className="px-4 py-2.5 text-right text-sm font-data text-main">{course.credits}</td>
+                    <td className="px-4 py-2.5 text-xs text-muted">{course.teacher}</td>
+                    <td className="px-4 py-2.5 text-xs text-muted">{course.schedule}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'grades' && (
+        <div className="theme-card overflow-hidden">
+          <div className="px-4 py-3 border-b border-main">
+            <h3 className="text-sm font-semibold text-main">Grades ({grades.length})</h3>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead><tr className="text-left text-xs text-dimmed border-b border-main">
+                <th className="px-4 py-2.5">Student</th>
+                <th className="px-4 py-2.5">Course</th>
+                <th className="px-4 py-2.5 text-right">Midterm</th>
+                <th className="px-4 py-2.5 text-right">Final</th>
+                <th className="px-4 py-2.5">Grade</th>
+                <th className="px-4 py-2.5">Semester</th>
+              </tr></thead>
+              <tbody>
+                {grades.map(grade => (
+                  <tr key={grade.id} className="border-b border-main hover:bg-surface/60 transition-colors">
+                    <td className="px-4 py-2.5 text-sm text-main">{grade.studentName}</td>
+                    <td className="px-4 py-2.5 text-xs text-muted">{grade.courseName}</td>
+                    <td className="px-4 py-2.5 text-right text-sm font-data text-main">{grade.midterm}</td>
+                    <td className="px-4 py-2.5 text-right text-sm font-data text-main">{grade.final}</td>
+                    <td className="px-4 py-2.5">
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${grade.grade.startsWith('A') ? 'bg-emerald-500/10 text-emerald-400' : grade.grade.startsWith('B') ? 'bg-sky-500/10 text-sky-400' : 'bg-amber-500/10 text-amber-400'}`}>
+                        {grade.grade}
+                      </span>
+                    </td>
+                    <td className="px-4 py-2.5 text-xs text-muted">{grade.semester}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'attendance' && (
+        <div className="theme-card overflow-hidden">
+          <div className="px-4 py-3 border-b border-main">
+            <h3 className="text-sm font-semibold text-main">Attendance ({studentAttendance.length})</h3>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead><tr className="text-left text-xs text-dimmed border-b border-main">
+                <th className="px-4 py-2.5">Student</th>
+                <th className="px-4 py-2.5">Date</th>
+                <th className="px-4 py-2.5">Status</th>
+              </tr></thead>
+              <tbody>
+                {studentAttendance.map(att => (
+                  <tr key={att.id} className="border-b border-main hover:bg-surface/60 transition-colors">
+                    <td className="px-4 py-2.5 text-sm text-main">{att.studentName}</td>
+                    <td className="px-4 py-2.5 text-xs text-muted">{att.date}</td>
+                    <td className="px-4 py-2.5">
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${att.status === 'PRESENT' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'}`}>
+                        {att.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       <Modal isOpen={modal} onClose={() => setModal(false)} title="Enroll New Student">
         <div className="space-y-4">
-          <div><label className="form-label">Full Name</label>
-            <input className="form-input" value={form.name} onChange={e => setForm({...form, name: e.target.value})} />
+          <div><label className="form-label">Full Name</label><input className="form-input" value={form.name} onChange={e => setForm({...form, name: e.target.value})} /></div>
+          <div className="grid grid-cols-2 gap-3">
+            <div><label className="form-label">Roll Number</label><input className="form-input" value={form.rollNo} onChange={e => setForm({...form, rollNo: e.target.value})} /></div>
+            <div><label className="form-label">Grade</label><input className="form-input" value={form.grade} onChange={e => setForm({...form, grade: e.target.value})} placeholder="e.g. 10th" /></div>
           </div>
-          <div><label className="form-label">Grade / Class</label>
-            <input className="form-input" value={form.grade} onChange={e => setForm({...form, grade: e.target.value})} placeholder="e.g. 10-A" />
+          <div className="grid grid-cols-2 gap-3">
+            <div><label className="form-label">Section</label><input className="form-input" value={form.section} onChange={e => setForm({...form, section: e.target.value})} placeholder="e.g. A" /></div>
+            <div><label className="form-label">Date of Birth</label><input type="date" className="form-input" value={form.dob} onChange={e => setForm({...form, dob: e.target.value})} /></div>
           </div>
-          <div><label className="form-label">Fees Status</label>
-            <select className="form-input" value={form.fees} onChange={e => setForm({...form, fees: e.target.value})}>
-              <option value="PENDING">Pending</option>
-              <option value="PAID">Paid</option>
-            </select>
+          <div><label className="form-label">Guardian Name</label><input className="form-input" value={form.guardian} onChange={e => setForm({...form, guardian: e.target.value})} /></div>
+          <div className="grid grid-cols-2 gap-3">
+            <div><label className="form-label">Contact</label><input className="form-input" value={form.contact} onChange={e => setForm({...form, contact: e.target.value})} /></div>
+            <div><label className="form-label">Email</label><input className="form-input" value={form.email} onChange={e => setForm({...form, email: e.target.value})} /></div>
           </div>
           <div className="flex gap-2 justify-end pt-2">
             <button onClick={() => setModal(false)} className="btn-secondary text-sm">Cancel</button>
-            <button onClick={handleAdmit} className="btn-primary text-sm">Enroll</button>
+            <button onClick={handleAddStudent} className="btn-primary text-sm">Enroll</button>
           </div>
         </div>
       </Modal>

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, Handshake } from 'lucide-react';
+import { Plus, Handshake, TrendingUp, Target, Activity } from 'lucide-react';
 import { useERPStore } from '../store/useERPStore';
 import Modal from './ui/Modal';
 
@@ -14,7 +14,15 @@ const STAGE_COLORS = {
 };
 
 export default function CRMModule() {
-  const { leads, addLead, updateLeadStage, customers, addCustomer, addToast } = useERPStore();
+  const {
+    leads, addLead, updateLeadStage,
+    customers, addCustomer,
+    salesForecast, addSalesForecast,
+    opportunities, addOpportunity, updateOpportunityStage,
+    activities, addActivity,
+    addToast
+  } = useERPStore();
+
   const [activeTab, setActiveTab] = useState('pipeline');
   const [leadModal, setLeadModal] = useState(false);
   const [newLead, setNewLead] = useState({ name: '', company: '', email: '', phone: '', source: 'Website', value: 0 });
@@ -30,6 +38,14 @@ export default function CRMModule() {
     setNewLead({ name: '', company: '', email: '', phone: '', source: 'Website', value: 0 });
     setLeadModal(false);
   };
+
+  const TABS = [
+    { id: 'pipeline', label: 'Lead Pipeline', icon: Handshake },
+    { id: 'customers', label: 'Customers', icon: Handshake },
+    { id: 'forecast', label: 'Sales Forecast', icon: TrendingUp },
+    { id: 'opportunities', label: 'Opportunities', icon: Target },
+    { id: 'activities', label: 'Activities', icon: Activity }
+  ];
 
   return (
     <div className="p-6 space-y-6">
@@ -57,18 +73,17 @@ export default function CRMModule() {
         ))}
       </div>
 
+      {/* Tabs */}
       <div className="flex gap-1 bg-surface p-1 rounded-xl w-fit border border-main">
-        {['pipeline', 'customers'].map(tab => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium capitalize transition-all ${
-              activeTab === tab ? 'bg-indigo-600 text-white' : 'text-muted hover:text-main'
-            }`}
-          >
-            {tab}
-          </button>
-        ))}
+        {TABS.map(tab => {
+          const Icon = tab.icon;
+          return (
+            <button key={tab.id} onClick={() => setActiveTab(tab.id)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${activeTab === tab.id ? 'bg-indigo-600 text-white' : 'text-muted hover:text-main'}`}>
+              <Icon className="w-3.5 h-3.5" />{tab.label}
+            </button>
+          );
+        })}
       </div>
 
       {activeTab === 'pipeline' && (
@@ -144,6 +159,116 @@ export default function CRMModule() {
                     <td className="px-4 py-2.5">
                       <span className={`text-xs px-2 py-0.5 rounded-full ${c.isReturning ? 'bg-emerald-500/10 text-emerald-400' : 'bg-sky-500/10 text-sky-400'}`}>
                         {c.isReturning ? 'Returning' : 'New'}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'forecast' && (
+        <div className="theme-card overflow-hidden">
+          <div className="px-4 py-3 border-b border-main">
+            <h3 className="text-sm font-semibold text-main">Sales Forecast ({salesForecast.length})</h3>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead><tr className="text-left text-xs text-dimmed border-b border-main">
+                <th className="px-4 py-2.5">Period</th>
+                <th className="px-4 py-2.5 text-right">Target</th>
+                <th className="px-4 py-2.5 text-right">Projected</th>
+                <th className="px-4 py-2.5 text-right">Confidence %</th>
+                <th className="px-4 py-2.5">Status</th>
+              </tr></thead>
+              <tbody>
+                {salesForecast.map(forecast => (
+                  <tr key={forecast.id} className="border-b border-main hover:bg-surface/60 transition-colors">
+                    <td className="px-4 py-2.5 text-sm text-main">{forecast.period}</td>
+                    <td className="px-4 py-2.5 text-right text-sm font-data text-main">₹{forecast.target.toLocaleString('en-IN')}</td>
+                    <td className="px-4 py-2.5 text-right text-sm font-data text-main">₹{forecast.projected.toLocaleString('en-IN')}</td>
+                    <td className="px-4 py-2.5 text-right text-sm font-data text-main">{forecast.confidence}%</td>
+                    <td className="px-4 py-2.5">
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${forecast.status === 'ON_TRACK' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400'}`}>
+                        {forecast.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'opportunities' && (
+        <div className="theme-card overflow-hidden">
+          <div className="px-4 py-3 border-b border-main">
+            <h3 className="text-sm font-semibold text-main">Opportunities ({opportunities.length})</h3>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead><tr className="text-left text-xs text-dimmed border-b border-main">
+                <th className="px-4 py-2.5">Opportunity</th>
+                <th className="px-4 py-2.5">Customer</th>
+                <th className="px-4 py-2.5 text-right">Value</th>
+                <th className="px-4 py-2.5">Stage</th>
+                <th className="px-4 py-2.5 text-right">Probability %</th>
+                <th className="px-4 py-2.5">Expected Close</th>
+              </tr></thead>
+              <tbody>
+                {opportunities.map(opp => (
+                  <tr key={opp.id} className="border-b border-main hover:bg-surface/60 transition-colors">
+                    <td className="px-4 py-2.5 text-sm text-main">{opp.name}</td>
+                    <td className="px-4 py-2.5 text-xs text-muted">{opp.customerName}</td>
+                    <td className="px-4 py-2.5 text-right text-sm font-data text-main">₹{opp.value.toLocaleString('en-IN')}</td>
+                    <td className="px-4 py-2.5">
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${opp.stage === 'WON' ? 'bg-emerald-500/10 text-emerald-400' : opp.stage === 'LOST' ? 'bg-rose-500/10 text-rose-400' : 'bg-surface text-dimmed'}`}>
+                        {opp.stage}
+                      </span>
+                    </td>
+                    <td className="px-4 py-2.5 text-right text-sm font-data text-main">{opp.probability}%</td>
+                    <td className="px-4 py-2.5 text-xs text-muted">{opp.expectedClose}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'activities' && (
+        <div className="theme-card overflow-hidden">
+          <div className="px-4 py-3 border-b border-main">
+            <h3 className="text-sm font-semibold text-main">Activity Log ({activities.length})</h3>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead><tr className="text-left text-xs text-dimmed border-b border-main">
+                <th className="px-4 py-2.5">Type</th>
+                <th className="px-4 py-2.5">Entity</th>
+                <th className="px-4 py-2.5">Description</th>
+                <th className="px-4 py-2.5">Date</th>
+                <th className="px-4 py-2.5 text-right">Duration (min)</th>
+                <th className="px-4 py-2.5">Outcome</th>
+              </tr></thead>
+              <tbody>
+                {activities.map(activity => (
+                  <tr key={activity.id} className="border-b border-main hover:bg-surface/60 transition-colors">
+                    <td className="px-4 py-2.5">
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${activity.type === 'CALL' ? 'bg-sky-500/10 text-sky-400' : activity.type === 'EMAIL' ? 'bg-violet-500/10 text-violet-400' : 'bg-emerald-500/10 text-emerald-400'}`}>
+                        {activity.type}
+                      </span>
+                    </td>
+                    <td className="px-4 py-2.5 text-sm text-main">{activity.leadName || activity.customerName}</td>
+                    <td className="px-4 py-2.5 text-xs text-muted max-w-xs truncate">{activity.description}</td>
+                    <td className="px-4 py-2.5 text-xs text-muted">{activity.date}</td>
+                    <td className="px-4 py-2.5 text-right text-sm font-data text-main">{activity.duration || '—'}</td>
+                    <td className="px-4 py-2.5">
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${activity.outcome === 'POSITIVE' || activity.outcome === 'SUCCESSFUL' ? 'bg-emerald-500/10 text-emerald-400' : activity.outcome === 'NEGATIVE' ? 'bg-rose-500/10 text-rose-400' : 'bg-amber-500/10 text-amber-400'}`}>
+                        {activity.outcome}
                       </span>
                     </td>
                   </tr>

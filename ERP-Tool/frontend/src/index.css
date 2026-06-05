@@ -478,46 +478,22 @@ a:hover {
   font-variant-numeric: tabular-nums !important;
 }
 
-/* Custom Button Gradient Overrides with Animated Rainbow Border */
+/* Custom Button Gradient Overrides - Static Style */
 button.bg-primary, .btn-primary {
-  position: relative !important;
-  overflow: hidden !important;
-  z-index: 1 !important;
-  background: transparent !important;
+  background: linear-gradient(135deg, #4f46e5, #7c3aed) !important;
   color: #ffffff !important;
   font-weight: 600 !important;
   border: none !important;
-  border-radius: 9999px !important;
+  border-radius: 8px !important;
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.4) !important;
   transition: all var(--transition-fast) !important;
-}
-
-button.bg-primary::before, .btn-primary::before {
-  content: '' !important;
-  position: absolute !important;
-  inset: 0 !important;
-  background: linear-gradient(90deg, #ff0000, #ff7f00, #ffff00, #00ff00, #0000ff, #4b0082, #9400d3, #ff0000) !important;
-  background-size: 200% 100% !important;
-  animation: rainbow-pan 2s linear infinite !important;
-  border-radius: inherit !important;
-  z-index: -2 !important;
-}
-
-button.bg-primary::after, .btn-primary::after {
-  content: '' !important;
-  position: absolute !important;
-  inset: 1.5px !important;
-  background: linear-gradient(135deg, #4f46e5, #7c3aed) !important;
-  border-radius: inherit !important;
-  z-index: -1 !important;
-  transition: background var(--transition-fast) !important;
-}
-
-button.bg-primary:hover::after, .btn-primary:hover::after {
-  background: linear-gradient(135deg, #5f56f5, #8c4afd) !important;
+  padding: 12px 24px !important;
+  font-size: 14px !important;
+  min-height: 44px !important;
 }
 
 button.bg-primary:hover, .btn-primary:hover {
+  background: linear-gradient(135deg, #5f56f5, #8c4afd) !important;
   box-shadow: 0 0 20px rgba(79, 70, 229, 0.5) !important;
 }
 

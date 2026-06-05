@@ -1,49 +1,60 @@
 import React, { useState } from 'react';
-import { Plus } from 'lucide-react';
+import { Plus, Megaphone, Users, BarChart3, Share2 } from 'lucide-react';
 import { useERPStore } from '../store/useERPStore';
 import Modal from './ui/Modal';
 
-const CHANNELS = ['Email', 'Social', 'Display', 'Search', 'Affiliate', 'Content'];
-const CHANNEL_COLORS = {
-  Email: 'text-sky-400', Social: 'text-violet-400', Display: 'text-amber-400',
-  Search: 'text-emerald-400', Affiliate: 'text-rose-400', Content: 'text-indigo-400',
-};
-
 export default function MarketingModule() {
-  const { marketingCampaigns, launchCampaign, updateCampaignStatus, addToast } = useERPStore();
+  const {
+    marketingCampaigns, addMarketingCampaign,
+    marketingLeads, addMarketingLead,
+    marketingAnalytics, addMarketingAnalytics,
+    socialMediaPosts, addSocialMediaPost,
+    addToast
+  } = useERPStore();
+  const [activeTab, setActiveTab] = useState('campaigns');
   const [modal, setModal] = useState(false);
-  const [form, setForm] = useState({ name: '', channel: 'Email', budget: 0, startDate: '', endDate: '' });
+  const [form, setForm] = useState({ name: '', type: 'EMAIL', budget: 0, startDate: '', endDate: '', email: '', source: '', platform: '', content: '' });
 
-  const handleLaunch = () => {
-    if (!form.name || !form.budget) return addToast('Campaign name and budget required', 'error');
-    launchCampaign({ ...form, budget: parseFloat(form.budget), spent: 0 });
-    addToast(`Campaign "${form.name}" launched!`, 'success');
+  const handleAdd = () => {
+    if (!form.name) return addToast('Name required', 'error');
+    if (activeTab === 'campaigns') addMarketingCampaign({ ...form, budget: parseFloat(form.budget), spent: 0, leads: 0, conversions: 0 });
+    else if (activeTab === 'leads') addMarketingLead({ ...form, score: 75, status: 'NEW' });
+    else if (activeTab === 'social') addSocialMediaPost({ ...form, publishedDate: form.startDate });
+    addToast('Record added successfully', 'success');
     setModal(false);
-    setForm({ name: '', channel: 'Email', budget: 0, startDate: '', endDate: '' });
+    setForm({ name: '', type: 'EMAIL', budget: 0, startDate: '', endDate: '', email: '', source: '', platform: '', content: '' });
   };
 
+  const TABS = [
+    { id: 'campaigns', label: 'Campaigns', icon: Megaphone },
+    { id: 'leads', label: 'Leads', icon: Users },
+    { id: 'analytics', label: 'Analytics', icon: BarChart3 },
+    { id: 'social', label: 'Social Media', icon: Share2 }
+  ];
+
   const totalBudget = marketingCampaigns.reduce((s, c) => s + (c.budget || 0), 0);
-  const totalLeads = marketingCampaigns.reduce((s, c) => s + (c.leads || 0), 0);
+  const totalLeads = marketingLeads.length;
   const totalConversions = marketingCampaigns.reduce((s, c) => s + (c.conversions || 0), 0);
 
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-main">Marketing Campaigns</h1>
+          <h1 className="text-2xl font-bold text-main">Marketing</h1>
           <p className="text-sm text-muted mt-1">Campaign management, lead generation, and ROI tracking</p>
         </div>
         <button onClick={() => setModal(true)} className="btn-primary text-sm flex items-center gap-1.5">
-          <Plus className="w-4 h-4" /> Launch Campaign
+          <Plus className="w-4 h-4" /> Add Record
         </button>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      {/* Stats */}
+      <div className="grid grid-cols-4 gap-3">
         {[
-          { label: 'Active Campaigns', value: marketingCampaigns.filter(c => c.status === 'ACTIVE').length, color: 'text-emerald-400' },
-          { label: 'Total Budget', value: `₹${totalBudget.toLocaleString('en-IN')}`, color: 'text-indigo-400' },
-          { label: 'Leads Generated', value: totalLeads, color: 'text-sky-400' },
-          { label: 'Conversions', value: totalConversions, color: 'text-violet-400' },
+          { label: 'Campaigns', value: marketingCampaigns.length, color: 'text-indigo-400' },
+          { label: 'Leads', value: totalLeads, color: 'text-sky-400' },
+          { label: 'Conversions', value: totalConversions, color: 'text-emerald-400' },
+          { label: 'Social Posts', value: socialMediaPosts.length, color: 'text-violet-400' },
         ].map(s => (
           <div key={s.label} className="theme-card p-4">
             <p className="text-xs text-dimmed">{s.label}</p>
@@ -52,98 +63,210 @@ export default function MarketingModule() {
         ))}
       </div>
 
-      <div className="space-y-3">
-        {marketingCampaigns.map(c => {
-          const spentPct = c.budget > 0 ? Math.round((c.spent || 0) / c.budget * 100) : 0;
-          const convRate = c.leads > 0 ? ((c.conversions / c.leads) * 100).toFixed(1) : 0;
+      {/* Tabs */}
+      <div className="flex gap-1 bg-surface p-1 rounded-xl w-fit border border-main">
+        {TABS.map(tab => {
+          const Icon = tab.icon;
           return (
-            <div key={c.id} className="theme-card p-4 hover:border-indigo-500/30 transition-all">
-              <div className="flex items-start justify-between mb-3">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h4 className="text-sm font-semibold text-main">{c.name}</h4>
-                    <span className={`text-xs font-medium ${CHANNEL_COLORS[c.channel] || 'text-dimmed'}`}>{c.channel}</span>
-                  </div>
-                  <p className="text-xs text-dimmed mt-0.5">{c.startDate} → {c.endDate}</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className={`text-xs px-2 py-0.5 rounded-full ${
-                    c.status === 'ACTIVE' ? 'bg-emerald-500/10 text-emerald-400' :
-                    c.status === 'COMPLETED' ? 'bg-surface text-dimmed' :
-                    'bg-amber-500/10 text-amber-400'
-                  }`}>{c.status}</span>
-                  {c.status === 'ACTIVE' && (
-                    <button
-                      onClick={() => { updateCampaignStatus(c.id, 'PAUSED'); addToast('Campaign paused', 'info'); }}
-                      className="text-xs text-dimmed hover:text-main transition-colors"
-                    >
-                      Pause
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              <div className="grid grid-cols-4 gap-3 text-center text-xs">
-                <div className="bg-surface rounded-lg p-2 border border-main/30">
-                  <p className="text-main font-data font-bold">{c.leads}</p>
-                  <p className="text-dimmed">Leads</p>
-                </div>
-                <div className="bg-surface rounded-lg p-2 border border-main/30">
-                  <p className="text-main font-data font-bold">{c.conversions}</p>
-                  <p className="text-dimmed">Converted</p>
-                </div>
-                <div className="bg-surface rounded-lg p-2 border border-main/30">
-                  <p className="text-emerald-400 font-data font-bold">{convRate}%</p>
-                  <p className="text-dimmed">Conv. Rate</p>
-                </div>
-                <div className="bg-surface rounded-lg p-2 border border-main/30">
-                  <p className="text-amber-400 font-data font-bold">{spentPct}%</p>
-                  <p className="text-dimmed">Budget Used</p>
-                </div>
-              </div>
-
-              <div className="mt-3">
-                <div className="h-1.5 bg-surface rounded-full border border-main/20">
-                  <div
-                    className={`h-full rounded-full ${spentPct > 90 ? 'bg-rose-500' : 'bg-indigo-500'}`}
-                    style={{ width: `${Math.min(spentPct, 100)}%` }}
-                  />
-                </div>
-                <p className="text-[10px] text-dimmed mt-1">
-                  ₹{(c.spent || 0).toLocaleString()} spent of ₹{(c.budget || 0).toLocaleString('en-IN')}
-                </p>
-              </div>
-            </div>
+            <button key={tab.id} onClick={() => setActiveTab(tab.id)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${activeTab === tab.id ? 'bg-indigo-600 text-white' : 'text-muted hover:text-main'}`}>
+              <Icon className="w-3.5 h-3.5" />{tab.label}
+            </button>
           );
         })}
       </div>
 
-      <Modal isOpen={modal} onClose={() => setModal(false)} title="Launch New Campaign">
+      {activeTab === 'campaigns' && (
+        <div className="theme-card overflow-hidden">
+          <div className="px-4 py-3 border-b border-main">
+            <h3 className="text-sm font-semibold text-main">Campaigns ({marketingCampaigns.length})</h3>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead><tr className="text-left text-xs text-dimmed border-b border-main">
+                <th className="px-4 py-2.5">Name</th>
+                <th className="px-4 py-2.5">Type</th>
+                <th className="px-4 py-2.5">Status</th>
+                <th className="px-4 py-2.5">Period</th>
+                <th className="px-4 py-2.5 text-right">Budget</th>
+                <th className="px-4 py-2.5 text-right">Spent</th>
+                <th className="px-4 py-2.5 text-right">Leads</th>
+                <th className="px-4 py-2.5 text-right">Conversions</th>
+              </tr></thead>
+              <tbody>
+                {marketingCampaigns.map(c => (
+                  <tr key={c.id} className="border-b border-main hover:bg-surface/60 transition-colors">
+                    <td className="px-4 py-2.5 text-sm text-main">{c.name}</td>
+                    <td className="px-4 py-2.5 text-xs text-muted">{c.type}</td>
+                    <td className="px-4 py-2.5">
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${c.status === 'ACTIVE' ? 'bg-emerald-500/10 text-emerald-400' : c.status === 'COMPLETED' ? 'bg-surface text-dimmed' : 'bg-amber-500/10 text-amber-400'}`}>
+                        {c.status}
+                      </span>
+                    </td>
+                    <td className="px-4 py-2.5 text-xs text-muted">{c.startDate} → {c.endDate}</td>
+                    <td className="px-4 py-2.5 text-right text-sm font-data text-main">₹{c.budget.toLocaleString('en-IN')}</td>
+                    <td className="px-4 py-2.5 text-right text-sm font-data text-muted">₹{c.spent.toLocaleString('en-IN')}</td>
+                    <td className="px-4 py-2.5 text-right text-sm font-data text-main">{c.leads}</td>
+                    <td className="px-4 py-2.5 text-right text-sm font-data text-main">{c.conversions}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'leads' && (
+        <div className="theme-card overflow-hidden">
+          <div className="px-4 py-3 border-b border-main">
+            <h3 className="text-sm font-semibold text-main">Leads ({marketingLeads.length})</h3>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead><tr className="text-left text-xs text-dimmed border-b border-main">
+                <th className="px-4 py-2.5">Name</th>
+                <th className="px-4 py-2.5">Email</th>
+                <th className="px-4 py-2.5">Source</th>
+                <th className="px-4 py-2.5">Status</th>
+                <th className="px-4 py-2.5 text-right">Score</th>
+                <th className="px-4 py-2.5">Assigned To</th>
+              </tr></thead>
+              <tbody>
+                {marketingLeads.map(lead => (
+                  <tr key={lead.id} className="border-b border-main hover:bg-surface/60 transition-colors">
+                    <td className="px-4 py-2.5 text-sm text-main">{lead.name}</td>
+                    <td className="px-4 py-2.5 text-xs text-muted">{lead.email}</td>
+                    <td className="px-4 py-2.5 text-xs text-muted">{lead.source}</td>
+                    <td className="px-4 py-2.5">
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${lead.status === 'NEW' ? 'bg-emerald-500/10 text-emerald-400' : lead.status === 'CONTACTED' ? 'bg-sky-500/10 text-sky-400' : 'bg-amber-500/10 text-amber-400'}`}>
+                        {lead.status}
+                      </span>
+                    </td>
+                    <td className="px-4 py-2.5 text-right text-sm font-data text-main">{lead.score}</td>
+                    <td className="px-4 py-2.5 text-xs text-muted">{lead.assignedTo}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'analytics' && (
+        <div className="theme-card overflow-hidden">
+          <div className="px-4 py-3 border-b border-main">
+            <h3 className="text-sm font-semibold text-main">Analytics ({marketingAnalytics.length})</h3>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead><tr className="text-left text-xs text-dimmed border-b border-main">
+                <th className="px-4 py-2.5">Campaign</th>
+                <th className="px-4 py-2.5">Metric</th>
+                <th className="px-4 py-2.5 text-right">Value</th>
+                <th className="px-4 py-2.5">Unit</th>
+                <th className="px-4 py-2.5">Date</th>
+              </tr></thead>
+              <tbody>
+                {marketingAnalytics.map(analytics => (
+                  <tr key={analytics.id} className="border-b border-main hover:bg-surface/60 transition-colors">
+                    <td className="px-4 py-2.5 text-sm text-main">{analytics.campaignName}</td>
+                    <td className="px-4 py-2.5 text-xs text-muted">{analytics.metric}</td>
+                    <td className="px-4 py-2.5 text-right text-sm font-data text-main">{analytics.value}</td>
+                    <td className="px-4 py-2.5 text-xs text-muted">{analytics.unit}</td>
+                    <td className="px-4 py-2.5 text-xs text-muted">{analytics.date}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'social' && (
+        <div className="theme-card overflow-hidden">
+          <div className="px-4 py-3 border-b border-main">
+            <h3 className="text-sm font-semibold text-main">Social Media Posts ({socialMediaPosts.length})</h3>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead><tr className="text-left text-xs text-dimmed border-b border-main">
+                <th className="px-4 py-2.5">Platform</th>
+                <th className="px-4 py-2.5">Content</th>
+                <th className="px-4 py-2.5">Status</th>
+                <th className="px-4 py-2.5">Published Date</th>
+                <th className="px-4 py-2.5 text-right">Likes</th>
+                <th className="px-4 py-2.5 text-right">Shares</th>
+                <th className="px-4 py-2.5 text-right">Comments</th>
+              </tr></thead>
+              <tbody>
+                {socialMediaPosts.map(post => (
+                  <tr key={post.id} className="border-b border-main hover:bg-surface/60 transition-colors">
+                    <td className="px-4 py-2.5 text-sm text-main">{post.platform}</td>
+                    <td className="px-4 py-2.5 text-xs text-muted">{post.content}</td>
+                    <td className="px-4 py-2.5">
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${post.status === 'PUBLISHED' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400'}`}>
+                        {post.status}
+                      </span>
+                    </td>
+                    <td className="px-4 py-2.5 text-xs text-muted">{post.publishedDate}</td>
+                    <td className="px-4 py-2.5 text-right text-sm font-data text-main">{post.likes}</td>
+                    <td className="px-4 py-2.5 text-right text-sm font-data text-main">{post.shares}</td>
+                    <td className="px-4 py-2.5 text-right text-sm font-data text-main">{post.comments}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      <Modal isOpen={modal} onClose={() => setModal(false)} title="Add Marketing Record">
         <div className="space-y-4">
-          <div><label className="form-label">Campaign Name</label>
-            <input className="form-input" value={form.name} onChange={e => setForm({...form, name: e.target.value})} />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div><label className="form-label">Channel</label>
-              <select className="form-input" value={form.channel} onChange={e => setForm({...form, channel: e.target.value})}>
-                {CHANNELS.map(c => <option key={c}>{c}</option>)}
-              </select>
-            </div>
-            <div><label className="form-label">Budget (₹)</label>
-              <input type="number" className="form-input" value={form.budget} onChange={e => setForm({...form, budget: e.target.value})} />
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div><label className="form-label">Start Date</label>
-              <input type="date" className="form-input" value={form.startDate} onChange={e => setForm({...form, startDate: e.target.value})} />
-            </div>
-            <div><label className="form-label">End Date</label>
-              <input type="date" className="form-input" value={form.endDate} onChange={e => setForm({...form, endDate: e.target.value})} />
-            </div>
-          </div>
+          <div><label className="form-label">Name / Campaign Name</label><input className="form-input" value={form.name} onChange={e => setForm({...form, name: e.target.value})} /></div>
+          {activeTab === 'campaigns' && (
+            <>
+              <div className="grid grid-cols-2 gap-3">
+                <div><label className="form-label">Type</label>
+                  <select className="form-input" value={form.type} onChange={e => setForm({...form, type: e.target.value})}>
+                    <option value="EMAIL">Email</option>
+                    <option value="SOCIAL">Social</option>
+                    <option value="DISPLAY">Display</option>
+                    <option value="SEARCH">Search</option>
+                  </select>
+                </div>
+                <div><label className="form-label">Budget (₹)</label><input type="number" className="form-input" value={form.budget} onChange={e => setForm({...form, budget: e.target.value})} /></div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div><label className="form-label">Start Date</label><input type="date" className="form-input" value={form.startDate} onChange={e => setForm({...form, startDate: e.target.value})} /></div>
+                <div><label className="form-label">End Date</label><input type="date" className="form-input" value={form.endDate} onChange={e => setForm({...form, endDate: e.target.value})} /></div>
+              </div>
+            </>
+          )}
+          {activeTab === 'leads' && (
+            <>
+              <div><label className="form-label">Email</label><input className="form-input" value={form.email} onChange={e => setForm({...form, email: e.target.value})} /></div>
+              <div><label className="form-label">Source</label><input className="form-input" value={form.source} onChange={e => setForm({...form, source: e.target.value})} /></div>
+            </>
+          )}
+          {activeTab === 'social' && (
+            <>
+              <div className="grid grid-cols-2 gap-3">
+                <div><label className="form-label">Platform</label>
+                  <select className="form-input" value={form.platform} onChange={e => setForm({...form, platform: e.target.value})}>
+                    <option value="LinkedIn">LinkedIn</option>
+                    <option value="Twitter">Twitter</option>
+                    <option value="Facebook">Facebook</option>
+                    <option value="Instagram">Instagram</option>
+                  </select>
+                </div>
+                <div><label className="form-label">Published Date</label><input type="date" className="form-input" value={form.startDate} onChange={e => setForm({...form, startDate: e.target.value})} /></div>
+              </div>
+              <div><label className="form-label">Content</label><textarea className="form-input" value={form.content} onChange={e => setForm({...form, content: e.target.value})} rows={3} /></div>
+            </>
+          )}
           <div className="flex gap-2 justify-end pt-2">
             <button onClick={() => setModal(false)} className="btn-secondary text-sm">Cancel</button>
-            <button onClick={handleLaunch} className="btn-primary text-sm">Launch</button>
+            <button onClick={handleAdd} className="btn-primary text-sm">Add Record</button>
           </div>
         </div>
       </Modal>

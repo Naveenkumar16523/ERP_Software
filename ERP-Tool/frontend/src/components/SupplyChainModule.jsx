@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus } from 'lucide-react';
+import { Plus, Truck, Map, Building2 } from 'lucide-react';
 import { useERPStore } from '../store/useERPStore';
 import Modal from './ui/Modal';
 
@@ -8,10 +8,17 @@ const STATUS_COLORS = {
   IN_TRANSIT: 'text-amber-400 bg-amber-500/10',
   DELIVERED: 'text-emerald-400 bg-emerald-500/10',
   RETURNED: 'text-rose-400 bg-rose-500/10',
+  PENDING: 'text-amber-500/10 text-amber-400',
 };
 
 export default function SupplyChainModule() {
-  const { shipments, addShipment, updateShipmentStatus, fieldWorkOrders, addToast } = useERPStore();
+  const {
+    shipments, addShipment, updateShipmentStatus,
+    carriers, addCarrier,
+    routes, addRoute,
+    fieldWorkOrders, addToast
+  } = useERPStore();
+
   const [activeTab, setActiveTab] = useState('shipments');
   const [shipModal, setShipModal] = useState(false);
   const [form, setForm] = useState({ trackingNo: '', carrier: '', origin: '', destination: '', orderId: '' });
@@ -23,6 +30,13 @@ export default function SupplyChainModule() {
     setShipModal(false);
     setForm({ trackingNo: '', carrier: '', origin: '', destination: '', orderId: '' });
   };
+
+  const TABS = [
+    { id: 'shipments', label: 'Shipments', icon: Truck },
+    { id: 'carriers', label: 'Carriers', icon: Building2 },
+    { id: 'routes', label: 'Routes', icon: Map },
+    { id: 'work-orders', label: 'Work Orders', icon: Building2 }
+  ];
 
   return (
     <div className="p-6 space-y-6">
@@ -50,18 +64,17 @@ export default function SupplyChainModule() {
         ))}
       </div>
 
+      {/* Tabs */}
       <div className="flex gap-1 bg-surface p-1 rounded-xl w-fit border border-main">
-        {['shipments', 'work-orders'].map(tab => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-              activeTab === tab ? 'bg-indigo-600 text-white' : 'text-muted hover:text-main'
-            }`}
-          >
-            {tab === 'work-orders' ? 'Work Orders' : 'Shipments'}
-          </button>
-        ))}
+        {TABS.map(tab => {
+          const Icon = tab.icon;
+          return (
+            <button key={tab.id} onClick={() => setActiveTab(tab.id)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${activeTab === tab.id ? 'bg-indigo-600 text-white' : 'text-muted hover:text-main'}`}>
+              <Icon className="w-3.5 h-3.5" />{tab.label}
+            </button>
+          );
+        })}
       </div>
 
       {activeTab === 'shipments' && (
@@ -96,6 +109,64 @@ export default function SupplyChainModule() {
                         <button onClick={() => { updateShipmentStatus(s.id, 'DELIVERED'); addToast('Shipment delivered!', 'success'); }} className="text-xs text-emerald-400 hover:underline">Delivered</button>
                       )}
                     </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'carriers' && (
+        <div className="theme-card overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead><tr className="text-left text-xs text-dimmed border-b border-main">
+                <th className="px-4 py-2.5">Carrier Name</th>
+                <th className="px-4 py-2.5">Contact</th>
+                <th className="px-4 py-2.5">Email</th>
+                <th className="px-4 py-2.5 text-right">Rating</th>
+                <th className="px-4 py-2.5 text-right">Active Shipments</th>
+                <th className="px-4 py-2.5 text-right">On-Time Rate</th>
+              </tr></thead>
+              <tbody>
+                {carriers.map(carrier => (
+                  <tr key={carrier.id} className="border-b border-main hover:bg-surface/60 transition-colors">
+                    <td className="px-4 py-2.5 text-sm text-main">{carrier.name}</td>
+                    <td className="px-4 py-2.5 text-xs text-muted">{carrier.contact}</td>
+                    <td className="px-4 py-2.5 text-xs text-muted">{carrier.email}</td>
+                    <td className="px-4 py-2.5 text-right text-sm font-data text-main">{carrier.rating} ⭐</td>
+                    <td className="px-4 py-2.5 text-right text-sm font-data text-main">{carrier.activeShipments}</td>
+                    <td className="px-4 py-2.5 text-right text-sm font-data text-main">{carrier.onTimeRate}%</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'routes' && (
+        <div className="theme-card overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead><tr className="text-left text-xs text-dimmed border-b border-main">
+                <th className="px-4 py-2.5">Origin</th>
+                <th className="px-4 py-2.5">Destination</th>
+                <th className="px-4 py-2.5 text-right">Distance (km)</th>
+                <th className="px-4 py-2.5 text-right">Est. Time (hrs)</th>
+                <th className="px-4 py-2.5">Preferred Carrier</th>
+                <th className="px-4 py-2.5 text-right">Cost/km</th>
+              </tr></thead>
+              <tbody>
+                {routes.map(route => (
+                  <tr key={route.id} className="border-b border-main hover:bg-surface/60 transition-colors">
+                    <td className="px-4 py-2.5 text-sm text-main">{route.origin}</td>
+                    <td className="px-4 py-2.5 text-sm text-main">{route.destination}</td>
+                    <td className="px-4 py-2.5 text-right text-sm font-data text-main">{route.distance}</td>
+                    <td className="px-4 py-2.5 text-right text-sm font-data text-main">{route.estimatedTime}</td>
+                    <td className="px-4 py-2.5 text-xs text-muted">{route.preferredCarrier}</td>
+                    <td className="px-4 py-2.5 text-right text-sm font-data text-main">₹{route.costPerKm}</td>
                   </tr>
                 ))}
               </tbody>

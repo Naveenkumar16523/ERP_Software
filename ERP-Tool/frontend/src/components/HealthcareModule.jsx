@@ -1,25 +1,36 @@
 import React, { useState } from 'react';
-import { Plus } from 'lucide-react';
+import { Plus, Users, Calendar, FileText, DollarSign } from 'lucide-react';
 import { useERPStore } from '../store/useERPStore';
 import Modal from './ui/Modal';
 
 const WARDS = ['General', 'Cardiology', 'Orthopedics', 'Neurology', 'Pediatrics', 'ICU', 'Emergency'];
 
 export default function HealthcareModule() {
-  const { healthcarePatients, admitPatient, dischargePatient, addToast } = useERPStore();
+  const {
+    patients, addPatient,
+    appointments, addAppointment, updateAppointmentStatus,
+    medicalHistory, addMedicalHistory,
+    medicalBills, addMedicalBill,
+    addToast
+  } = useERPStore();
+  const [activeTab, setActiveTab] = useState('patients');
   const [modal, setModal] = useState(false);
-  const [form, setForm] = useState({ name: '', age: '', ward: '', doctor: '' });
+  const [form, setForm] = useState({ name: '', dob: '', gender: '', bloodType: '', contact: '', email: '', address: '', emergencyContact: '' });
 
-  const admitted = healthcarePatients.filter(p => p.status === 'ADMITTED');
-  const discharged = healthcarePatients.filter(p => p.status === 'DISCHARGED');
-
-  const handleAdmit = () => {
-    if (!form.name || !form.ward) return addToast('Name and ward required', 'error');
-    admitPatient({ ...form, age: parseInt(form.age), vitals: { bp: 'Pending', temp: 'Pending', spo2: 'Pending' } });
-    addToast(`Patient ${form.name} admitted`, 'success');
-    setForm({ name: '', age: '', ward: '', doctor: '' });
+  const handleAddPatient = () => {
+    if (!form.name || !form.contact) return addToast('Name and contact required', 'error');
+    addPatient(form);
+    addToast('Patient added successfully', 'success');
     setModal(false);
+    setForm({ name: '', dob: '', gender: '', bloodType: '', contact: '', email: '', address: '', emergencyContact: '' });
   };
+
+  const TABS = [
+    { id: 'patients', label: 'Patients', icon: Users },
+    { id: 'appointments', label: 'Appointments', icon: Calendar },
+    { id: 'history', label: 'Medical History', icon: FileText },
+    { id: 'billing', label: 'Billing', icon: DollarSign }
+  ];
 
   return (
     <div className="p-6 space-y-6">
@@ -33,96 +44,211 @@ export default function HealthcareModule() {
         </button>
       </div>
 
-      <div className="grid grid-cols-3 gap-3">
+      {/* Stats */}
+      <div className="grid grid-cols-4 gap-3">
         {[
-          { label: 'Total Patients', value: healthcarePatients.length, color: 'text-indigo-400' },
-          { label: 'Admitted', value: admitted.length, color: 'text-rose-400' },
-          { label: 'Discharged', value: discharged.length, color: 'text-emerald-400' },
+          { label: 'Total Patients', value: patients.length, color: 'text-indigo-400' },
+          { label: 'Appointments', value: appointments.length, color: 'text-sky-400' },
+          { label: 'Medical Records', value: medicalHistory.length, color: 'text-emerald-400' },
+          { label: 'Pending Bills', value: medicalBills.filter(b => b.status === 'PENDING').length, color: 'text-amber-400' },
         ].map(s => (
           <div key={s.label} className="theme-card p-4">
             <p className="text-xs text-dimmed">{s.label}</p>
-            <p className={`text-2xl font-bold mt-1 ${s.color}`}>{s.value}</p>
+            <p className={`text-xl font-bold mt-1 font-data ${s.color}`}>{s.value}</p>
           </div>
         ))}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {healthcarePatients.map(p => (
-          <div key={p.id} className="theme-card p-4 hover:border-rose-500/25 transition-all">
-            <div className="flex items-center justify-between mb-3">
-              <div>
-                <p className="text-sm font-semibold text-main">{p.name}</p>
-                <p className="text-xs text-dimmed">ID: {p.patientId} · Age: {p.age}</p>
-              </div>
-              <span className={`text-xs px-2 py-0.5 rounded-full ${
-                p.status === 'ADMITTED' ? 'bg-rose-500/10 text-rose-400' : 'bg-emerald-500/10 text-emerald-400'
-              }`}>{p.status}</span>
-            </div>
-
-            <div className="space-y-1 text-xs">
-              <div className="flex justify-between">
-                <span className="text-dimmed">Ward</span>
-                <span className="text-main font-medium">{p.ward}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-dimmed">Doctor</span>
-                <span className="text-main">{p.doctor}</span>
-              </div>
-              {p.vitals && (
-                <div className="mt-2 p-2 bg-surface rounded-lg border border-main/20">
-                  <p className="text-dimmed mb-1 font-medium">Vitals</p>
-                  <div className="grid grid-cols-3 gap-1 text-center">
-                    <div>
-                      <p className="text-main font-data font-semibold">{p.vitals.bp}</p>
-                      <p className="text-dimmed text-[10px]">BP</p>
-                    </div>
-                    <div>
-                      <p className="text-main font-data font-semibold">{p.vitals.temp}</p>
-                      <p className="text-dimmed text-[10px]">Temp</p>
-                    </div>
-                    <div>
-                      <p className="text-main font-data font-semibold">{p.vitals.spo2}</p>
-                      <p className="text-dimmed text-[10px]">SpO₂</p>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {p.status === 'ADMITTED' && (
-              <button
-                onClick={() => { dischargePatient(p.id); addToast(`${p.name} discharged`, 'success'); }}
-                className="mt-3 w-full text-xs text-emerald-400 hover:bg-emerald-500/10 py-1.5 rounded-lg transition-colors border border-emerald-500/20"
-              >
-                Discharge Patient
-              </button>
-            )}
-          </div>
-        ))}
+      {/* Tabs */}
+      <div className="flex gap-1 bg-surface p-1 rounded-xl w-fit border border-main">
+        {TABS.map(tab => {
+          const Icon = tab.icon;
+          return (
+            <button key={tab.id} onClick={() => setActiveTab(tab.id)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${activeTab === tab.id ? 'bg-indigo-600 text-white' : 'text-muted hover:text-main'}`}>
+              <Icon className="w-3.5 h-3.5" />{tab.label}
+            </button>
+          );
+        })}
       </div>
 
-      <Modal isOpen={modal} onClose={() => setModal(false)} title="Admit New Patient">
+      {activeTab === 'patients' && (
+        <div className="theme-card overflow-hidden">
+          <div className="px-4 py-3 border-b border-main">
+            <h3 className="text-sm font-semibold text-main">Patients ({patients.length})</h3>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead><tr className="text-left text-xs text-dimmed border-b border-main">
+                <th className="px-4 py-2.5">Name</th>
+                <th className="px-4 py-2.5">DOB</th>
+                <th className="px-4 py-2.5">Gender</th>
+                <th className="px-4 py-2.5">Blood Type</th>
+                <th className="px-4 py-2.5">Contact</th>
+                <th className="px-4 py-2.5">Emergency Contact</th>
+              </tr></thead>
+              <tbody>
+                {patients.map(patient => (
+                  <tr key={patient.id} className="border-b border-main hover:bg-surface/60 transition-colors">
+                    <td className="px-4 py-2.5 text-sm text-main">{patient.name}</td>
+                    <td className="px-4 py-2.5 text-xs text-muted">{patient.dob}</td>
+                    <td className="px-4 py-2.5 text-xs text-muted">{patient.gender}</td>
+                    <td className="px-4 py-2.5 text-xs text-muted">{patient.bloodType}</td>
+                    <td className="px-4 py-2.5 text-xs text-muted">{patient.contact}</td>
+                    <td className="px-4 py-2.5 text-xs text-muted">{patient.emergencyContact}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'appointments' && (
+        <div className="theme-card overflow-hidden">
+          <div className="px-4 py-3 border-b border-main">
+            <h3 className="text-sm font-semibold text-main">Appointments ({appointments.length})</h3>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead><tr className="text-left text-xs text-dimmed border-b border-main">
+                <th className="px-4 py-2.5">Patient</th>
+                <th className="px-4 py-2.5">Doctor</th>
+                <th className="px-4 py-2.5">Date</th>
+                <th className="px-4 py-2.5">Time</th>
+                <th className="px-4 py-2.5">Type</th>
+                <th className="px-4 py-2.5">Status</th>
+                <th className="px-4 py-2.5">Actions</th>
+              </tr></thead>
+              <tbody>
+                {appointments.map(appt => (
+                  <tr key={appt.id} className="border-b border-main hover:bg-surface/60 transition-colors">
+                    <td className="px-4 py-2.5 text-sm text-main">{appt.patientName}</td>
+                    <td className="px-4 py-2.5 text-xs text-muted">{appt.doctor}</td>
+                    <td className="px-4 py-2.5 text-xs text-muted">{appt.date}</td>
+                    <td className="px-4 py-2.5 text-xs text-muted">{appt.time}</td>
+                    <td className="px-4 py-2.5 text-xs text-muted">{appt.type}</td>
+                    <td className="px-4 py-2.5">
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${appt.status === 'COMPLETED' ? 'bg-emerald-500/10 text-emerald-400' : appt.status === 'CONFIRMED' ? 'bg-sky-500/10 text-sky-400' : 'bg-amber-500/10 text-amber-400'}`}>
+                        {appt.status}
+                      </span>
+                    </td>
+                    <td className="px-4 py-2.5">
+                      {appt.status === 'SCHEDULED' && (
+                        <button onClick={() => { updateAppointmentStatus(appt.id, 'CONFIRMED'); addToast('Appointment confirmed', 'success'); }} className="text-xs text-emerald-400 hover:underline">Confirm</button>
+                      )}
+                      {appt.status === 'CONFIRMED' && (
+                        <button onClick={() => { updateAppointmentStatus(appt.id, 'COMPLETED'); addToast('Appointment completed', 'success'); }} className="text-xs text-emerald-400 hover:underline">Complete</button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'history' && (
+        <div className="theme-card overflow-hidden">
+          <div className="px-4 py-3 border-b border-main">
+            <h3 className="text-sm font-semibold text-main">Medical History ({medicalHistory.length})</h3>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead><tr className="text-left text-xs text-dimmed border-b border-main">
+                <th className="px-4 py-2.5">Patient</th>
+                <th className="px-4 py-2.5">Date</th>
+                <th className="px-4 py-2.5">Diagnosis</th>
+                <th className="px-4 py-2.5">Treatment</th>
+                <th className="px-4 py-2.5">Doctor</th>
+              </tr></thead>
+              <tbody>
+                {medicalHistory.map(history => (
+                  <tr key={history.id} className="border-b border-main hover:bg-surface/60 transition-colors">
+                    <td className="px-4 py-2.5 text-sm text-main">{history.patientName}</td>
+                    <td className="px-4 py-2.5 text-xs text-muted">{history.date}</td>
+                    <td className="px-4 py-2.5 text-sm text-main">{history.diagnosis}</td>
+                    <td className="px-4 py-2.5 text-xs text-muted">{history.treatment}</td>
+                    <td className="px-4 py-2.5 text-xs text-muted">{history.doctor}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'billing' && (
+        <div className="theme-card overflow-hidden">
+          <div className="px-4 py-3 border-b border-main">
+            <h3 className="text-sm font-semibold text-main">Medical Bills ({medicalBills.length})</h3>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead><tr className="text-left text-xs text-dimmed border-b border-main">
+                <th className="px-4 py-2.5">Patient</th>
+                <th className="px-4 py-2.5">Date</th>
+                <th className="px-4 py-2.5">Services</th>
+                <th className="px-4 py-2.5 text-right">Amount</th>
+                <th className="px-4 py-2.5">Status</th>
+              </tr></thead>
+              <tbody>
+                {medicalBills.map(bill => (
+                  <tr key={bill.id} className="border-b border-main hover:bg-surface/60 transition-colors">
+                    <td className="px-4 py-2.5 text-sm text-main">{bill.patientName}</td>
+                    <td className="px-4 py-2.5 text-xs text-muted">{bill.date}</td>
+                    <td className="px-4 py-2.5 text-xs text-muted">{bill.services.join(', ')}</td>
+                    <td className="px-4 py-2.5 text-right text-sm font-data text-main">₹{bill.amount.toLocaleString('en-IN')}</td>
+                    <td className="px-4 py-2.5">
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${bill.status === 'PAID' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400'}`}>
+                        {bill.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      <Modal isOpen={modal} onClose={() => setModal(false)} title="Add New Patient">
         <div className="space-y-4">
+          <div><label className="form-label">Full Name</label><input className="form-input" value={form.name} onChange={e => setForm({...form, name: e.target.value})} /></div>
           <div className="grid grid-cols-2 gap-3">
-            <div><label className="form-label">Full Name</label>
-              <input className="form-input" value={form.name} onChange={e => setForm({...form, name: e.target.value})} />
+            <div><label className="form-label">Date of Birth</label><input type="date" className="form-input" value={form.dob} onChange={e => setForm({...form, dob: e.target.value})} /></div>
+            <div><label className="form-label">Gender</label>
+              <select className="form-input" value={form.gender} onChange={e => setForm({...form, gender: e.target.value})}>
+                <option value="">Select...</option>
+                <option value="Male">Male</option>
+                <option value="Female">Female</option>
+                <option value="Other">Other</option>
+              </select>
             </div>
-            <div><label className="form-label">Age</label>
-              <input type="number" className="form-input" value={form.age} onChange={e => setForm({...form, age: e.target.value})} />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div><label className="form-label">Blood Type</label>
+              <select className="form-input" value={form.bloodType} onChange={e => setForm({...form, bloodType: e.target.value})}>
+                <option value="">Select...</option>
+                <option value="A+">A+</option>
+                <option value="A-">A-</option>
+                <option value="B+">B+</option>
+                <option value="B-">B-</option>
+                <option value="AB+">AB+</option>
+                <option value="AB-">AB-</option>
+                <option value="O+">O+</option>
+                <option value="O-">O-</option>
+              </select>
             </div>
+            <div><label className="form-label">Contact</label><input className="form-input" value={form.contact} onChange={e => setForm({...form, contact: e.target.value})} /></div>
           </div>
-          <div><label className="form-label">Ward</label>
-            <select className="form-input" value={form.ward} onChange={e => setForm({...form, ward: e.target.value})}>
-              <option value="">Select ward...</option>
-              {WARDS.map(w => <option key={w}>{w}</option>)}
-            </select>
-          </div>
-          <div><label className="form-label">Assigned Doctor</label>
-            <input className="form-input" value={form.doctor} onChange={e => setForm({...form, doctor: e.target.value})} placeholder="Dr. Name" />
-          </div>
+          <div><label className="form-label">Email</label><input className="form-input" value={form.email} onChange={e => setForm({...form, email: e.target.value})} /></div>
+          <div><label className="form-label">Address</label><input className="form-input" value={form.address} onChange={e => setForm({...form, address: e.target.value})} /></div>
+          <div><label className="form-label">Emergency Contact</label><input className="form-input" value={form.emergencyContact} onChange={e => setForm({...form, emergencyContact: e.target.value})} placeholder="Name + Phone" /></div>
           <div className="flex gap-2 justify-end pt-2">
             <button onClick={() => setModal(false)} className="btn-secondary text-sm">Cancel</button>
-            <button onClick={handleAdmit} className="btn-primary text-sm">Admit Patient</button>
+            <button onClick={handleAddPatient} className="btn-primary text-sm">Add Patient</button>
           </div>
         </div>
       </Modal>

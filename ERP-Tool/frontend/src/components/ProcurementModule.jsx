@@ -1,10 +1,19 @@
 import React, { useState } from 'react';
-import { Plus } from 'lucide-react';
+import { Plus, FileText, Users, Award, FileCheck } from 'lucide-react';
 import { useERPStore } from '../store/useERPStore';
 import Modal from './ui/Modal';
 
 export default function ProcurementModule() {
-  const { suppliers, purchaseOrders, addPurchaseOrder, approvePurchaseOrder, addToast } = useERPStore();
+  const {
+    suppliers, addSupplier,
+    purchaseOrders, addPurchaseOrder, approvePurchaseOrder,
+    rfqs, addRFQ,
+    rfqResponses, addRFQResponse,
+    vendorEvaluations, addVendorEvaluation,
+    contracts, addContract,
+    addToast
+  } = useERPStore();
+
   const [activeTab, setActiveTab] = useState('pos');
   const [modal, setModal] = useState(false);
   const [form, setForm] = useState({ supplierId: '', description: '', totalAmount: 0 });
@@ -21,6 +30,14 @@ export default function ProcurementModule() {
     addToast('Purchase order created', 'success');
     setModal(false);
   };
+
+  const TABS = [
+    { id: 'pos', label: 'Purchase Orders', icon: FileText },
+    { id: 'suppliers', label: 'Suppliers', icon: Users },
+    { id: 'rfqs', label: 'RFQs', icon: FileCheck },
+    { id: 'evaluations', label: 'Vendor Evaluations', icon: Award },
+    { id: 'contracts', label: 'Contracts', icon: FileText }
+  ];
 
   const pendingPos = purchaseOrders.filter(po => po.status === 'PENDING');
   const totalSpend = purchaseOrders.reduce((s, po) => s + (po.totalAmount || 0), 0);
@@ -51,18 +68,17 @@ export default function ProcurementModule() {
         ))}
       </div>
 
+      {/* Tabs */}
       <div className="flex gap-1 bg-surface p-1 rounded-xl w-fit border border-main">
-        {['pos', 'suppliers'].map(tab => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium capitalize transition-all ${
-              activeTab === tab ? 'bg-indigo-600 text-white' : 'text-muted hover:text-main'
-            }`}
-          >
-            {tab === 'pos' ? 'Purchase Orders' : 'Suppliers'}
-          </button>
-        ))}
+        {TABS.map(tab => {
+          const Icon = tab.icon;
+          return (
+            <button key={tab.id} onClick={() => setActiveTab(tab.id)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${activeTab === tab.id ? 'bg-indigo-600 text-white' : 'text-muted hover:text-main'}`}>
+              <Icon className="w-3.5 h-3.5" />{tab.label}
+            </button>
+          );
+        })}
       </div>
 
       {activeTab === 'pos' && (
@@ -117,8 +133,10 @@ export default function ProcurementModule() {
                 <tr className="text-left text-xs text-dimmed border-b border-main">
                   <th className="px-4 py-2.5">Supplier</th>
                   <th className="px-4 py-2.5">Email</th>
+                  <th className="px-4 py-2.5">Phone</th>
                   <th className="px-4 py-2.5 text-right">Quality Score</th>
                   <th className="px-4 py-2.5 text-right">Overall</th>
+                  <th className="px-4 py-2.5">Status</th>
                 </tr>
               </thead>
               <tbody>
@@ -126,8 +144,113 @@ export default function ProcurementModule() {
                   <tr key={s.id} className="border-b border-main hover:bg-surface/60 transition-colors">
                     <td className="px-4 py-2.5 text-sm text-main">{s.name}</td>
                     <td className="px-4 py-2.5 text-xs text-muted">{s.email}</td>
+                    <td className="px-4 py-2.5 text-xs text-muted">{s.phone}</td>
                     <td className="px-4 py-2.5 text-right text-sm font-data text-sky-400">{s.qualityScore}%</td>
                     <td className="px-4 py-2.5 text-right text-sm font-data font-bold text-emerald-400">{s.overallScore}%</td>
+                    <td className="px-4 py-2.5">
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${s.status === 'ACTIVE' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'}`}>
+                        {s.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'rfqs' && (
+        <div className="theme-card overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead><tr className="text-left text-xs text-dimmed border-b border-main">
+                <th className="px-4 py-2.5">RFQ Number</th>
+                <th className="px-4 py-2.5">Title</th>
+                <th className="px-4 py-2.5">Description</th>
+                <th className="px-4 py-2.5">Due Date</th>
+                <th className="px-4 py-2.5 text-right">Responses</th>
+                <th className="px-4 py-2.5">Status</th>
+              </tr></thead>
+              <tbody>
+                {rfqs.map(rfq => (
+                  <tr key={rfq.id} className="border-b border-main hover:bg-surface/60 transition-colors">
+                    <td className="px-4 py-2.5 text-xs font-mono text-indigo-400">{rfq.rfqNumber}</td>
+                    <td className="px-4 py-2.5 text-sm text-main">{rfq.title}</td>
+                    <td className="px-4 py-2.5 text-xs text-muted max-w-xs truncate">{rfq.description}</td>
+                    <td className="px-4 py-2.5 text-xs text-muted">{rfq.dueDate}</td>
+                    <td className="px-4 py-2.5 text-right text-sm font-data text-main">{rfq.responses}</td>
+                    <td className="px-4 py-2.5">
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${rfq.status === 'OPEN' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-surface text-dimmed'}`}>
+                        {rfq.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'evaluations' && (
+        <div className="theme-card overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead><tr className="text-left text-xs text-dimmed border-b border-main">
+                <th className="px-4 py-2.5">Supplier</th>
+                <th className="px-4 py-2.5">Period</th>
+                <th className="px-4 py-2.5 text-right">Quality</th>
+                <th className="px-4 py-2.5 text-right">Delivery</th>
+                <th className="px-4 py-2.5 text-right">Price</th>
+                <th className="px-4 py-2.5 text-right">Overall</th>
+                <th className="px-4 py-2.5">Evaluation Date</th>
+              </tr></thead>
+              <tbody>
+                {vendorEvaluations.map(eval => (
+                  <tr key={eval.id} className="border-b border-main hover:bg-surface/60 transition-colors">
+                    <td className="px-4 py-2.5 text-sm text-main">{eval.supplierName}</td>
+                    <td className="px-4 py-2.5 text-xs text-muted">{eval.period}</td>
+                    <td className="px-4 py-2.5 text-right text-sm font-data text-main">{eval.qualityScore}%</td>
+                    <td className="px-4 py-2.5 text-right text-sm font-data text-main">{eval.deliveryScore}%</td>
+                    <td className="px-4 py-2.5 text-right text-sm font-data text-main">{eval.priceScore}%</td>
+                    <td className="px-4 py-2.5 text-right text-sm font-data font-bold text-emerald-400">{eval.overallScore}%</td>
+                    <td className="px-4 py-2.5 text-xs text-muted">{eval.evaluationDate}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'contracts' && (
+        <div className="theme-card overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead><tr className="text-left text-xs text-dimmed border-b border-main">
+                <th className="px-4 py-2.5">Contract Number</th>
+                <th className="px-4 py-2.5">Supplier</th>
+                <th className="px-4 py-2.5">Type</th>
+                <th className="px-4 py-2.5">Start Date</th>
+                <th className="px-4 py-2.5">End Date</th>
+                <th className="px-4 py-2.5 text-right">Value</th>
+                <th className="px-4 py-2.5">Status</th>
+              </tr></thead>
+              <tbody>
+                {contracts.map(contract => (
+                  <tr key={contract.id} className="border-b border-main hover:bg-surface/60 transition-colors">
+                    <td className="px-4 py-2.5 text-xs font-mono text-indigo-400">{contract.contractNumber}</td>
+                    <td className="px-4 py-2.5 text-sm text-main">{contract.supplierName}</td>
+                    <td className="px-4 py-2.5 text-xs text-muted">{contract.type}</td>
+                    <td className="px-4 py-2.5 text-xs text-muted">{contract.startDate}</td>
+                    <td className="px-4 py-2.5 text-xs text-muted">{contract.endDate}</td>
+                    <td className="px-4 py-2.5 text-right text-sm font-data text-main">₹{contract.value.toLocaleString('en-IN')}</td>
+                    <td className="px-4 py-2.5">
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${contract.status === 'ACTIVE' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'}`}>
+                        {contract.status}
+                      </span>
+                    </td>
                   </tr>
                 ))}
               </tbody>
