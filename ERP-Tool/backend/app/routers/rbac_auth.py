@@ -213,6 +213,19 @@ def require_read_only_or_full(module_key: str, method: str = "GET"):
     return check_access
 
 # Endpoints
+@router.get("/registration-status")
+def get_registration_status(db: Session = Depends(get_db)):
+    """Check if registration is enabled (no users exist)"""
+    from sqlalchemy import func
+    try:
+        count = db.query(func.count(ERPUser.id)).scalar()
+        return {"registrationEnabled": count == 0}
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"error": "Internal Server Error", "message": str(e)}
+        )
+
 @router.post("/login", response_model=TokenResponse)
 def login(credentials: Login, db: Session = Depends(get_db)):
     """Unified login - accepts both CEO and regular employees"""
