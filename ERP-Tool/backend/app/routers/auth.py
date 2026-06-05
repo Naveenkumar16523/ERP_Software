@@ -182,6 +182,98 @@ async def login(body: UserLogin, req: Request, db: Session = Depends(get_db)):
             detail={"error": "Internal Server Error", "message": str(e)}
         )
 
+@router.post("/admin/login")
+async def admin_login(req: Request, db: Session = Depends(get_db)):
+    """CEO / Admin login endpoint — accepts {username, password} where username is the email."""
+    try:
+        body = await req.json()
+        email_or_username = body.get("username") or body.get("email", "")
+        password_raw = body.get("password", "")
+
+        user = db.query(User).filter(User.email == email_or_username).first()
+        if not user or not user.isActive:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail={"error": "Unauthorized", "message": "Invalid credentials"}
+            )
+
+        if not compare_password(password_raw, user.password):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail={"error": "Unauthorized", "message": "Invalid credentials"}
+            )
+
+        # Check if MFA is enabled
+        if user.mfaEnabled:
+            mfa_token = generate_access_token({"userId": user.id, "email": user.email})
+            return {
+                "mfaRequired": True,
+                "tempToken": mfa_token,
+                "message": "Multi-Factor Authentication code is required to complete login"
+            }
+
+        token = generate_access_token({"userId": user.id, "email": user.email})
+        refresh_token = generate_refresh_token({"userId": user.id, "email": user.email})
+        expires_at = datetime.utcnow() + timedelta(days=1)
+
+        user_agent = req.headers.get("user-agent", "Unknown")
+        ip = req.client.host if req.client else "Unknown"
+
+        session = UserSession(
+            userId=user.id,
+            token=token,
+            ipAddress=ip,
+            userAgent=user_agent,
+            expiresAt=expires_at
+        )
+        db.add(session)
+        db.commit()
+
+        cache_set(f"session:{token}", json.dumps({"isValid": True, "userId": user.id}), 24 * 60 * 60)
+
+        await log_audit_event(
+            user_id=user.id,
+            action="ADMIN_LOGIN",
+            resource="User",
+            details={"email": user.email},
+            req=req
+        )
+
+        perms = db.query(Permission.name).join(
+            RolePermission, RolePermission.permissionId == Permission.id
+        ).join(
+            UserRole, UserRole.roleId == RolePermission.roleId
+        ).filter(
+            UserRole.userId == user.id
+        ).all()
+        permissions = list(set([p[0] for p in perms if p[0]]))
+
+        roles_query = db.query(Role.name).join(UserRole, UserRole.roleId == Role.id).filter(UserRole.userId == user.id).all()
+        roles = [r[0] for r in roles_query]
+
+        return {
+            "message": "Login successful",
+            "token": token,
+            "refreshToken": refresh_token,
+            "user": {
+                "id": user.id,
+                "email": user.email,
+                "firstName": user.firstName,
+                "lastName": user.lastName,
+                "roles": roles,
+                "permissions": permissions
+            }
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"error": "Internal Server Error", "message": str(e)}
+        )
+
 @router.post("/mfa/setup")
 async def mfa_setup(current_user: AuthenticatedUser = Depends(get_current_user), db: Session = Depends(get_db)):
     try:

@@ -3,6 +3,7 @@ import AppShell from './components/layout/AppShell';
 import { useERPStore } from './store/useERPStore';
 import SkeletonLoader from './components/ui/SkeletonLoader';
 import FollowCursor from './components/ui/FollowCursor';
+import AccessDenied from './components/AccessDenied';
 import { useEffect } from 'react';
 
 // Lazy-load all module components for optimal bundle splitting
@@ -30,6 +31,8 @@ const MigrationHub       = lazy(() => import('./components/MigrationHub'));
 const AIModule           = lazy(() => import('./components/AIModule'));
 const SupportModule      = lazy(() => import('./components/SupportModule'));
 const AutomationModule   = lazy(() => import('./components/AutomationModule'));
+const AdminPanel         = lazy(() => import('./components/AdminPanel'));
+const ChangePassword     = lazy(() => import('./components/ChangePassword'));
 
 import SignIn from './components/auth/SignIn';
 
@@ -58,6 +61,38 @@ const MODULE_MAP = {
   ai:             AIModule,
   support:        SupportModule,
   automation:     AutomationModule,
+  admin:          AdminPanel,
+  'change-password': ChangePassword,
+};
+
+// Map frontend module IDs to backend module keys (exact mapping from specification)
+const MODULE_KEY_MAP = {
+  dashboard: 'dashboard',
+  finance: 'finance',
+  hr: 'human_resources',
+  inventory: 'inventory',
+  manufacturing: 'manufacturing',
+  procurement: 'procurement',
+  crm: 'crm_pipeline',
+  payroll: 'payroll',
+  assets: 'fixed_assets',
+  projects: 'projects',
+  supplychain: 'supply_chain',
+  ecommerce: 'ecommerce',
+  analytics: 'analytics_hub',
+  banking: 'banking',
+  healthcare: 'healthcare',
+  education: 'education',
+  sustainability: 'sustainability',
+  marketing: 'marketing',
+  security: 'security',
+  mobile: 'mobile',
+  migration: 'migration_hub',
+  ai: 'ai',
+  support: 'support',
+  automation: 'rpa_automation',
+  admin: 'admin',
+  'change-password': 'change-password',
 };
 
 const ModuleFallback = () => (
@@ -69,7 +104,7 @@ const ModuleFallback = () => (
 );
 
 export default function App() {
-  const { activeModule, theme, currentUser, token, demoMode } = useERPStore();
+  const { activeModule, theme, currentUser, token, demoMode, userPermissions, allowedModules, setActiveModule } = useERPStore();
   const ActiveComponent = MODULE_MAP[activeModule] || Dashboard;
 
   useEffect(() => {
@@ -83,11 +118,53 @@ export default function App() {
 
   const isAuthenticated = demoMode || (currentUser && token);
 
+  // Check if user has access to the current module (route guard)
+  const hasModuleAccess = () => {
+    // Allow access in demo mode
+    if (demoMode) return true;
+    
+    // CEO has access to all modules
+    if (currentUser?.isCEO) return true;
+    
+    // Dashboard is always accessible
+    if (activeModule === 'dashboard') return true;
+    
+    // Admin module is CEO-only
+    if (activeModule === 'admin') return false;
+    
+    // If no allowed_modules, deny access
+    if (!allowedModules || allowedModules.length === 0) return false;
+    
+    // If allowed_modules contains "all", allow access
+    if (allowedModules.includes('all')) return true;
+    
+    // Check if module is in allowed_modules array
+    const moduleKey = MODULE_KEY_MAP[activeModule];
+    return allowedModules.includes(moduleKey);
+  };
+
+  // Redirect CEO to admin panel if they try to access dashboard
+  useEffect(() => {
+    if (currentUser?.isCEO && activeModule === 'dashboard') {
+      setActiveModule('admin');
+    }
+  }, [currentUser, activeModule, setActiveModule]);
+
   if (!isAuthenticated) {
     return (
       <>
         <FollowCursor />
         <SignIn />
+      </>
+    );
+  }
+
+  // Show access denied if user doesn't have permission for the module
+  if (!hasModuleAccess()) {
+    return (
+      <>
+        <FollowCursor />
+        <AccessDenied />
       </>
     );
   }
@@ -101,4 +178,5 @@ export default function App() {
     </AppShell>
   );
 }
+
 

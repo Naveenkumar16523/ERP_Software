@@ -6,10 +6,14 @@ const AdminApprovalPanel = ({ token }) => {
   const [loading, setLoading] = useState(true);
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [showApproveModal, setShowApproveModal] = useState(false);
+  const [showDenyModal, setShowDenyModal] = useState(false);
   const [approveForm, setApproveForm] = useState({
     roleId: '',
     username: '',
     password: ''
+  });
+  const [denyForm, setDenyForm] = useState({
+    denialReason: ''
   });
   const [roles, setRoles] = useState([]);
   const [message, setMessage] = useState({ type: '', text: '' });
@@ -62,25 +66,33 @@ const AdminApprovalPanel = ({ token }) => {
     setShowApproveModal(true);
   };
 
-  const handleDeny = async (requestId) => {
-    if (!confirm('Are you sure you want to deny this request?')) return;
+  const handleDenyClick = (request) => {
+    setSelectedRequest(request);
+    setDenyForm({ denialReason: '' });
+    setShowDenyModal(true);
+  };
+
+  const handleDenySubmit = async (e) => {
+    e.preventDefault();
 
     try {
       const API_URL = import.meta.env.VITE_API_URL || '';
-      const response = await fetch(`${API_URL}/api/v1/rbac/access-requests/${requestId}/deny`, {
+      const response = await fetch(`${API_URL}/api/v1/rbac/access-requests/${selectedRequest.id}/deny`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ reviewer_id: 'current-user-id' }) // This would come from token
+        body: JSON.stringify(denyForm)
       });
 
       if (response.ok) {
         setMessage({ type: 'success', text: 'Request denied successfully' });
+        setShowDenyModal(false);
         fetchRequests();
       } else {
-        setMessage({ type: 'error', text: 'Failed to deny request' });
+        const data = await response.json();
+        setMessage({ type: 'error', text: data.detail || 'Failed to deny request' });
       }
     } catch (error) {
       setMessage({ type: 'error', text: 'Network error' });
@@ -226,7 +238,7 @@ const AdminApprovalPanel = ({ token }) => {
                       <motion.button
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
-                        onClick={() => handleDeny(request.id)}
+                        onClick={() => handleDenyClick(request)}
                         className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition"
                       >
                         Deny
@@ -315,6 +327,60 @@ const AdminApprovalPanel = ({ token }) => {
                     whileTap={{ scale: 0.98 }}
                     type="button"
                     onClick={() => setShowApproveModal(false)}
+                    className="flex-1 py-2 bg-slate-600 hover:bg-slate-700 text-white rounded-lg transition"
+                  >
+                    Cancel
+                  </motion.button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+
+        {/* Deny Modal */}
+        {showDenyModal && selectedRequest && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="bg-slate-800 rounded-xl p-6 w-full max-w-md border border-slate-700"
+            >
+              <h2 className="text-2xl font-bold text-white mb-4">Deny Access Request</h2>
+
+              <div className="mb-4 p-4 bg-slate-700/50 rounded-lg">
+                <p className="text-white font-semibold">{selectedRequest.fullName}</p>
+                <p className="text-gray-400 text-sm">{selectedRequest.email}</p>
+                <p className="text-gray-400 text-sm">{selectedRequest.department}</p>
+              </div>
+
+              <form onSubmit={handleDenySubmit} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Denial Reason (Optional)
+                  </label>
+                  <textarea
+                    value={denyForm.denialReason}
+                    onChange={(e) => setDenyForm({ ...denyForm, denialReason: e.target.value })}
+                    rows={4}
+                    className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-purple-500 resize-none"
+                    placeholder="Provide a reason for denying this request..."
+                  />
+                </div>
+
+                <div className="flex gap-3 pt-4">
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    type="submit"
+                    className="flex-1 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition"
+                  >
+                    Deny Request
+                  </motion.button>
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    type="button"
+                    onClick={() => setShowDenyModal(false)}
                     className="flex-1 py-2 bg-slate-600 hover:bg-slate-700 text-white rounded-lg transition"
                   >
                     Cancel

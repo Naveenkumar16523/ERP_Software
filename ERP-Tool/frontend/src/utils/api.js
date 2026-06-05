@@ -70,11 +70,11 @@ export const api = {
     async login(credentials) {
       return request('/auth/login', { method: 'POST', body: JSON.stringify(credentials) });
     },
-    async ceoLogin(credentials) {
-      return request('/auth/admin/login', { method: 'POST', body: JSON.stringify(credentials) });
-    },
     async logout() {
       try { return await request('/auth/logout', { method: 'POST' }); } catch { /* offline ok */ }
+    },
+    async changePassword(passwordData) {
+      return request('/auth/change-password', { method: 'POST', body: JSON.stringify(passwordData) });
     }
   },
 
@@ -287,6 +287,40 @@ export const api = {
     async markRead(id) {
       try { return await request(`/notifications/${id}/read`, { method: 'PATCH' }); }
       catch { useERPStore.getState().markNotificationRead(id); }
+    }
+  },
+
+  // ── Admin Panel (CEO only) ──
+  admin: {
+    async getDashboard() {
+      return request('/admin/dashboard');
+    },
+    async getUsers() {
+      return request('/admin/users');
+    },
+    async createUser(userData) {
+      return request('/admin/users/create', { method: 'POST', body: JSON.stringify(userData) });
+    },
+    async updateUser(userId, userData) {
+      return request(`/admin/users/${userId}`, { method: 'PUT', body: JSON.stringify(userData) });
+    },
+    async deleteUser(userId) {
+      return request(`/admin/users/${userId}`, { method: 'DELETE' });
+    },
+    async resetPassword(userId) {
+      return request(`/admin/users/${userId}/reset-password`, { method: 'POST' });
+    },
+    async getPermissions() {
+      return request('/admin/permissions');
+    },
+    async togglePermission(permissionData) {
+      return request('/admin/permissions', { method: 'PATCH', body: JSON.stringify(permissionData) });
+    },
+    async getDepartments() {
+      return request('/admin/departments');
+    },
+    async getRoles() {
+      return request('/admin/roles');
     }
   }
 };

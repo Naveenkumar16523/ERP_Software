@@ -11,6 +11,7 @@ import string
 
 from app.utils.db import get_db
 from app.models.models import AccessRequest, ERPUser, ERPRole, ERPDepartment, ModuleAccess
+from app.routers.rbac_auth import get_current_user, require_ceo
 from passlib.context import CryptContext
 
 router = APIRouter(prefix="/api/v1/rbac", tags=["RBAC"])
@@ -38,6 +39,9 @@ class AccessRequestApprove(BaseModel):
     roleId: str
     username: str
     password: str
+
+class AccessRequestDeny(BaseModel):
+    denialReason: Optional[str] = None
 
 class UserCreate(BaseModel):
     fullName: str
@@ -114,7 +118,11 @@ def submit_access_request(request: AccessRequestCreate, db: Session = Depends(ge
     return access_request
 
 @router.get("/access-requests", response_model=List[AccessRequestResponse])
-def list_access_requests(status_filter: Optional[str] = None, db: Session = Depends(get_db)):
+def list_access_requests(
+    status_filter: Optional[str] = None,
+    current_user: ERPUser = Depends(require_ceo),
+    db: Session = Depends(get_db)
+):
     """List all access requests (CEO only)"""
     query = db.query(AccessRequest)
     
@@ -139,7 +147,7 @@ def get_access_request(request_id: str, db: Session = Depends(get_db)):
 def approve_access_request(
     request_id: str,
     approval_data: AccessRequestApprove,
-    reviewer_id: str,  # This would come from JWT token in production
+    current_user: ERPUser = Depends(require_ceo),
     db: Session = Depends(get_db)
 ):
     """Approve an access request and create user account"""
@@ -149,13 +157,13 @@ def approve_access_request(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Access request not found"
         )
-    
+
     if access_request.status != "pending":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="This request has already been processed"
         )
-    
+
     # Verify role exists
     role = db.query(ERPRole).filter(ERPRole.id == approval_data.roleId).first()
     if not role:
@@ -163,14 +171,21 @@ def approve_access_request(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Role not found"
         )
-    
+
     # Check if username is taken
     if db.query(ERPUser).filter(ERPUser.username == approval_data.username).first():
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Username already taken"
         )
-    
+
+    # Check if email already belongs to an ERPUser
+    if db.query(ERPUser).filter(ERPUser.email == access_request.email).first():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="An account with this email already exists"
+        )
+
     # Create user account
     user = ERPUser(
         username=approval_data.username,
@@ -182,16 +197,16 @@ def approve_access_request(
         isActive=True,
         isCEO=False
     )
-    
+
     db.add(user)
-    
+
     # Update access request
     access_request.status = "approved"
-    access_request.reviewedBy = reviewer_id
+    access_request.reviewedBy = current_user.id
     access_request.reviewedAt = datetime.utcnow()
-    
+
     db.commit()
-    
+
     return {
         "message": "Access request approved and user account created",
         "userId": user.id,
@@ -201,7 +216,8 @@ def approve_access_request(
 @router.post("/access-requests/{request_id}/deny")
 def deny_access_request(
     request_id: str,
-    reviewer_id: str,  # This would come from JWT token in production
+    deny_data: AccessRequestDeny,
+    current_user: ERPUser = Depends(require_ceo),
     db: Session = Depends(get_db)
 ):
     """Deny an access request"""
@@ -211,19 +227,20 @@ def deny_access_request(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Access request not found"
         )
-    
+
     if access_request.status != "pending":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="This request has already been processed"
         )
-    
+
     access_request.status = "denied"
-    access_request.reviewedBy = reviewer_id
+    access_request.denialReason = deny_data.denialReason
+    access_request.reviewedBy = current_user.id
     access_request.reviewedAt = datetime.utcnow()
-    
+
     db.commit()
-    
+
     return {"message": "Access request denied"}
 
 @router.get("/departments", response_model=List[dict])

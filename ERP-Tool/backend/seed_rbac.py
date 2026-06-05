@@ -44,25 +44,19 @@ DEPARTMENTS = [
     {"name": "Sustainability", "code": "SUS"}
 ]
 
-# Role definitions with module access
+# Role definitions with module access - Updated to remove read-only access
 ROLES_CONFIG = [
     {
         "name": "finance_staff",
         "department": "Finance",
         "description": "Finance Department Staff",
-        "modules": ["dashboard", "finance", "banking", "analytics_hub"],
-        "module_permissions": {
-            "payroll": {"canRead": True, "canWrite": False, "canExport": False}
-        }
+        "modules": ["dashboard", "finance", "banking", "analytics_hub"]
     },
     {
         "name": "hr_staff",
         "department": "Human Resources",
         "description": "HR Department Staff",
-        "modules": ["dashboard", "human_resources", "payroll", "healthcare", "education"],
-        "module_permissions": {
-            "payroll": {"canRead": True, "canWrite": True, "canExport": True}
-        }
+        "modules": ["dashboard", "human_resources", "payroll", "healthcare", "education"]
     },
     {
         "name": "operations_staff",
@@ -90,9 +84,9 @@ ROLES_CONFIG = [
     },
     {
         "name": "ceo",
-        "department": "Finance",  # CEO doesn't need a specific department, but we'll use Finance as default
+        "department": "Finance",
         "description": "CEO / Superadmin with full access",
-        "modules": MODULES,  # All modules
+        "modules": MODULES,
         "is_ceo_role": True
     }
 ]
@@ -171,7 +165,7 @@ def seed_database():
         # Create CEO user
         ceo_role = db.query(ERPRole).filter(ERPRole.name == "ceo").first()
         if ceo_role:
-            existing_ceo = db.query(ERPUser).filter(ERPUser.isCEO == True).first()
+            existing_ceo = db.query(ERPUser).filter(ERPUser.username == "ceo").first()
             if not existing_ceo:
                 ceo_user = ERPUser(
                     username="ceo",
@@ -187,7 +181,14 @@ def seed_database():
                 db.commit()
                 print("Created CEO user (username: ceo, password: admin123)")
             else:
-                print("CEO user already exists")
+                # Update existing CEO user to ensure correct credentials and flags
+                existing_ceo.passwordHash = pwd_context.hash("admin123")
+                existing_ceo.isActive = True
+                existing_ceo.isCEO = True
+                existing_ceo.roleId = ceo_role.id
+                existing_ceo.departmentId = dept_map["Finance"]
+                db.commit()
+                print("Updated CEO user (username: ceo, password: admin123)")
         
         print("\n✅ RBAC seed completed successfully!")
         print("\nDefault CEO credentials:")

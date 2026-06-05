@@ -39,10 +39,15 @@ export default function Dashboard() {
   const { employees, products, notifications } = useERPStore();
   const [dashboardData, setDashboardData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const { demoMode } = useERPStore();
 
   useEffect(() => {
-    fetchDashboardData();
-  }, []);
+    if (!demoMode) {
+      fetchDashboardData();
+    } else {
+      setLoading(false);
+    }
+  }, [demoMode]);
 
   const fetchDashboardData = async () => {
     try {

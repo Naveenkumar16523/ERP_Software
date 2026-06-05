@@ -696,6 +696,7 @@ class AccessRequest(Base):
     department = Column(String(191), nullable=False)
     reason = Column(Text, nullable=False)
     status = Column(String(191), default="pending", nullable=False, index=True)  # pending, approved, denied
+    denialReason = Column(Text, nullable=True)
     reviewedBy = Column(String(36), ForeignKey("ERPUser.id", ondelete="SET NULL"), nullable=True)
     reviewedAt = Column(DateTime, nullable=True)
     createdAt = Column(DateTime, default=datetime.utcnow, nullable=False)

@@ -25,36 +25,39 @@ import {
   ChevronRight,
   Factory,
   HelpCircle,
-  Cpu
+  Cpu,
+  Lock
 } from 'lucide-react';
 import { useERPStore } from '../../store/useERPStore';
 import { RainbowButton } from '../ui/RainbowButton';
 
 const MODULES_CONFIG = [
-  { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, color: 'text-indigo-400' },
-  { id: 'finance', label: 'Finance', icon: Landmark, color: 'text-emerald-400' },
-  { id: 'hr', label: 'Human Resources', icon: Users, color: 'text-rose-400' },
-  { id: 'inventory', label: 'Inventory', icon: Package, color: 'text-amber-400' },
-  { id: 'manufacturing', label: 'Manufacturing', icon: Factory, color: 'text-orange-400' },
-  { id: 'procurement', label: 'Procurement', icon: ShoppingBag, color: 'text-yellow-400' },
-  { id: 'crm', label: 'CRM & Pipeline', icon: Handshake, color: 'text-sky-400' },
-  { id: 'payroll', label: 'Payroll', icon: CreditCard, color: 'text-teal-400' },
-  { id: 'assets', label: 'Fixed Assets', icon: Wrench, color: 'text-violet-400' },
-  { id: 'projects', label: 'Projects', icon: Building2, color: 'text-blue-400' },
-  { id: 'supplychain', label: 'Supply Chain', icon: Truck, color: 'text-cyan-400' },
-  { id: 'ecommerce', label: 'E-Commerce', icon: ShoppingBag, color: 'text-pink-400' },
-  { id: 'analytics', label: 'Analytics Hub', icon: BarChart3, color: 'text-fuchsia-400' },
-  { id: 'banking', label: 'Banking', icon: Landmark, color: 'text-lime-400' },
-  { id: 'healthcare', label: 'Healthcare', icon: HeartPulse, color: 'text-red-400' },
-  { id: 'education', label: 'Education', icon: GraduationCap, color: 'text-indigo-300' },
-  { id: 'sustainability', label: 'Sustainability', icon: Leaf, color: 'text-green-400' },
-  { id: 'marketing', label: 'Marketing', icon: Megaphone, color: 'text-rose-300' },
-  { id: 'security', label: 'Security', icon: Shield, color: 'text-red-500' },
-  { id: 'mobile', label: 'Mobile Preview', icon: Smartphone, color: 'text-blue-300' },
-  { id: 'migration', label: 'Migration Hub', icon: RefreshCw, color: 'text-orange-300' },
-  { id: 'automation', label: 'RPA Automation', icon: Cpu, color: 'text-indigo-500' },
-  { id: 'ai', label: 'AI Companion', icon: Sparkles, color: 'text-cyan-400' },
-  { id: 'support', label: 'Support Center', icon: HelpCircle, color: 'text-amber-500' }
+  { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, color: 'text-indigo-400', moduleKey: 'dashboard' },
+  { id: 'finance', label: 'Finance', icon: Landmark, color: 'text-emerald-400', moduleKey: 'finance' },
+  { id: 'hr', label: 'Human Resources', icon: Users, color: 'text-rose-400', moduleKey: 'human_resources' },
+  { id: 'inventory', label: 'Inventory', icon: Package, color: 'text-amber-400', moduleKey: 'inventory' },
+  { id: 'manufacturing', label: 'Manufacturing', icon: Factory, color: 'text-orange-400', moduleKey: 'manufacturing' },
+  { id: 'procurement', label: 'Procurement', icon: ShoppingBag, color: 'text-yellow-400', moduleKey: 'procurement' },
+  { id: 'crm', label: 'CRM & Pipeline', icon: Handshake, color: 'text-sky-400', moduleKey: 'crm_pipeline' },
+  { id: 'payroll', label: 'Payroll', icon: CreditCard, color: 'text-teal-400', moduleKey: 'payroll' },
+  { id: 'assets', label: 'Fixed Assets', icon: Wrench, color: 'text-violet-400', moduleKey: 'fixed_assets' },
+  { id: 'projects', label: 'Projects', icon: Building2, color: 'text-blue-400', moduleKey: 'projects' },
+  { id: 'supplychain', label: 'Supply Chain', icon: Truck, color: 'text-cyan-400', moduleKey: 'supply_chain' },
+  { id: 'ecommerce', label: 'E-Commerce', icon: ShoppingBag, color: 'text-pink-400', moduleKey: 'ecommerce' },
+  { id: 'analytics', label: 'Analytics Hub', icon: BarChart3, color: 'text-fuchsia-400', moduleKey: 'analytics_hub' },
+  { id: 'banking', label: 'Banking', icon: Landmark, color: 'text-lime-400', moduleKey: 'banking' },
+  { id: 'healthcare', label: 'Healthcare', icon: HeartPulse, color: 'text-red-400', moduleKey: 'healthcare' },
+  { id: 'education', label: 'Education', icon: GraduationCap, color: 'text-indigo-300', moduleKey: 'education' },
+  { id: 'sustainability', label: 'Sustainability', icon: Leaf, color: 'text-green-400', moduleKey: 'sustainability' },
+  { id: 'marketing', label: 'Marketing', icon: Megaphone, color: 'text-rose-300', moduleKey: 'marketing' },
+  { id: 'security', label: 'Security', icon: Shield, color: 'text-red-500', moduleKey: 'security' },
+  { id: 'mobile', label: 'Mobile Preview', icon: Smartphone, color: 'text-blue-300', moduleKey: 'mobile' },
+  { id: 'migration', label: 'Migration Hub', icon: RefreshCw, color: 'text-orange-300', moduleKey: 'migration_hub' },
+  { id: 'automation', label: 'RPA Automation', icon: Cpu, color: 'text-indigo-500', moduleKey: 'rpa_automation' },
+  { id: 'ai', label: 'AI Companion', icon: Sparkles, color: 'text-cyan-400', moduleKey: 'ai' },
+  { id: 'support', label: 'Support Center', icon: HelpCircle, color: 'text-amber-500', moduleKey: 'support' },
+  { id: 'admin', label: 'Admin Settings', icon: Shield, color: 'text-purple-400', moduleKey: 'admin', ceoOnly: true },
+  { id: 'change-password', label: 'Change Password', icon: Lock, color: 'text-cyan-400', moduleKey: 'change-password' }
 ];
 
 export default function Sidebar() {
@@ -68,6 +71,7 @@ export default function Sidebar() {
     currentUser,
     logout,
     userPermissions,
+    allowedModules,
     demoMode
   } = useERPStore();
 
@@ -76,24 +80,34 @@ export default function Sidebar() {
     setMobileSidebar(false);
   };
 
-  // Filter modules based on user permissions
-  const allowedModules = MODULES_CONFIG.filter((mod) => {
+  // Filter modules based on user's allowed_modules from JWT
+  const visibleModules = MODULES_CONFIG.filter((mod) => {
+    // CEO-only modules (Admin Panel)
+    if (mod.ceoOnly) {
+      return currentUser?.isCEO;
+    }
+    
+    // Change password is for employees only (not CEO)
+    if (mod.id === 'change-password') {
+      return currentUser && !currentUser.isCEO && !demoMode;
+    }
+    
     // Show all modules in demo mode or when not authenticated
     if (demoMode || !currentUser) return true;
     
-    // CEO has access to all modules
+    // CEO has access to all modules (except change-password)
     if (currentUser?.isCEO) return true;
     
-    // If no permissions are set, show all modules (fallback)
-    if (!userPermissions || userPermissions.length === 0) return true;
+    // Dashboard is always accessible
+    if (mod.id === 'dashboard') return true;
     
-    // Check if user has permission for this module
-    const hasPermission = userPermissions?.some(
-      (perm) => perm.moduleKey === mod.id && perm.canRead
-    );
+    // If allowed_modules contains "all", show all modules (shouldn't happen for non-CEO but safe fallback)
+    if (allowedModules.includes('all')) return true;
     
-    return hasPermission;
+    // Check if module is in allowed_modules array
+    return allowedModules.includes(mod.moduleKey);
   });
+
 
   return (
     <>
@@ -145,9 +159,10 @@ export default function Sidebar() {
 
         {/* Navigation */}
         <nav className="sidebar-nav custom-scrollbar flex-1 overflow-y-auto">
-          {allowedModules.map((mod) => {
+          {visibleModules.map((mod) => {
             const Icon = mod.icon;
             const isActive = activeModule === mod.id;
+            
             return (
               <button
                 key={mod.id}

@@ -1,5 +1,5 @@
 """
-RBAC Authentication Router - Separate login for CEO and employees with JWT tokens
+RBAC Authentication Router - Unified login for CEO and employees with JWT tokens
 """
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -14,7 +14,7 @@ from app.models.models import ERPUser, ERPRole, ModuleAccess, ERPDepartment
 from passlib.context import CryptContext
 from jose import JWTError, jwt
 
-router = APIRouter(prefix="/api/v1/auth", tags=["Authentication"])
+router = APIRouter(prefix="/auth", tags=["Authentication"])
 security = HTTPBearer()
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -24,11 +24,7 @@ JWT_ALGORITHM = "HS256"
 JWT_EXPIRATION_MINUTES = 60 * 24  # 24 hours
 
 # Schemas
-class CEOLogin(BaseModel):
-    username: str
-    password: str
-
-class EmployeeLogin(BaseModel):
+class Login(BaseModel):
     username: str
     password: str
 
@@ -81,6 +77,24 @@ def get_user_permissions(user_id: str, db: Session) -> List[dict]:
         }
         for access in module_access
     ]
+
+def get_allowed_modules(user_id: str, db: Session) -> List[str]:
+    """Get list of module keys the user has access to"""
+    user = db.query(ERPUser).filter(ERPUser.id == user_id).first()
+    if not user:
+        return []
+    
+    # CEO has access to all modules
+    if user.isCEO:
+        return ["all"]
+    
+    # Get modules where canRead is True
+    module_access = db.query(ModuleAccess).filter(
+        ModuleAccess.roleId == user.roleId,
+        ModuleAccess.canRead == True
+    ).all()
+    
+    return [access.moduleKey for access in module_access]
 
 def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security), db: Session = Depends(get_db)):
     """Dependency to get current user from JWT token"""
@@ -165,80 +179,49 @@ def require_module_access(module_key: str, permission: str = "canRead"):
     
     return check_access
 
-# Endpoints
-@router.post("/admin/login", response_model=TokenResponse)
-def ceo_login(credentials: CEOLogin, db: Session = Depends(get_db)):
-    """CEO login - separate authentication route"""
-    user = db.query(ERPUser).filter(ERPUser.username == credentials.username).first()
+def require_read_only_or_full(module_key: str, method: str = "GET"):
+    """Dependency factory to enforce read-only access for modules with read-only permissions"""
+    def check_access(
+        current_user: ERPUser = Depends(get_current_user),
+        db: Session = Depends(get_db)
+    ):
+        # CEO has access to everything
+        if current_user.isCEO:
+            return current_user
+        
+        # Check module access
+        module_access = db.query(ModuleAccess).filter(
+            ModuleAccess.roleId == current_user.roleId,
+            ModuleAccess.moduleKey == module_key
+        ).first()
+        
+        if not module_access:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"No access to module: {module_key}"
+            )
+        
+        # For read-only modules, only allow GET requests
+        if not module_access.canWrite and method not in ["GET", "HEAD", "OPTIONS"]:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Read-only access: write operations not permitted"
+            )
+        
+        return current_user
     
-    if not user or not user.isCEO:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid CEO credentials"
-        )
-    
-    if not verify_password(credentials.password, user.passwordHash):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid CEO credentials"
-        )
-    
-    if not user.isActive:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="CEO account is inactive"
-        )
-    
-    # Get user details
-    role = db.query(ERPRole).filter(ERPRole.id == user.roleId).first()
-    department = db.query(ERPDepartment).filter(ERPDepartment.id == user.departmentId).first()
-    
-    # Get permissions (CEO has all)
-    permissions = get_user_permissions(user.id, db)
-    
-    # Create JWT token
-    access_token = create_access_token(
-        data={
-            "sub": user.id,
-            "username": user.username,
-            "isCEO": True,
-            "roleId": user.roleId,
-            "departmentId": user.departmentId
-        }
-    )
-    
-    return TokenResponse(
-        access_token=access_token,
-        user={
-            "id": user.id,
-            "username": user.username,
-            "fullName": user.fullName,
-            "email": user.email,
-            "roleId": user.roleId,
-            "roleName": role.name if role else "",
-            "departmentId": user.departmentId,
-            "departmentName": department.name if department else "",
-            "isActive": user.isActive,
-            "isCEO": user.isCEO
-        },
-        permissions=permissions
-    )
+    return check_access
 
+# Endpoints
 @router.post("/login", response_model=TokenResponse)
-def employee_login(credentials: EmployeeLogin, db: Session = Depends(get_db)):
-    """Employee login - standard authentication route"""
+def login(credentials: Login, db: Session = Depends(get_db)):
+    """Unified login - accepts both CEO and regular employees"""
     user = db.query(ERPUser).filter(ERPUser.username == credentials.username).first()
     
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid credentials"
-        )
-    
-    if user.isCEO:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="CEO must use /admin/login route"
         )
     
     if not verify_password(credentials.password, user.passwordHash):
@@ -260,14 +243,18 @@ def employee_login(credentials: EmployeeLogin, db: Session = Depends(get_db)):
     # Get permissions
     permissions = get_user_permissions(user.id, db)
     
-    # Create JWT token
+    # Get allowed modules list
+    allowed_modules = get_allowed_modules(user.id, db)
+    
+    # Create JWT token with actual isCEO status and allowed_modules
     access_token = create_access_token(
         data={
             "sub": user.id,
             "username": user.username,
-            "isCEO": False,
+            "isCEO": user.isCEO,
             "roleId": user.roleId,
-            "departmentId": user.departmentId
+            "departmentId": user.departmentId,
+            "allowed_modules": allowed_modules
         }
     )
     
@@ -283,7 +270,8 @@ def employee_login(credentials: EmployeeLogin, db: Session = Depends(get_db)):
             "departmentId": user.departmentId,
             "departmentName": department.name if department else "",
             "isActive": user.isActive,
-            "isCEO": user.isCEO
+            "isCEO": user.isCEO,
+            "allowed_modules": allowed_modules
         },
         permissions=permissions
     )
@@ -294,6 +282,7 @@ def get_current_user_info(current_user: ERPUser = Depends(get_current_user), db:
     role = db.query(ERPRole).filter(ERPRole.id == current_user.roleId).first()
     department = db.query(ERPDepartment).filter(ERPDepartment.id == current_user.departmentId).first()
     permissions = get_user_permissions(current_user.id, db)
+    allowed_modules = get_allowed_modules(current_user.id, db)
     
     return {
         "id": current_user.id,
@@ -306,6 +295,7 @@ def get_current_user_info(current_user: ERPUser = Depends(get_current_user), db:
         "departmentName": department.name if department else "",
         "isActive": current_user.isActive,
         "isCEO": current_user.isCEO,
+        "allowed_modules": allowed_modules,
         "permissions": permissions
     }
 
@@ -313,3 +303,60 @@ def get_current_user_info(current_user: ERPUser = Depends(get_current_user), db:
 def logout():
     """Logout endpoint (client-side token deletion)"""
     return {"message": "Logged out successfully"}
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
+
+@router.post("/change-password")
+def change_password(
+    password_data: ChangePasswordRequest,
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: Session = Depends(get_db)
+):
+    """Allow users to change their own password - accessible to all authenticated users"""
+    try:
+        # Decode JWT to get user ID
+        payload = jwt.decode(credentials.credentials, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        user_id: str = payload.get("sub")
+        if user_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid authentication credentials"
+            )
+    except JWTError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authentication credentials"
+        )
+    
+    # Get user from database
+    user = db.query(ERPUser).filter(ERPUser.id == user_id).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User not found"
+        )
+    
+    if not user.isActive:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User account is inactive"
+        )
+    
+    # Verify current password
+    if not verify_password(password_data.current_password, user.passwordHash):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Current password is incorrect"
+        )
+    
+    # Hash new password
+    new_password_hash = pwd_context.hash(password_data.new_password)
+    
+    # Update password
+    user.passwordHash = new_password_hash
+    user.updatedAt = datetime.utcnow()
+    db.commit()
+    
+    return {"message": "Password changed successfully"}

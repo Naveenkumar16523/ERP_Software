@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, desc
 
 from app.utils.db import get_db
-from app.middlewares.auth_middleware import get_current_user, AuthenticatedUser
+from app.middlewares.rbac_middleware import get_current_rbac_user, RBACUser
 from app.models.models import (
     Employee, Product, Supplier, PurchaseOrder, CustomerOrder, 
     FixedAsset, ProductionOrder, Lead, Opportunity, StockTransaction
@@ -13,7 +13,7 @@ router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
 
 @router.get("/metrics")
 async def get_dashboard_metrics(
-    current_user: AuthenticatedUser = Depends(get_current_user),
+    current_user: RBACUser = Depends(get_current_rbac_user),
     db: Session = Depends(get_db)
 ):
     """Get aggregated dashboard metrics for Logistics ERP"""
@@ -111,7 +111,7 @@ async def get_dashboard_metrics(
 
 @router.get("/kpis")
 async def get_dashboard_kpis(
-    current_user: AuthenticatedUser = Depends(get_current_user),
+    current_user: RBACUser = Depends(get_current_rbac_user),
     db: Session = Depends(get_db)
 ):
     """Get key performance indicators for dashboard"""
@@ -147,7 +147,7 @@ async def get_dashboard_kpis(
 
 @router.get("/recent-orders")
 async def get_recent_orders(
-    current_user: AuthenticatedUser = Depends(get_current_user),
+    current_user: RBACUser = Depends(get_current_rbac_user),
     db: Session = Depends(get_db),
     limit: int = 5
 ):
@@ -169,7 +169,7 @@ async def get_recent_orders(
 
 @router.get("/top-products")
 async def get_top_products(
-    current_user: AuthenticatedUser = Depends(get_current_user),
+    current_user: RBACUser = Depends(get_current_rbac_user),
     db: Session = Depends(get_db),
     limit: int = 5
 ):

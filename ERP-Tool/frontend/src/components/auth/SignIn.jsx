@@ -4,10 +4,9 @@ import { useERPStore } from '../../store/useERPStore';
 import { api } from '../../utils/api';
 
 export default function SignIn() {
-  const { setToken, setCurrentUser, setDemoMode, addToast, theme, setUserPermissions } = useERPStore();
+  const { setToken, setCurrentUser, setDemoMode, addToast, theme, setUserPermissions, setAllowedModules } = useERPStore();
 
   const [authView, setAuthView] = useState('login'); // 'login' | 'register'
-  const [isCeOLogin, setIsCeOLogin] = useState(false); // CEO login toggle
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [firstName, setFirstName] = useState('');
@@ -38,33 +37,48 @@ export default function SignIn() {
     setAuthLoading(true);
 
     try {
-      // Use CEO login endpoint if CEO mode is active
-      const data = isCeOLogin 
-        ? await api.auth.ceoLogin({ username: email, password })
-        : await api.auth.login({ email, password });
-      
+      // Use unified login endpoint (accepts both CEO and regular employees)
+      const data = await api.auth.login({ username: email, password });
+
       // If success, set store and local storage
+      // Backend returns `access_token`
       setToken(data.access_token);
-      
+
       // Ensure user object has name property for frontend headers
       const userObj = {
         ...data.user,
         name: data.user.fullName || `${data.user.firstName || 'User'} ${data.user.lastName || ''}`.trim()
       };
-      
+
       setCurrentUser(userObj);
-      
+
       // Set user permissions from RBAC response
-      if (data.permissions) {
-        setUserPermissions(data.permissions);
+      const permissions = data.permissions || data.user?.permissions;
+      if (permissions) {
+        setUserPermissions(permissions);
       }
-      
+
+      // Set allowed_modules from RBAC response
+      const allowedModules = data.user?.allowed_modules || [];
+      if (allowedModules.length > 0) {
+        setAllowedModules(allowedModules);
+      }
+
       setDemoMode(false);
-      
+
+      // Redirect based on isCEO flag
+      if (data.user?.isCEO) {
+        // CEO goes to admin dashboard
+        window.location.href = '/admin/dashboard';
+      } else {
+        // Employees go to regular dashboard
+        window.location.href = '/dashboard';
+      }
+
       addToast(`Welcome back, ${userObj.fullName || userObj.name || 'User'}!`, 'success');
     } catch (err) {
       console.warn("Backend login failed, checking fallback:", err.message);
-      
+
       // Offline fallback login:
       // If backend is down (network error) or user logs in with demo credentials, let them bypass
       if (email.toLowerCase() === 'admin@example.com' || email.toLowerCase() === 'admin@clarix.com') {
@@ -171,36 +185,14 @@ export default function SignIn() {
           {/* Title Header */}
           <div className="flex flex-col gap-1 mb-6">
             <h2 className="text-lg font-bold text-white">
-              {authView === 'login' ? (isCeOLogin ? 'CEO Access' : 'Secure Access') : 'Create Account'}
+              {authView === 'login' ? 'Secure Access' : 'Create Account'}
             </h2>
             <p className="text-xs text-slate-400">
-              {authView === 'login' 
-                ? (isCeOLogin ? 'CEO administrative login with full system access.' : 'Sign in to access your administrative workspace.')
+              {authView === 'login'
+                ? 'Sign in to access your administrative workspace.'
                 : 'Setup your operator account in the core ERP.'}
             </p>
           </div>
-
-          {/* CEO Login Toggle */}
-          {authView === 'login' && (
-            <div className="flex items-center justify-between mb-4 p-3 rounded-lg bg-indigo-500/10 border border-indigo-500/20">
-              <div className="flex items-center gap-2">
-                <Shield className="w-4 h-4 text-indigo-400" />
-                <span className="text-xs font-semibold text-indigo-300">CEO Mode</span>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setIsCeOLogin(!isCeOLogin);
-                  setAuthError('');
-                  setEmail('');
-                  setPassword('');
-                }}
-                className={`relative w-12 h-6 rounded-full transition-colors duration-200 ${isCeOLogin ? 'bg-indigo-600' : 'bg-slate-700'}`}
-              >
-                <span className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white transition-transform duration-200 ${isCeOLogin ? 'translate-x-6' : 'translate-x-0'}`} />
-              </button>
-            </div>
-          )}
 
           {/* Form */}
           <form onSubmit={authView === 'login' ? handleLogin : handleRegister} className="flex flex-col gap-4">
@@ -240,17 +232,17 @@ export default function SignIn() {
 
             <div className="flex flex-col gap-1.5">
               <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider" htmlFor="email">
-                {authView === 'login' ? (isCeOLogin ? 'CEO Username' : 'Employee ID / Email') : 'Email Address'}
+                {authView === 'login' ? 'Username / Email' : 'Email Address'}
               </label>
               <div className="relative border border-white/10 focus-within:border-indigo-500 rounded-lg bg-black/20 overflow-hidden transition-all duration-200">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
-                <input 
-                  type={isCeOLogin ? "text" : "email"}
-                  required 
-                  value={email} 
-                  onChange={e => setEmail(e.target.value)} 
-                  className="w-full bg-transparent border-0 px-9 py-2.5 text-white placeholder:text-slate-600 text-sm outline-none" 
-                  placeholder={authView === 'login' ? (isCeOLogin ? "ceo" : "admin@example.com") : "Your email address"}
+                <input
+                  type="text"
+                  required
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  className="w-full bg-transparent border-0 px-9 py-2.5 text-white placeholder:text-slate-600 text-sm outline-none"
+                  placeholder={authView === 'login' ? "ceo or admin@example.com" : "Your email address"}
                   id="email"
                 />
               </div>
