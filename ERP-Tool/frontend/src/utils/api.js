@@ -31,12 +31,14 @@ async function request(path, options = {}) {
 
     if (!res.ok) {
       const errBody = await res.json().catch(() => ({}));
-      throw new Error(errBody.message || `API Error: ${res.status} ${res.statusText}`);
+      // Extract detailed error message from backend response
+      const errorMessage = errBody.detail || errBody.message || errBody.error || `API Error: ${res.status} ${res.statusText}`;
+      throw new Error(errorMessage);
     }
 
     return await res.json();
   } catch (error) {
-    console.warn(`[Network Fail] API path ${path} failed. Reverting to local store. Error:`, error.message);
+    console.warn(`[Network Fail] API path ${path} failed. Error:`, error.message);
     useERPStore.getState().setDbLive(false);
     throw error; // Let caller catch and choose whether to apply fallback
   }

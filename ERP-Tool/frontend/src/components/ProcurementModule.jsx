@@ -207,15 +207,15 @@ export default function ProcurementModule() {
                 <th className="px-4 py-2.5">Evaluation Date</th>
               </tr></thead>
               <tbody>
-                {vendorEvaluations.map(eval => (
-                  <tr key={eval.id} className="border-b border-main hover:bg-surface/60 transition-colors">
-                    <td className="px-4 py-2.5 text-sm text-main">{eval.supplierName}</td>
-                    <td className="px-4 py-2.5 text-xs text-muted">{eval.period}</td>
-                    <td className="px-4 py-2.5 text-right text-sm font-data text-main">{eval.qualityScore}%</td>
-                    <td className="px-4 py-2.5 text-right text-sm font-data text-main">{eval.deliveryScore}%</td>
-                    <td className="px-4 py-2.5 text-right text-sm font-data text-main">{eval.priceScore}%</td>
-                    <td className="px-4 py-2.5 text-right text-sm font-data font-bold text-emerald-400">{eval.overallScore}%</td>
-                    <td className="px-4 py-2.5 text-xs text-muted">{eval.evaluationDate}</td>
+                {vendorEvaluations.map(evaluation => (
+                  <tr key={evaluation.id} className="border-b border-main hover:bg-surface/60 transition-colors">
+                    <td className="px-4 py-2.5 text-sm text-main">{evaluation.supplierName}</td>
+                    <td className="px-4 py-2.5 text-xs text-muted">{evaluation.period}</td>
+                    <td className="px-4 py-2.5 text-right text-sm font-data text-main">{evaluation.qualityScore}%</td>
+                    <td className="px-4 py-2.5 text-right text-sm font-data text-main">{evaluation.deliveryScore}%</td>
+                    <td className="px-4 py-2.5 text-right text-sm font-data text-main">{evaluation.priceScore}%</td>
+                    <td className="px-4 py-2.5 text-right text-sm font-data font-bold text-emerald-400">{evaluation.overallScore}%</td>
+                    <td className="px-4 py-2.5 text-xs text-muted">{evaluation.evaluationDate}</td>
                   </tr>
                 ))}
               </tbody>
