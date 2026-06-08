@@ -83,6 +83,7 @@ export default function AdminPanel() {
   const [stats, setStats] = useState(null);
   const [users, setUsers] = useState([]);
   const [departments, setDepartments] = useState([]);
+  const [showOfflineBanner, setShowOfflineBanner] = useState(true);
   const [roles, setRoles] = useState([]);
   const [permissions, setPermissions] = useState(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -253,11 +254,17 @@ export default function AdminPanel() {
 
   return (
     <div className="p-6 bg-slate-950 min-h-screen">
-      {/* Offline Mode Banner */}
-      {demoMode && (
-        <div className="mb-4 flex items-center gap-3 px-4 py-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400 text-sm">
-          <span className="text-base">⚠️</span>
-          <span><strong>Offline Demo Mode</strong> — Backend is unreachable. Showing local demo data. Changes will not be saved.</span>
+      {/* Offline Mode Banner — dismissable */}
+      {demoMode && showOfflineBanner && (
+        <div className="mb-4 flex items-center justify-between gap-3 px-4 py-2.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400/80 text-xs">
+          <span><span className="font-semibold text-amber-400">⚠ Offline Demo Mode</span> — Backend unreachable. Showing local demo data only.</span>
+          <button
+            onClick={() => setShowOfflineBanner(false)}
+            className="ml-2 text-amber-400/60 hover:text-amber-400 transition-colors flex-shrink-0"
+            title="Dismiss"
+          >
+            <XCircle className="w-4 h-4" />
+          </button>
         </div>
       )}
       {/* Header */}
