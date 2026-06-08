@@ -30,7 +30,7 @@ export default function TopHeader() {
   useEffect(() => {
     const checkHealth = async () => {
       try {
-        const API_URL = import.meta.env.VITE_API_URL || 'https://erp-software-hmfd.onrender.com';
+        const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
         const res = await fetch(`${API_URL}/api/v1/health`, { signal: AbortSignal.timeout(3000) });
         setDbLive(res.ok);
       } catch {
