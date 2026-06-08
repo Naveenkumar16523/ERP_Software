@@ -9,7 +9,7 @@ load_dotenv()
 DATABASE_URL = os.getenv("DATABASE_URL")
 IS_DEV = os.getenv("NODE_ENV", "development") == "development"
 
-# Configure connection arguments, enabling SSL for TiDB Cloud
+# Configure connection arguments, enabling SSL for TiDB Cloud and PostgreSQL
 connect_args = {}
 if DATABASE_URL and "tidbcloud.com" in DATABASE_URL:
     connect_args = {
@@ -18,6 +18,9 @@ if DATABASE_URL and "tidbcloud.com" in DATABASE_URL:
             # "strict" or cert dict can also be passed depending on needs.
         }
     }
+elif DATABASE_URL and "postgresql" in DATABASE_URL:
+    # PostgreSQL connection settings
+    connect_args = {}
 
 # Use SQLite as fallback if DATABASE_URL is not set or connection fails
 if not DATABASE_URL:
