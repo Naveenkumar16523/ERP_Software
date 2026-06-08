@@ -40,6 +40,43 @@ const DEMO_ROLES = [
   { id: 'role_it_staff', name: 'it_staff' }, { id: 'role_sustainability_staff', name: 'sustainability_staff' },
 ];
 
+const ALL_MODULES = [
+  'dashboard', 'finance', 'human_resources', 'inventory', 'manufacturing',
+  'procurement', 'crm_pipeline', 'payroll', 'fixed_assets', 'projects',
+  'supply_chain', 'ecommerce', 'analytics_hub', 'banking', 'healthcare',
+  'education', 'sustainability', 'marketing', 'security', 'migration_hub', 'rpa_automation'
+];
+
+const ROLE_PERMS = {
+  finance_staff:       ['dashboard','finance','banking','analytics_hub'],
+  hr_staff:            ['dashboard','human_resources','payroll','healthcare','education'],
+  operations_staff:    ['dashboard','inventory','manufacturing','supply_chain','procurement','fixed_assets','projects'],
+  sales_staff:         ['dashboard','crm_pipeline','ecommerce','marketing','analytics_hub'],
+  it_staff:            ['dashboard','security','migration_hub','rpa_automation','analytics_hub'],
+  sustainability_staff:['dashboard','sustainability','analytics_hub'],
+  superadmin:          ALL_MODULES,
+};
+
+const DEMO_PERMISSIONS = {
+  modules: ALL_MODULES,
+  roles: Object.fromEntries(
+    DEMO_ROLES.map(r => [
+      r.name,
+      {
+        role_id: r.id,
+        department_id: 'dept_finance',
+        modules: Object.fromEntries(
+          ALL_MODULES.map(m => [m, {
+            can_read:   (ROLE_PERMS[r.name] || []).includes(m),
+            can_write:  (ROLE_PERMS[r.name] || []).includes(m),
+            can_export: (ROLE_PERMS[r.name] || []).includes(m),
+          }])
+        )
+      }
+    ])
+  )
+};
+
 export default function AdminPanel() {
   const { currentUser, addToast, demoMode } = useERPStore();
   const [activeTab, setActiveTab] = useState('dashboard'); // dashboard, users, permissions
@@ -69,7 +106,8 @@ export default function AdminPanel() {
     } else if (activeTab === 'permissions') {
       fetchPermissions();
     }
-  }, [activeTab]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, demoMode]);
 
   const fetchDashboardStats = async () => {
     // In demo/fallback mode, use local data to avoid hitting the real backend
@@ -127,11 +165,16 @@ export default function AdminPanel() {
   };
 
   const fetchPermissions = async () => {
+    if (demoMode) {
+      setPermissions(DEMO_PERMISSIONS);
+      return;
+    }
     try {
       const data = await api.admin.getPermissions();
       setPermissions(data);
     } catch (err) {
-      addToast('Failed to fetch permissions', 'danger');
+      console.warn('Admin permissions API failed, using demo data:', err.message);
+      setPermissions(DEMO_PERMISSIONS);
     }
   };
 
@@ -196,7 +239,7 @@ export default function AdminPanel() {
     }
   };
 
-  if (!currentUser?.isCEO) {
+  if (!currentUser?.isCEO && !demoMode) {
     return (
       <div className="flex items-center justify-center h-screen bg-slate-950">
         <div className="text-center">
@@ -210,6 +253,13 @@ export default function AdminPanel() {
 
   return (
     <div className="p-6 bg-slate-950 min-h-screen">
+      {/* Offline Mode Banner */}
+      {demoMode && (
+        <div className="mb-4 flex items-center gap-3 px-4 py-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400 text-sm">
+          <span className="text-base">⚠️</span>
+          <span><strong>Offline Demo Mode</strong> — Backend is unreachable. Showing local demo data. Changes will not be saved.</span>
+        </div>
+      )}
       {/* Header */}
       <div className="mb-6">
         <h1 className="text-3xl font-bold text-white mb-2">Admin Control Panel</h1>
@@ -363,6 +413,12 @@ export default function AdminPanel() {
                 ))}
               </tbody>
             </table>
+            {users.length === 0 && (
+              <div className="text-center py-12 text-slate-500">
+                <Users className="w-12 h-12 mx-auto mb-3 opacity-30" />
+                <p className="text-sm">No users found. {demoMode ? 'Reload the page to refresh demo data.' : 'Create your first user.'}</p>
+              </div>
+            )}
           </div>
         </div>
       )}
