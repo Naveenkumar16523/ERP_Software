@@ -228,8 +228,11 @@ def get_registration_status(db: Session = Depends(get_db)):
 
 @router.post("/login", response_model=TokenResponse)
 def login(credentials: Login, db: Session = Depends(get_db)):
-    """Unified login - accepts both CEO and regular employees"""
+    """Unified login - accepts both CEO and regular employees (by username OR email)"""
+    # Try matching by username first, then fall back to email lookup
     user = db.query(ERPUser).filter(ERPUser.username == credentials.username).first()
+    if not user:
+        user = db.query(ERPUser).filter(ERPUser.email == credentials.username).first()
     
     if not user:
         raise HTTPException(

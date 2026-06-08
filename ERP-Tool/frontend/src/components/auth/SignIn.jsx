@@ -4,7 +4,7 @@ import { useERPStore } from '../../store/useERPStore';
 import { api } from '../../utils/api';
 
 export default function SignIn() {
-  const { setToken, setCurrentUser, setDemoMode, addToast, theme, setUserPermissions, setAllowedModules } = useERPStore();
+  const { setToken, setCurrentUser, setDemoMode, addToast, theme, setUserPermissions, setAllowedModules, setActiveModule } = useERPStore();
 
   const [authView, setAuthView] = useState('login'); // 'login' | 'register'
   const [email, setEmail] = useState('');
@@ -66,37 +66,49 @@ export default function SignIn() {
 
       setDemoMode(false);
 
-      // Redirect based on isCEO flag
-      if (data.user?.isCEO) {
-        // CEO goes to admin dashboard
-        window.location.href = '/admin/dashboard';
-      } else {
-        // Employees go to regular dashboard
-        window.location.href = '/dashboard';
-      }
-
+      // Navigate based on isCEO flag (use in-app navigation, not full page reload)
       addToast(`Welcome back, ${userObj.fullName || userObj.name || 'User'}!`, 'success');
+
+      if (data.user?.isCEO) {
+        setActiveModule('admin');
+      } else {
+        setActiveModule('dashboard');
+      }
     } catch (err) {
       console.warn("Backend login failed, checking fallback:", err.message);
 
       // Offline fallback login:
       // If backend is down (network error) or user logs in with demo credentials, let them bypass
-      if (email.toLowerCase() === 'admin@example.com' || email.toLowerCase() === 'admin@clarix.com' || email.toLowerCase() === 'ceo') {
+      const lowerEmail = email.toLowerCase();
+      const isFallbackUser = (
+        lowerEmail === 'admin@example.com' ||
+        lowerEmail === 'admin@clarix.com' ||
+        lowerEmail === 'ceo' ||
+        lowerEmail === 'ceo@company.com'
+      );
+
+      if (isFallbackUser) {
         const mockUser = {
-          id: 'emp-1',
-          name: 'CEO User',
-          firstName: 'System',
-          lastName: 'CEO',
-          email: email,
-          role: 'Admin',
+          id: 'ceo-fallback',
+          username: 'ceo',
+          name: 'CEO (Demo Mode)',
+          fullName: 'CEO (Demo Mode)',
+          firstName: 'CEO',
+          lastName: '',
+          email: 'ceo@company.com',
+          role: 'Superadmin',
           roleId: 'role_superadmin',
           avatar: null,
-          isCEO: true
+          isCEO: true,
+          allowed_modules: ['all']
         };
-        setToken('mock-jwt-token-12345');
+        // Use a clearly fake token and enable demo mode so all API calls use local data
+        setToken('demo-fallback-token');
         setCurrentUser(mockUser);
-        setDemoMode(false);
-        addToast("Signed in via Local Demo credentials.", "info");
+        setAllowedModules(['all']);
+        setDemoMode(true); // <-- critical: prevents API calls from hitting the real backend
+        addToast("Signed in via Local Demo Mode (backend unavailable).", "info");
+        setActiveModule('admin');
       } else {
         setAuthError(err.message || 'Login failed. Please verify your credentials or use the Sandbox Demo.');
         addToast("Authentication failed", "danger");
