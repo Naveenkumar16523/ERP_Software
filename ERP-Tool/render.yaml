@@ -25,7 +25,9 @@ services:
       - key: SECRET_KEY
         generateValue: true
       - key: CORS_ORIGINS
-        value: https://your-frontend.vercel.app
+        value: https://erp-software-cyan.vercel.app
+      - key: FRONTEND_ORIGIN
+        value: https://erp-software-cyan.vercel.app
       - key: JWT_SECRET
         generateValue: true
       - key: JWT_REFRESH_SECRET
