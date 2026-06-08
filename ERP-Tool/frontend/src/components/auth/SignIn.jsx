@@ -81,15 +81,17 @@ export default function SignIn() {
 
       // Offline fallback login:
       // If backend is down (network error) or user logs in with demo credentials, let them bypass
-      if (email.toLowerCase() === 'admin@example.com' || email.toLowerCase() === 'admin@clarix.com') {
+      if (email.toLowerCase() === 'admin@example.com' || email.toLowerCase() === 'admin@clarix.com' || email.toLowerCase() === 'ceo') {
         const mockUser = {
           id: 'emp-1',
-          name: 'John Doe',
-          firstName: 'John',
-          lastName: 'Doe',
+          name: 'CEO User',
+          firstName: 'System',
+          lastName: 'CEO',
           email: email,
           role: 'Admin',
-          avatar: null
+          roleId: 'role_superadmin',
+          avatar: null,
+          isCEO: true
         };
         setToken('mock-jwt-token-12345');
         setCurrentUser(mockUser);
