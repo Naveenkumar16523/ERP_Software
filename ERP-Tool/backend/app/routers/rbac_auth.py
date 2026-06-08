@@ -213,6 +213,87 @@ def require_read_only_or_full(module_key: str, method: str = "GET"):
     return check_access
 
 # Endpoints
+
+@router.post("/reset-ceo")
+def reset_ceo_password(secret: str, db: Session = Depends(get_db)):
+    """
+    Emergency CEO password reset endpoint.
+    Protected by RESET_SECRET environment variable.
+    Call: POST /api/v1/auth/reset-ceo?secret=<RESET_SECRET>
+    """
+    RESET_SECRET = os.getenv("RESET_SECRET", "clarix-reset-2024")
+    if secret != RESET_SECRET:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid reset secret")
+
+    try:
+        from app.models.models import Base
+        from app.utils.db import engine
+        Base.metadata.create_all(bind=engine)
+
+        # Ensure departments exist
+        finance_dept = db.query(ERPDepartment).filter(ERPDepartment.code == "FIN").first()
+        if not finance_dept:
+            finance_dept = ERPDepartment(name="Finance", code="FIN")
+            db.add(finance_dept)
+            db.flush()
+
+        # Ensure CEO/superadmin role exists
+        ceo_role = db.query(ERPRole).filter(ERPRole.name.in_(["superadmin", "ceo"])).first()
+        if not ceo_role:
+            ceo_role = ERPRole(
+                name="superadmin",
+                description="CEO / Superadmin with full access",
+                departmentId=finance_dept.id
+            )
+            db.add(ceo_role)
+            db.flush()
+
+            # Add all module access
+            all_modules = [
+                "dashboard", "finance", "human_resources", "inventory", "manufacturing",
+                "procurement", "crm_pipeline", "payroll", "fixed_assets", "projects",
+                "supply_chain", "ecommerce", "analytics_hub", "banking", "healthcare",
+                "education", "sustainability", "marketing", "security", "migration_hub", "rpa_automation"
+            ]
+            for m in all_modules:
+                db.add(ModuleAccess(roleId=ceo_role.id, moduleKey=m, canRead=True, canWrite=True, canExport=True))
+
+        # Create or reset CEO user
+        ceo_user = db.query(ERPUser).filter(ERPUser.username == "ceo").first()
+        new_hash = pwd_context.hash("admin123")
+
+        if ceo_user:
+            ceo_user.passwordHash = new_hash
+            ceo_user.isActive = True
+            ceo_user.isCEO = True
+            ceo_user.roleId = ceo_role.id
+            action = "reset"
+        else:
+            ceo_user = ERPUser(
+                username="ceo",
+                passwordHash=new_hash,
+                fullName="CEO",
+                email="ceo@company.com",
+                roleId=ceo_role.id,
+                departmentId=finance_dept.id,
+                isActive=True,
+                isCEO=True
+            )
+            db.add(ceo_user)
+            action = "created"
+
+        db.commit()
+        return {
+            "status": "success",
+            "action": action,
+            "username": "ceo",
+            "password": "admin123",
+            "message": f"CEO user {action} successfully. Login with username: ceo, password: admin123"
+        }
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Reset failed: {str(e)}")
+
 @router.get("/registration-status")
 def get_registration_status(db: Session = Depends(get_db)):
     """Check if registration is enabled (no users exist)"""

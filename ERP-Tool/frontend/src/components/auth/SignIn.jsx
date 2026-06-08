@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Mail, Lock, User, Key, Shield, Sparkles, ArrowRight, Eye, EyeOff } from 'lucide-react';
 import { useERPStore } from '../../store/useERPStore';
 import { api } from '../../utils/api';
@@ -6,7 +6,7 @@ import { api } from '../../utils/api';
 export default function SignIn() {
   const { setToken, setCurrentUser, setDemoMode, addToast, theme, setUserPermissions, setAllowedModules, setActiveModule } = useERPStore();
 
-  const [authView, setAuthView] = useState('login'); // 'login' | 'register'
+  const [authView, setAuthView] = useState('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [firstName, setFirstName] = useState('');
@@ -16,6 +16,7 @@ export default function SignIn() {
   const [authError, setAuthError] = useState('');
   const [authSuccess, setAuthSuccess] = useState('');
   const [registrationEnabled, setRegistrationEnabled] = useState(false);
+  const isSubmittingRef = useRef(false); // prevents double-submit on fast clicks / Enter key
 
   useEffect(() => {
     // Check if self-registration is enabled on backend
@@ -32,19 +33,20 @@ export default function SignIn() {
 
   const handleLogin = async (e) => {
     e.preventDefault();
+
+    // Hard guard against double-submit (covers both rapid clicks and Enter key)
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
+
     setAuthError('');
     setAuthSuccess('');
     setAuthLoading(true);
 
     try {
-      // Use unified login endpoint (accepts both CEO and regular employees)
-      const data = await api.auth.login({ username: email, password });
+      const data = await api.auth.login({ username: email.trim(), password });
 
-      // If success, set store and local storage
-      // Backend returns `access_token`
       setToken(data.access_token);
 
-      // Ensure user object has name property for frontend headers
       const userObj = {
         ...data.user,
         name: data.user.fullName || `${data.user.firstName || 'User'} ${data.user.lastName || ''}`.trim()
@@ -52,21 +54,13 @@ export default function SignIn() {
 
       setCurrentUser(userObj);
 
-      // Set user permissions from RBAC response
       const permissions = data.permissions || data.user?.permissions;
-      if (permissions) {
-        setUserPermissions(permissions);
-      }
+      if (permissions) setUserPermissions(permissions);
 
-      // Set allowed_modules from RBAC response
       const allowedModules = data.user?.allowed_modules || [];
-      if (allowedModules.length > 0) {
-        setAllowedModules(allowedModules);
-      }
+      if (allowedModules.length > 0) setAllowedModules(allowedModules);
 
       setDemoMode(false);
-
-      // Navigate based on isCEO flag (use in-app navigation, not full page reload)
       addToast(`Welcome back, ${userObj.fullName || userObj.name || 'User'}!`, 'success');
 
       if (data.user?.isCEO) {
@@ -75,11 +69,9 @@ export default function SignIn() {
         setActiveModule('dashboard');
       }
     } catch (err) {
-      console.warn("Backend login failed, checking fallback:", err.message);
+      console.warn('Backend login failed, checking fallback:', err.message);
 
-      // Offline fallback login:
-      // If backend is down (network error) or user logs in with demo credentials, let them bypass
-      const lowerEmail = email.toLowerCase();
+      const lowerEmail = email.trim().toLowerCase();
       const isFallbackUser = (
         lowerEmail === 'admin@example.com' ||
         lowerEmail === 'admin@clarix.com' ||
@@ -102,19 +94,23 @@ export default function SignIn() {
           isCEO: true,
           allowed_modules: ['all']
         };
-        // Use a clearly fake token and enable demo mode so all API calls use local data
         setToken('demo-fallback-token');
         setCurrentUser(mockUser);
         setAllowedModules(['all']);
-        setDemoMode(true); // <-- critical: prevents API calls from hitting the real backend
-        addToast("Signed in via Local Demo Mode (backend unavailable).", "info");
+        setDemoMode(true);
+        addToast('Signed in via Local Demo Mode (backend unavailable).', 'info');
         setActiveModule('admin');
       } else {
-        setAuthError(err.message || 'Login failed. Please verify your credentials or use the Sandbox Demo.');
-        addToast("Authentication failed", "danger");
+        setAuthError(
+          err.message === 'Invalid credentials'
+            ? 'Invalid username or password. Try: username · ceo · password · admin123'
+            : (err.message || 'Login failed. Please check your credentials.')
+        );
       }
     } finally {
       setAuthLoading(false);
+      // Release the guard after a short delay to prevent instant re-trigger
+      setTimeout(() => { isSubmittingRef.current = false; }, 800);
     }
   };
 
