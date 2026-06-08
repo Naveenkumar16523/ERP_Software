@@ -54,8 +54,7 @@ allowed_origins = list(set([origin for origin in allowed_origins if origin]))
 # Regex to allow ALL Vercel preview deployments and localhost ports automatically
 # This covers URLs like: https://erp-software-<hash>-naveenkumar16523s-projects.vercel.app
 allow_origin_regex = (
-    r"https://erp-software(-[a-zA-Z0-9]+)*\.vercel\.app"
-    r"|https://erp-software(-[a-zA-Z0-9]+)*-naveenkumar16523s-projects\.vercel\.app"
+    r"https://.*\.vercel\.app"
     r"|https?://localhost:\d+"
     r"|https?://127\.0\.0\.1:\d+"
 )
