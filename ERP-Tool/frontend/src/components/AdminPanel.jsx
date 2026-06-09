@@ -242,18 +242,18 @@ export default function AdminPanel() {
 
   if (!currentUser?.isCEO && !demoMode) {
     return (
-      <div className="flex items-center justify-center h-screen bg-slate-950">
+      <div className="flex items-center justify-center h-screen bg-slate-50 dark:bg-slate-950 text-main">
         <div className="text-center">
           <Shield className="w-16 h-16 text-red-500 mx-auto mb-4" />
-          <h2 className="text-2xl font-bold text-white mb-2">Access Denied</h2>
-          <p className="text-slate-400">Admin panel is restricted to CEO only</p>
+          <h2 className="text-2xl font-bold text-main mb-2">Access Denied</h2>
+          <p className="text-muted">Admin panel is restricted to CEO only</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="p-6 bg-slate-950 min-h-screen">
+    <div className="p-6 min-h-screen text-main">
       {/* Offline Mode Banner — dismissable */}
       {demoMode && showOfflineBanner && (
         <div className="mb-4 flex items-center justify-between gap-3 px-4 py-2.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400/80 text-xs">
@@ -269,18 +269,18 @@ export default function AdminPanel() {
       )}
       {/* Header */}
       <div className="mb-6">
-        <h1 className="text-3xl font-bold text-white mb-2">Admin Control Panel</h1>
-        <p className="text-slate-400">Manage users, roles, and system permissions</p>
+        <h1 className="text-3xl font-bold text-main mb-2">Admin Control Panel</h1>
+        <p className="text-muted">Manage users, roles, and system permissions</p>
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-2 mb-6 border-b border-white/10 pb-4">
+      <div className="flex gap-2 mb-6 border-b border-main pb-4">
         <button
           onClick={() => setActiveTab('dashboard')}
           className={`px-4 py-2 rounded-lg font-medium transition-colors ${
             activeTab === 'dashboard'
               ? 'bg-indigo-600 text-white'
-              : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+              : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
           }`}
         >
           <BarChart3 className="w-4 h-4 inline mr-2" />
@@ -291,7 +291,7 @@ export default function AdminPanel() {
           className={`px-4 py-2 rounded-lg font-medium transition-colors ${
             activeTab === 'users'
               ? 'bg-indigo-600 text-white'
-              : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+              : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
           }`}
         >
           <Users className="w-4 h-4 inline mr-2" />
@@ -302,7 +302,7 @@ export default function AdminPanel() {
           className={`px-4 py-2 rounded-lg font-medium transition-colors ${
             activeTab === 'permissions'
               ? 'bg-indigo-600 text-white'
-              : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+              : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
           }`}
         >
           <Shield className="w-4 h-4 inline mr-2" />
@@ -313,36 +313,36 @@ export default function AdminPanel() {
       {/* Dashboard Tab */}
       {activeTab === 'dashboard' && stats && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-          <div className="bg-slate-900 border border-white/10 rounded-xl p-6">
+          <div className="theme-card p-6">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-white">Total Employees</h3>
+              <h3 className="text-lg font-semibold text-main">Total Employees</h3>
               <Users className="w-8 h-8 text-indigo-400" />
             </div>
-            <p className="text-4xl font-bold text-white">{stats.total_employees}</p>
+            <p className="text-4xl font-bold text-main">{stats.total_employees}</p>
             <div className="mt-4 flex gap-4 text-sm">
-              <span className="text-emerald-400">{stats.active_employees} Active</span>
-              <span className="text-rose-400">{stats.inactive_employees} Inactive</span>
+              <span className="text-emerald-500 font-semibold">{stats.active_employees} Active</span>
+              <span className="text-rose-500 font-semibold">{stats.inactive_employees} Inactive</span>
             </div>
           </div>
-          <div className="bg-slate-900 border border-white/10 rounded-xl p-6">
-            <h3 className="text-lg font-semibold text-white mb-4">Employees by Department</h3>
+          <div className="theme-card p-6">
+            <h3 className="text-lg font-semibold text-main mb-4">Employees by Department</h3>
             <div className="space-y-2">
               {Object.entries(stats.employees_by_department).map(([dept, count]) => (
                 <div key={dept} className="flex justify-between text-sm">
-                  <span className="text-slate-300">{dept}</span>
-                  <span className="text-white font-medium">{count}</span>
+                  <span className="text-muted">{dept}</span>
+                  <span className="text-main font-medium">{count}</span>
                 </div>
               ))}
             </div>
           </div>
-          <div className="bg-slate-900 border border-white/10 rounded-xl p-6">
-            <h3 className="text-lg font-semibold text-white mb-4">Recent Users</h3>
+          <div className="theme-card p-6">
+            <h3 className="text-lg font-semibold text-main mb-4">Recent Users</h3>
             <div className="space-y-2">
               {stats.recent_users.map((user) => (
                 <div key={user.id} className="flex items-center gap-2 text-sm">
-                  <CheckCircle className={`w-4 h-4 ${user.is_active ? 'text-emerald-400' : 'text-rose-400'}`} />
-                  <span className="text-slate-300">{user.full_name}</span>
-                  <span className="text-slate-500 text-xs">({user.role_name})</span>
+                  <CheckCircle className={`w-4 h-4 ${user.is_active ? 'text-emerald-500' : 'text-rose-500'}`} />
+                  <span className="text-muted">{user.full_name}</span>
+                  <span className="text-dimmed text-xs">({user.role_name})</span>
                 </div>
               ))}
             </div>
@@ -352,9 +352,9 @@ export default function AdminPanel() {
 
       {/* Users Tab */}
       {activeTab === 'users' && (
-        <div className="bg-slate-900 border border-white/10 rounded-xl">
-          <div className="p-6 border-b border-white/10 flex justify-between items-center">
-            <h2 className="text-xl font-semibold text-white">User Management</h2>
+        <div className="theme-card">
+          <div className="p-6 border-b border-main flex justify-between items-center">
+            <h2 className="text-xl font-semibold text-main">User Management</h2>
             <button
               onClick={() => setShowCreateModal(true)}
               className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
@@ -366,7 +366,7 @@ export default function AdminPanel() {
           <div className="p-6">
             <table className="w-full">
               <thead>
-                <tr className="text-left text-slate-400 text-sm border-b border-white/10">
+                <tr className="text-left text-dimmed text-sm border-b border-main">
                   <th className="pb-3">Username</th>
                   <th className="pb-3">Full Name</th>
                   <th className="pb-3">Email</th>
@@ -378,15 +378,15 @@ export default function AdminPanel() {
               </thead>
               <tbody>
                 {users.map((user) => (
-                  <tr key={user.id} className="border-b border-white/5">
-                    <td className="py-3 text-white">{user.username}</td>
-                    <td className="py-3 text-slate-300">{user.full_name}</td>
-                    <td className="py-3 text-slate-300">{user.email}</td>
-                    <td className="py-3 text-slate-300">{user.role_name}</td>
-                    <td className="py-3 text-slate-300">{user.department_name}</td>
+                  <tr key={user.id} className="border-b border-main/50">
+                    <td className="py-3 text-main font-semibold">{user.username}</td>
+                    <td className="py-3 text-muted">{user.full_name}</td>
+                    <td className="py-3 text-muted">{user.email}</td>
+                    <td className="py-3 text-muted">{user.role_name}</td>
+                    <td className="py-3 text-muted">{user.department_name}</td>
                     <td className="py-3">
-                      <span className={`px-2 py-1 rounded-full text-xs ${
-                        user.is_active ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'
+                      <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                        user.is_active ? 'bg-emerald-500/20 text-emerald-500' : 'bg-rose-500/20 text-rose-500'
                       }`}>
                         {user.is_active ? 'Active' : 'Inactive'}
                       </span>
@@ -395,24 +395,24 @@ export default function AdminPanel() {
                       <div className="flex gap-2">
                         <button
                           onClick={() => handleToggleUserStatus(user.id, user.is_active)}
-                          className="p-2 hover:bg-white/10 rounded transition-colors"
+                          className="p-2 hover:bg-slate-100 dark:hover:bg-white/10 rounded transition-colors"
                           title={user.is_active ? 'Deactivate' : 'Activate'}
                         >
-                          {user.is_active ? <XCircle className="w-4 h-4 text-rose-400" /> : <CheckCircle className="w-4 h-4 text-emerald-400" />}
+                          {user.is_active ? <XCircle className="w-4 h-4 text-rose-500" /> : <CheckCircle className="w-4 h-4 text-emerald-500" />}
                         </button>
                         <button
                           onClick={() => handleResetPassword(user.id, user.username)}
-                          className="p-2 hover:bg-white/10 rounded transition-colors"
+                          className="p-2 hover:bg-slate-100 dark:hover:bg-white/10 rounded transition-colors"
                           title="Reset Password"
                         >
-                          <Key className="w-4 h-4 text-yellow-400" />
+                          <Key className="w-4 h-4 text-yellow-500" />
                         </button>
                         <button
                           onClick={() => handleDeleteUser(user.id)}
-                          className="p-2 hover:bg-white/10 rounded transition-colors"
+                          className="p-2 hover:bg-slate-100 dark:hover:bg-white/10 rounded transition-colors"
                           title="Delete"
                         >
-                          <Trash2 className="w-4 h-4 text-red-400" />
+                          <Trash2 className="w-4 h-4 text-red-500" />
                         </button>
                       </div>
                     </td>
@@ -421,7 +421,7 @@ export default function AdminPanel() {
               </tbody>
             </table>
             {users.length === 0 && (
-              <div className="text-center py-12 text-slate-500">
+              <div className="text-center py-12 text-dimmed">
                 <Users className="w-12 h-12 mx-auto mb-3 opacity-30" />
                 <p className="text-sm">No users found. {demoMode ? 'Reload the page to refresh demo data.' : 'Create your first user.'}</p>
               </div>
@@ -432,12 +432,12 @@ export default function AdminPanel() {
 
       {/* Permissions Tab */}
       {activeTab === 'permissions' && permissions && (
-        <div className="bg-slate-900 border border-white/10 rounded-xl p-6">
-          <h2 className="text-xl font-semibold text-white mb-6">Permission Matrix</h2>
+        <div className="theme-card p-6">
+          <h2 className="text-xl font-semibold text-main mb-6">Permission Matrix</h2>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-left text-slate-400 border-b border-white/10">
+                <tr className="text-left text-dimmed border-b border-main">
                   <th className="pb-3 pr-4">Role</th>
                   {permissions.modules.map((module) => (
                     <th key={module} className="pb-3 px-2 whitespace-nowrap">{module.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</th>
@@ -446,8 +446,8 @@ export default function AdminPanel() {
               </thead>
               <tbody>
                 {Object.entries(permissions.roles).map(([roleName, roleData]) => (
-                  <tr key={roleName} className="border-b border-white/5">
-                    <td className="py-3 pr-4 text-white font-medium">{roleName}</td>
+                  <tr key={roleName} className="border-b border-main/50">
+                    <td className="py-3 pr-4 text-main font-medium">{roleName}</td>
                     {permissions.modules.map((module) => {
                       const hasAccess = roleData.modules[module]?.can_read;
                       const isCEO = roleData.role_id === 'role_superadmin';
@@ -462,14 +462,14 @@ export default function AdminPanel() {
                             className={`p-1 rounded transition-colors ${
                               isDisabled 
                                 ? 'cursor-not-allowed opacity-50' 
-                                : 'hover:bg-white/10 cursor-pointer'
+                                : 'hover:bg-slate-100 dark:hover:bg-white/10 cursor-pointer'
                             }`}
                             title={isDisabled ? (isCEO ? 'CEO has full access' : 'Dashboard is always ON') : 'Toggle access'}
                           >
                             {hasAccess ? (
-                              <CheckCircle className="w-5 h-5 text-emerald-400" />
+                              <CheckCircle className="w-5 h-5 text-emerald-500" />
                             ) : (
-                              <XCircle className="w-5 h-5 text-slate-600" />
+                              <XCircle className="w-5 h-5 text-slate-400 dark:text-slate-600" />
                             )}
                           </button>
                         </td>
@@ -480,7 +480,7 @@ export default function AdminPanel() {
               </tbody>
             </table>
           </div>
-          <p className="text-slate-400 text-xs mt-4">
+          <p className="text-dimmed text-xs mt-4">
             Click any toggle to enable/disable module access. Changes take effect on employee's next login.
             CEO row and Dashboard column are locked.
           </p>
@@ -490,44 +490,44 @@ export default function AdminPanel() {
       {/* Create User Modal */}
       {showCreateModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-slate-900 border border-white/10 rounded-xl p-6 w-full max-w-md">
+          <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-white/10 rounded-xl p-6 w-full max-w-md text-main">
             <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-semibold text-white">Create New User</h2>
+              <h2 className="text-xl font-semibold text-main">Create New User</h2>
               <button
                 onClick={() => setShowCreateModal(false)}
-                className="p-2 hover:bg-white/10 rounded transition-colors"
+                className="p-2 hover:bg-slate-200 dark:hover:bg-white/10 rounded transition-colors"
               >
-                <XCircle className="w-5 h-5 text-slate-400" />
+                <XCircle className="w-5 h-5 text-dimmed" />
               </button>
             </div>
             <form onSubmit={handleCreateUser} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">Full Name</label>
+                <label className="block text-sm font-medium text-muted mb-2">Full Name</label>
                 <input
                   type="text"
                   required
                   value={newUser.full_name}
                   onChange={(e) => setNewUser({ ...newUser, full_name: e.target.value })}
-                  className="w-full px-4 py-2 bg-slate-800 border border-white/10 rounded-lg text-white focus:outline-none focus:border-indigo-500"
+                  className="w-full px-4 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-white/10 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">Email</label>
+                <label className="block text-sm font-medium text-muted mb-2">Email</label>
                 <input
                   type="email"
                   required
                   value={newUser.email}
                   onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
-                  className="w-full px-4 py-2 bg-slate-800 border border-white/10 rounded-lg text-white focus:outline-none focus:border-indigo-500"
+                  className="w-full px-4 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-white/10 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">Department</label>
+                <label className="block text-sm font-medium text-muted mb-2">Department</label>
                 <select
                   required
                   value={newUser.department_id}
                   onChange={(e) => setNewUser({ ...newUser, department_id: e.target.value })}
-                  className="w-full px-4 py-2 bg-slate-800 border border-white/10 rounded-lg text-white focus:outline-none focus:border-indigo-500"
+                  className="w-full px-4 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-white/10 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500"
                 >
                   <option value="">Select Department</option>
                   {departments.map((dept) => (
@@ -536,12 +536,12 @@ export default function AdminPanel() {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">Role</label>
+                <label className="block text-sm font-medium text-muted mb-2">Role</label>
                 <select
                   required
                   value={newUser.role_id}
                   onChange={(e) => setNewUser({ ...newUser, role_id: e.target.value })}
-                  className="w-full px-4 py-2 bg-slate-800 border border-white/10 rounded-lg text-white focus:outline-none focus:border-indigo-500"
+                  className="w-full px-4 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-white/10 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500"
                 >
                   <option value="">Select Role</option>
                   {roles.map((role) => (

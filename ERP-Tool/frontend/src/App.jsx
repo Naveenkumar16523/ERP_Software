@@ -149,12 +149,12 @@ export default function App() {
     return allowedModules.includes(moduleKey);
   };
 
-  // Redirect CEO to admin panel if they try to access dashboard
-  useEffect(() => {
-    if (currentUser?.isCEO && activeModule === 'dashboard') {
-      setActiveModule('admin');
-    }
-  }, [currentUser, activeModule, setActiveModule]);
+  // Redirect CEO to admin panel if they try to access dashboard (Disabled to allow CEO to view standard dashboard)
+  // useEffect(() => {
+  //   if (currentUser?.isCEO && activeModule === 'dashboard') {
+  //     setActiveModule('admin');
+  //   }
+  // }, [currentUser, activeModule, setActiveModule]);
 
   if (!isAuthenticated) {
     return (
