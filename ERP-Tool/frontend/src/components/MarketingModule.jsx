@@ -1,26 +1,67 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Plus, Megaphone, Users, BarChart3, Share2 } from 'lucide-react';
 import { useERPStore } from '../store/useERPStore';
+import { api } from '../utils/api';
 import Modal from './ui/Modal';
 
 export default function MarketingModule() {
   const {
-    marketingCampaigns, addMarketingCampaign,
-    marketingLeads, addMarketingLead,
+    marketingCampaigns, setMarketingCampaigns, addMarketingCampaign,
+    marketingLeads, setMarketingLeads, addMarketingLead,
     marketingAnalytics, addMarketingAnalytics,
-    socialMediaPosts, addSocialMediaPost,
+    socialMediaPosts, setSocialMediaPosts, addSocialMediaPost,
     addToast
   } = useERPStore();
   const [activeTab, setActiveTab] = useState('campaigns');
   const [modal, setModal] = useState(false);
   const [form, setForm] = useState({ name: '', type: 'EMAIL', budget: 0, startDate: '', endDate: '', email: '', source: '', platform: '', content: '' });
 
-  const handleAdd = () => {
+  // Fetch marketing data from DB on mount
+  useEffect(() => {
+    let active = true;
+    const fetchData = async () => {
+      try {
+        const [camps, leads, posts] = await Promise.all([
+          api.marketing.getCampaigns(),
+          api.marketing.getLeads(),
+          api.marketing.getSocialPosts()
+        ]);
+        if (active) {
+          if (Array.isArray(camps)) setMarketingCampaigns(camps);
+          if (Array.isArray(leads)) setMarketingLeads(leads);
+          if (Array.isArray(posts)) setSocialMediaPosts(posts);
+        }
+      } catch (err) {
+        console.error('Error fetching marketing data:', err);
+      }
+    };
+    fetchData();
+    return () => { active = false; };
+  }, [setMarketingCampaigns, setMarketingLeads, setSocialMediaPosts]);
+
+  const handleAdd = async () => {
     if (!form.name) return addToast('Name required', 'error');
-    if (activeTab === 'campaigns') addMarketingCampaign({ ...form, budget: parseFloat(form.budget), spent: 0, leads: 0, conversions: 0 });
-    else if (activeTab === 'leads') addMarketingLead({ ...form, score: 75, status: 'NEW' });
-    else if (activeTab === 'social') addSocialMediaPost({ ...form, publishedDate: form.startDate });
-    addToast('Record added successfully', 'success');
+    try {
+      if (activeTab === 'campaigns') {
+        const payload = { ...form, budget: parseFloat(form.budget), spent: 0, leads: 0, conversions: 0 };
+        const saved = await api.marketing.createCampaign(payload);
+        addMarketingCampaign(saved || payload);
+      } else if (activeTab === 'leads') {
+        const payload = { ...form, score: 75, status: 'NEW' };
+        const saved = await api.marketing.createLead(payload);
+        addMarketingLead(saved || payload);
+      } else if (activeTab === 'social') {
+        const payload = { ...form, publishedDate: form.startDate, status: 'DRAFT', likes: 0, shares: 0, comments: 0 };
+        const saved = await api.marketing.createSocialPost(payload);
+        addSocialMediaPost(saved || payload);
+      }
+      addToast('Record added successfully', 'success');
+    } catch {
+      if (activeTab === 'campaigns') addMarketingCampaign({ ...form, budget: parseFloat(form.budget), spent: 0, leads: 0, conversions: 0 });
+      else if (activeTab === 'leads') addMarketingLead({ ...form, score: 75, status: 'NEW' });
+      else if (activeTab === 'social') addSocialMediaPost({ ...form, publishedDate: form.startDate });
+      addToast('Record saved locally', 'info');
+    }
     setModal(false);
     setForm({ name: '', type: 'EMAIL', budget: 0, startDate: '', endDate: '', email: '', source: '', platform: '', content: '' });
   };

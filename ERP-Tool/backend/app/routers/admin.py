@@ -12,7 +12,7 @@ import secrets
 import string
 
 from app.utils.db import get_db
-from app.models.models import ERPUser, ERPRole, ModuleAccess, ERPDepartment
+from app.models.models import ERPUser, ERPRole, ModuleAccess, ERPDepartment, Employee, Department
 from app.middlewares.rbac_middleware import require_ceo, RBACUser
 from passlib.context import CryptContext
 
@@ -85,16 +85,18 @@ def get_admin_dashboard(current_user: RBACUser = Depends(require_ceo), db: Sessi
     # Get all users except CEO
     users = db.query(ERPUser).filter(ERPUser.isCEO == False).all()
     
-    total_employees = len(users)
-    active_employees = len([u for u in users if u.isActive])
+    # Count employees using Employee database table
+    total_employees = db.query(Employee).count()
+    active_employees = db.query(Employee).filter(Employee.isActive == True).count()
     inactive_employees = total_employees - active_employees
     
-    # Count by department
+    # Count by department using Employee and Department database tables
     employees_by_department = {}
-    for user in users:
-        dept = db.query(ERPDepartment).filter(ERPDepartment.id == user.departmentId).first()
-        dept_name = dept.name if dept else "Unknown"
-        employees_by_department[dept_name] = employees_by_department.get(dept_name, 0) + 1
+    departments = db.query(Department).all()
+    for dept in departments:
+        count = db.query(Employee).filter(Employee.departmentId == dept.id).count()
+        if count > 0:
+            employees_by_department[dept.name] = count
     
     # Get recent users (last 5 created)
     recent_users = db.query(ERPUser).order_by(ERPUser.createdAt.desc()).limit(5).all()

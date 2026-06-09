@@ -1,37 +1,84 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ShoppingCart, Plus, Minus, Trash2, Package, CreditCard, FileText } from 'lucide-react';
 import { useERPStore } from '../store/useERPStore';
+import { api } from '../utils/api';
 
 export default function EcommerceModule() {
   const {
-    ecommerceProducts, cart, addToCart, updateCartQty, removeFromCart,
-    ecommerceOrders, addEcommerceOrder, updateEcommerceOrderStatus,
+    ecommerceProducts, setEcommerceProducts, cart, addToCart, updateCartQty, removeFromCart, clearCart,
+    ecommerceOrders, setEcommerceOrders, addEcommerceOrder, updateEcommerceOrderStatus,
     payments, addPayment,
     addToast
   } = useERPStore();
   const [activeTab, setActiveTab] = useState('shop');
 
+  // Fetch products and orders from DB on mount
+  useEffect(() => {
+    let active = true;
+    const fetchData = async () => {
+      try {
+        const [prods, ords] = await Promise.all([
+          api.ecommerce.getProducts(),
+          api.ecommerce.getOrders()
+        ]);
+        if (active) {
+          if (Array.isArray(prods)) setEcommerceProducts(prods);
+          if (Array.isArray(ords)) setEcommerceOrders(ords);
+        }
+      } catch (err) {
+        console.error('Error fetching e-commerce data:', err);
+      }
+    };
+    fetchData();
+    return () => { active = false; };
+  }, [setEcommerceProducts, setEcommerceOrders]);
+
   const cartTotal = cart.reduce((s, c) => s + c.qty * (c.product?.price || 0), 0);
 
-  const handleCheckout = () => {
+  const handleCheckout = async () => {
     if (cart.length === 0) return addToast('Cart is empty', 'error');
-    const orderId = `eorder-${Date.now()}`;
-    addEcommerceOrder({
-      orderNumber: `ECO-${Date.now()}`,
+    const payload = {
       customerName: 'Online Customer',
       customerEmail: 'customer@example.com',
-      items: cart.map(c => ({ productId: c.productId, qty: c.qty, price: c.product?.price })),
-      total: cartTotal,
-      paymentMethod: 'CREDIT_CARD'
-    });
-    addPayment({
-      orderId,
-      orderNumber: `ECO-${Date.now()}`,
-      amount: cartTotal,
-      method: 'CREDIT_CARD',
-      transactionId: `TXN-${Date.now()}`
-    });
-    addToast('Order placed successfully!', 'success');
+      shippingAddress: 'Default Address',
+      items: cart.map(c => ({ productId: c.productId || c.id, quantity: c.qty || 1 }))
+    };
+    try {
+      const saved = await api.ecommerce.checkout(payload);
+      const orderData = {
+        id: saved.id || `eorder-${Date.now()}`,
+        orderNumber: saved.orderNo || `ECO-${Date.now()}`,
+        customerName: saved.customerName || payload.customerName,
+        customerEmail: saved.customerEmail || payload.customerEmail,
+        items: cart.map(c => ({ productId: c.productId, qty: c.qty, price: c.product?.price })),
+        total: saved.totalAmount || cartTotal,
+        paymentMethod: 'CREDIT_CARD',
+        status: saved.status || 'PLACED'
+      };
+      addEcommerceOrder(orderData);
+      addToast('Order placed successfully!', 'success');
+      // Refresh orders from DB
+      const refreshed = await api.ecommerce.getOrders().catch(() => null);
+      if (refreshed && Array.isArray(refreshed)) setEcommerceOrders(refreshed);
+    } catch {
+      const orderId = `eorder-${Date.now()}`;
+      addEcommerceOrder({
+        orderNumber: `ECO-${Date.now()}`,
+        customerName: 'Online Customer',
+        customerEmail: 'customer@example.com',
+        items: cart.map(c => ({ productId: c.productId, qty: c.qty, price: c.product?.price })),
+        total: cartTotal,
+        paymentMethod: 'CREDIT_CARD'
+      });
+      addPayment({
+        orderId,
+        orderNumber: `ECO-${Date.now()}`,
+        amount: cartTotal,
+        method: 'CREDIT_CARD',
+        transactionId: `TXN-${Date.now()}`
+      });
+      addToast('Order placed (offline mode)', 'info');
+    }
   };
 
   return (
@@ -178,10 +225,16 @@ export default function EcommerceModule() {
                     </td>
                     <td className="px-4 py-2.5">
                       {o.status === 'PROCESSING' && (
-                        <button onClick={() => { updateEcommerceOrderStatus(o.id, 'SHIPPED'); addToast('Order shipped', 'success'); }} className="text-xs text-emerald-400 hover:underline">Ship</button>
+                        <button onClick={async () => { 
+                          try { await api.ecommerce.updateOrderStatus(o.id, 'SHIPPED'); } catch {}
+                          updateEcommerceOrderStatus(o.id, 'SHIPPED'); addToast('Order shipped', 'success'); 
+                        }} className="text-xs text-emerald-400 hover:underline">Ship</button>
                       )}
                       {o.status === 'SHIPPED' && (
-                        <button onClick={() => { updateEcommerceOrderStatus(o.id, 'DELIVERED'); addToast('Order delivered', 'success'); }} className="text-xs text-emerald-400 hover:underline">Deliver</button>
+                        <button onClick={async () => { 
+                          try { await api.ecommerce.updateOrderStatus(o.id, 'DELIVERED'); } catch {}
+                          updateEcommerceOrderStatus(o.id, 'DELIVERED'); addToast('Order delivered', 'success'); 
+                        }} className="text-xs text-emerald-400 hover:underline">Deliver</button>
                       )}
                     </td>
                   </tr>

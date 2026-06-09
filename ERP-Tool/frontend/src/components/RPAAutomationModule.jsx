@@ -1,11 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Plus, Workflow, Bot, Calendar, BarChart3 } from 'lucide-react';
 import { useERPStore } from '../store/useERPStore';
+import { api } from '../utils/api';
 import Modal from './ui/Modal';
 
 export default function RPAAutomationModule() {
   const {
-    rpaWorkflows, addRPAWorkflow,
+    rpaWorkflows, setRPAWorkflows, addRPAWorkflow,
     rpaBots, addRPABot,
     rpaTasks, addRPATask,
     rpaPerformance, addRPAPerformance,
@@ -15,13 +16,43 @@ export default function RPAAutomationModule() {
   const [modal, setModal] = useState(false);
   const [form, setForm] = useState({ name: '', type: '', workflowId: '', taskName: '', scheduledTime: '', botId: '', metric: '', value: 0, unit: '' });
 
-  const handleAdd = () => {
+  // Fetch RPA workflows from DB on mount
+  useEffect(() => {
+    let active = true;
+    const fetchData = async () => {
+      try {
+        const data = await api.automation.getWorkflows();
+        if (active && Array.isArray(data)) setRPAWorkflows(data);
+      } catch (err) {
+        console.error('Error fetching automation workflows:', err);
+      }
+    };
+    fetchData();
+    return () => { active = false; };
+  }, [setRPAWorkflows]);
+
+  const handleAdd = async () => {
     if (!form.name) return addToast('Name required', 'error');
-    if (activeTab === 'workflows') addRPAWorkflow({ ...form, lastRun: new Date().toISOString().split('T')[0], successRate: 0, tasksCompleted: 0 });
-    else if (activeTab === 'bots') addRPABot({ ...form });
-    else if (activeTab === 'tasks') addRPATask({ ...form, workflowName: rpaWorkflows.find(w => w.id === form.workflowId)?.name || '' });
-    else if (activeTab === 'performance') addRPAPerformance({ ...form, botName: rpaBots.find(b => b.id === form.botId)?.name || '', date: new Date().toISOString().split('T')[0] });
-    addToast('Record added successfully', 'success');
+    try {
+      if (activeTab === 'workflows') {
+        const payload = { ...form, trigger: form.type || 'MANUAL', lastRun: new Date().toISOString().split('T')[0], successCount: 0, failureCount: 0 };
+        const saved = await api.automation.createWorkflow(payload);
+        addRPAWorkflow(saved || { ...form, lastRun: new Date().toISOString().split('T')[0], successRate: 0, tasksCompleted: 0 });
+      } else if (activeTab === 'bots') {
+        addRPABot({ ...form });
+      } else if (activeTab === 'tasks') {
+        addRPATask({ ...form, workflowName: rpaWorkflows.find(w => w.id === form.workflowId)?.name || '' });
+      } else if (activeTab === 'performance') {
+        addRPAPerformance({ ...form, botName: rpaBots.find(b => b.id === form.botId)?.name || '', date: new Date().toISOString().split('T')[0] });
+      }
+      addToast('Record added successfully', 'success');
+    } catch {
+      if (activeTab === 'workflows') addRPAWorkflow({ ...form, lastRun: new Date().toISOString().split('T')[0], successRate: 0, tasksCompleted: 0 });
+      else if (activeTab === 'bots') addRPABot({ ...form });
+      else if (activeTab === 'tasks') addRPATask({ ...form, workflowName: rpaWorkflows.find(w => w.id === form.workflowId)?.name || '' });
+      else if (activeTab === 'performance') addRPAPerformance({ ...form, botName: rpaBots.find(b => b.id === form.botId)?.name || '', date: new Date().toISOString().split('T')[0] });
+      addToast('Record saved locally', 'info');
+    }
     setModal(false);
     setForm({ name: '', type: '', workflowId: '', taskName: '', scheduledTime: '', botId: '', metric: '', value: 0, unit: '' });
   };

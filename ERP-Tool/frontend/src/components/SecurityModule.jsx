@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ShieldAlert, ShieldCheck, Activity, FileCheck, Users, ClipboardCheck } from 'lucide-react';
 import { useERPStore } from '../store/useERPStore';
+import { api } from '../utils/api';
 
 const SEVERITY_STYLES = {
   CRITICAL: 'bg-rose-500/20 text-rose-400 border-rose-500/30',
@@ -11,13 +12,34 @@ const SEVERITY_STYLES = {
 
 export default function SecurityModule() {
   const {
-    accessLogs, addAccessLog,
-    securityAlerts, addSecurityAlert,
+    accessLogs, setAccessLogs, addAccessLog,
+    securityAlerts, setSecurityAlerts, addSecurityAlert,
     userActivity, addUserActivity,
     complianceTracking, addComplianceTracking,
     addToast
   } = useERPStore();
   const [activeTab, setActiveTab] = useState('alerts');
+
+  // Fetch security data from DB on mount
+  useEffect(() => {
+    let active = true;
+    const fetchData = async () => {
+      try {
+        const [events, incidents] = await Promise.all([
+          api.security.getEvents(),
+          api.security.getIncidents()
+        ]);
+        if (active) {
+          if (Array.isArray(events)) setSecurityAlerts(events);
+          if (Array.isArray(incidents)) setAccessLogs(incidents);
+        }
+      } catch (err) {
+        console.error('Error fetching security data:', err);
+      }
+    };
+    fetchData();
+    return () => { active = false; };
+  }, [setSecurityAlerts, setAccessLogs]);
 
   const TABS = [
     { id: 'alerts', label: 'Security Alerts', icon: ShieldAlert },

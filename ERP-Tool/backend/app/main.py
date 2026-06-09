@@ -24,6 +24,18 @@ from app.routers.manufacturing import router as manufacturing_router
 from app.routers.ecommerce import router as ecommerce_router
 from app.routers.assets import router as assets_router
 from app.routers.dashboard import router as dashboard_router
+from app.routers.payroll import router as payroll_router
+from app.routers.projects import router as projects_router
+from app.routers.support import router as support_router
+from app.routers.supply_chain import router as supply_chain_router
+from app.routers.banking import router as banking_router
+from app.routers.healthcare import router as healthcare_router
+from app.routers.education import router as education_router
+from app.routers.sustainability import router as sustainability_router
+from app.routers.marketing import router as marketing_router
+from app.routers.security import router as security_router
+from app.routers.analytics import router as analytics_router
+from app.routers.automation import router as automation_router
 
 load_dotenv()
 
@@ -165,3 +177,15 @@ app.include_router(manufacturing_router, prefix="/api/v1")
 app.include_router(ecommerce_router, prefix="/api/v1")
 app.include_router(assets_router, prefix="/api/v1")
 app.include_router(dashboard_router, prefix="/api/v1")
+app.include_router(payroll_router, prefix="/api/v1")
+app.include_router(projects_router, prefix="/api/v1")
+app.include_router(support_router, prefix="/api/v1")
+app.include_router(supply_chain_router, prefix="/api/v1")
+app.include_router(banking_router, prefix="/api/v1")
+app.include_router(healthcare_router, prefix="/api/v1")
+app.include_router(education_router, prefix="/api/v1")
+app.include_router(sustainability_router, prefix="/api/v1")
+app.include_router(marketing_router, prefix="/api/v1")
+app.include_router(security_router, prefix="/api/v1")
+app.include_router(analytics_router, prefix="/api/v1")
+app.include_router(automation_router, prefix="/api/v1")

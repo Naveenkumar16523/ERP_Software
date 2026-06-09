@@ -1,26 +1,57 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Plus, CreditCard, TrendingUp, Wallet } from 'lucide-react';
 import { useERPStore } from '../store/useERPStore';
+import { api } from '../utils/api';
 import Modal from './ui/Modal';
 
 export default function BankingModule() {
   const {
-    bankingAccounts, addBankingAccount,
-    bankingTransactions, addBankingTransaction,
-    bankingLoans, addBankingLoan,
+    bankingAccounts, setBankingAccounts, addBankingAccount,
+    bankingTransactions, setBankingTransactions, addBankingTransaction,
+    bankingLoans, setBankingLoans, addBankingLoan,
     addToast
   } = useERPStore();
   const [activeTab, setActiveTab] = useState('accounts');
   const [modal, setModal] = useState(false);
   const [form, setForm] = useState({ accountId: '', description: '', amount: 0, type: 'CREDIT' });
 
+  // Fetch banking data from DB on mount
+  useEffect(() => {
+    let active = true;
+    const fetchData = async () => {
+      try {
+        const [accts, txs, loans] = await Promise.all([
+          api.banking.getAccounts(),
+          api.banking.getTransactions(),
+          api.banking.getLoans()
+        ]);
+        if (active) {
+          if (Array.isArray(accts)) setBankingAccounts(accts);
+          if (Array.isArray(txs)) setBankingTransactions(txs);
+          if (Array.isArray(loans)) setBankingLoans(loans);
+        }
+      } catch (err) {
+        console.error('Error fetching banking data:', err);
+      }
+    };
+    fetchData();
+    return () => { active = false; };
+  }, [setBankingAccounts, setBankingTransactions, setBankingLoans]);
+
   const totalBalance = bankingAccounts.reduce((s, a) => s + (a.balance || 0), 0);
   const totalOutstanding = bankingLoans.reduce((s, l) => s + (l.outstanding || 0), 0);
 
-  const handlePost = () => {
+  const handlePost = async () => {
     if (!form.accountId || !form.amount) return addToast('All fields required', 'error');
-    addBankingTransaction({ ...form, amount: parseFloat(form.amount), date: new Date().toISOString().split('T')[0] });
-    addToast(`Transaction posted: ₹${parseFloat(form.amount).toLocaleString('en-IN')}`, 'success');
+    const payload = { ...form, amount: parseFloat(form.amount), date: new Date().toISOString().split('T')[0] };
+    try {
+      const saved = await api.banking.createTransaction(payload);
+      addBankingTransaction(saved || payload);
+      addToast(`Transaction posted: ₹${parseFloat(form.amount).toLocaleString('en-IN')}`, 'success');
+    } catch {
+      addBankingTransaction(payload);
+      addToast('Transaction saved locally', 'info');
+    }
     setModal(false);
     setForm({ accountId: '', description: '', amount: 0, type: 'CREDIT' });
   };

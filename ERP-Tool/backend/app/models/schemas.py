@@ -178,3 +178,48 @@ class OrderPlace(BaseModel):
     customerEmail: EmailStr
     shippingAddress: Optional[str] = None
     items: List[OrderItemInput]
+
+class InvoiceCreate(BaseModel):
+    customerName: str
+    totalAmount: float
+    dueDate: Optional[str] = None
+
+class BudgetCreate(BaseModel):
+    costCenter: str
+    period: str
+    amount: float
+    year: int
+    month: Optional[int] = None
+
+class ExpenseCreate(BaseModel):
+    description: str
+    category: str
+    amount: float
+    date: str
+
+class ProjectCreate(BaseModel):
+    name: str
+    code: str
+    description: Optional[str] = None
+    manager: Optional[str] = None
+    startDate: Optional[str] = None
+    endDate: Optional[str] = None
+    budget: float = Field(default=0.0)
+
+class ProjectTaskCreate(BaseModel):
+    title: str
+    description: Optional[str] = None
+    assignedTo: Optional[str] = None
+    dueDate: Optional[str] = None
+
+class SupportTicketCreate(BaseModel):
+    title: str
+    customer: str
+    priority: str
+    assignedTo: Optional[str] = None
+
+class ShipmentCreate(BaseModel):
+    carrier: str
+    origin: str
+    destination: str
+    estimatedDelivery: Optional[str] = None

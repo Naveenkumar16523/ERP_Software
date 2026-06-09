@@ -1,11 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Plus, Factory, ClipboardList, Settings, AlertCircle, BarChart3, Wrench } from 'lucide-react';
 import { useERPStore } from '../store/useERPStore';
+import { api } from '../utils/api';
 import Modal from './ui/Modal';
 
 export default function ManufacturingModule() {
   const {
-    productionBatches, addProductionBatch, updateBatchProgress,
+    productionBatches, setProductionBatches, addProductionBatch, updateBatchProgress,
     qaInspections,
     workOrders, addWorkOrder, updateWorkOrderStatus,
     billOfMaterials,
@@ -16,20 +17,42 @@ export default function ManufacturingModule() {
     products, addToast
   } = useERPStore();
 
+  // Fetch production batches from DB on mount
+  useEffect(() => {
+    let active = true;
+    const fetchBatches = async () => {
+      try {
+        const data = await api.manufacturing.getBatches();
+        if (active && Array.isArray(data)) setProductionBatches(data);
+      } catch (err) {
+        console.error('Error fetching manufacturing batches:', err);
+      }
+    };
+    fetchBatches();
+    return () => { active = false; };
+  }, [setProductionBatches]);
+
   const [activeTab, setActiveTab] = useState('batches');
   const [modal, setModal] = useState(false);
   const [form, setForm] = useState({ productId: '', quantity: 0, startDate: '', targetDate: '' });
 
-  const handleAdd = () => {
+  const handleAdd = async () => {
     if (!form.productId || !form.quantity) return addToast('Product and quantity required', 'error');
     const prod = products.find(p => p.id === form.productId);
-    addProductionBatch({
+    const payload = {
       ...form,
       quantity: parseInt(form.quantity),
       productName: prod?.name || 'Unknown',
       batchNo: `BATCH-${Date.now().toString().slice(-6)}`,
-    });
-    addToast('Production batch created', 'success');
+    };
+    try {
+      const saved = await api.manufacturing.createBatch(payload);
+      addProductionBatch(saved || payload);
+      addToast('Production batch created', 'success');
+    } catch {
+      addProductionBatch(payload);
+      addToast('Production batch saved locally', 'info');
+    }
     setModal(false);
   };
 
@@ -115,7 +138,11 @@ export default function ManufacturingModule() {
                       {[25, 50, 75, 100].map(pct => (
                         <button
                           key={pct}
-                          onClick={() => { updateBatchProgress(b.id, pct, pct === 100 ? 'COMPLETED' : 'IN_PROGRESS'); addToast(`Batch progress updated to ${pct}%`, 'info'); }}
+                          onClick={async () => {
+                            updateBatchProgress(b.id, pct, pct === 100 ? 'COMPLETED' : 'IN_PROGRESS');
+                            try { await api.manufacturing.updateBatchProgress(b.id, pct); } catch {}
+                            addToast(`Batch progress updated to ${pct}%`, 'info');
+                          }}
                           className="text-xs bg-surface border border-main hover:bg-surface/80 text-muted hover:text-main px-2 py-0.5 rounded transition-colors"
                         >
                           {pct}%

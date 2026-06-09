@@ -1,16 +1,43 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Plus, FolderKanban, CheckSquare, Users, Flag } from 'lucide-react';
 import { useERPStore } from '../store/useERPStore';
+import { api } from '../utils/api';
 import Modal from './ui/Modal';
 
 export default function ProjectsModule() {
   const {
-    projects, addProject, updateProjectStatus,
-    tasks, addTask, updateTaskStatus,
+    projects, setProjects, addProject, updateProjectStatus,
+    tasks, setTasks, addTask, updateTaskStatus,
     milestones, addMilestone, updateMilestoneStatus,
     resourceAllocations, addResourceAllocation,
     addToast
   } = useERPStore();
+
+  useEffect(() => {
+    let active = true;
+    const fetchProjects = async () => {
+      try {
+        const data = await api.projects.getProjects();
+        if (active && Array.isArray(data)) {
+          setProjects(data);
+          const allTasks = data.flatMap(p => p.tasks || []).map(t => ({
+            ...t,
+            priority: t.priority || 'MEDIUM',
+            actualHours: t.actualHours || 0,
+            estimatedHours: t.estimatedHours || 8,
+            assigneeName: t.assignedTo || 'Unassigned'
+          }));
+          setTasks(allTasks);
+        }
+      } catch (err) {
+        console.error('Error fetching projects:', err);
+      }
+    };
+    fetchProjects();
+    return () => {
+      active = false;
+    };
+  }, [setProjects, setTasks]);
 
   const [activeTab, setActiveTab] = useState('projects');
   const [modal, setModal] = useState(false);
@@ -18,16 +45,37 @@ export default function ProjectsModule() {
     name: '', description: '', priority: 'MEDIUM', startDate: '', endDate: '', budget: 0, manager: ''
   });
 
-  const handleAddProject = () => {
+  const handleAddProject = async () => {
     if (!form.name || !form.budget) return addToast('Name and budget required', 'error');
     const managerName = form.manager || 'Unassigned';
-    addProject({
-      ...form,
-      budget: parseFloat(form.budget),
-      manager: form.manager || 'unassigned',
-      managerName
-    });
-    addToast('Project created successfully', 'success');
+    const payload = {
+      name: form.name,
+      code: `PROJ-${Date.now().toString().slice(-4)}`,
+      description: form.description || '',
+      manager: managerName,
+      startDate: form.startDate || null,
+      endDate: form.endDate || null,
+      budget: parseFloat(form.budget) || 0.0
+    };
+
+    try {
+      const savedProj = await api.projects.addProject(payload);
+      const formattedProj = {
+        ...savedProj,
+        managerName: savedProj.manager || 'Unassigned',
+        progress: 0,
+        spent: 0,
+        tasks: []
+      };
+      
+      const exists = projects.some(p => p.code === formattedProj.code);
+      if (!exists) {
+        addProject(formattedProj);
+      }
+      addToast('Project created successfully', 'success');
+    } catch (err) {
+      addToast(`Error creating project: ${err.message}`, 'error');
+    }
     setModal(false);
   };
 

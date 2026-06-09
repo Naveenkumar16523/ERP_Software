@@ -1,20 +1,58 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { MessageSquare, Plus, Check, X, Clock, AlertCircle } from 'lucide-react';
 import { useERPStore } from '../store/useERPStore';
 import Modal from './ui/Modal';
+import api from '../utils/api';
 
 export default function SupportModule() {
-  const { supportTickets, addSupportTicket, updateTicketStatus, addToast } = useERPStore();
+  const { supportTickets, addSupportTicket, updateTicketStatus, addToast, currentUser, setSupportTickets } = useERPStore();
   const [modal, setModal] = useState(false);
   const [form, setForm] = useState({ title: '', description: '', priority: 'MEDIUM', category: 'Technical' });
   const [filter, setFilter] = useState('ALL');
 
-  const handleAdd = () => {
+  useEffect(() => {
+    let active = true;
+    async function loadTickets() {
+      try {
+        const tickets = await api.support.getTickets();
+        if (active) setSupportTickets(tickets);
+      } catch (err) {
+        console.error("Failed to load tickets", err);
+      }
+    }
+    loadTickets();
+    return () => { active = false; };
+  }, [setSupportTickets]);
+
+  const handleAdd = async () => {
     if (!form.title) return addToast('Title required', 'error');
-    addSupportTicket({ ...form, ticketNo: `TKT-${Date.now().toString().slice(-5)}`, createdAt: new Date().toISOString() });
-    addToast('Support ticket created', 'success');
-    setForm({ title: '', description: '', priority: 'MEDIUM', category: 'Technical' });
-    setModal(false);
+    try {
+      const ticketPayload = {
+        title: form.title,
+        customer: currentUser?.fullName || "Self",
+        priority: form.priority,
+        assignedTo: currentUser?.fullName || null
+      };
+      const created = await api.support.createTicket(ticketPayload);
+      if (created && created.id) {
+        addSupportTicket(created);
+      }
+      addToast('Support ticket created', 'success');
+      setForm({ title: '', description: '', priority: 'MEDIUM', category: 'Technical' });
+      setModal(false);
+    } catch (err) {
+      addToast(err.message || 'Failed to create support ticket', 'error');
+    }
+  };
+
+  const handleUpdateStatus = async (id, status) => {
+    try {
+      await api.support.updateTicketStatus(id, status);
+      updateTicketStatus(id, status);
+      addToast(`Ticket status updated to ${status}`, 'success');
+    } catch (err) {
+      addToast(err.message || 'Failed to update ticket status', 'error');
+    }
   };
 
   const filtered = filter === 'ALL' ? supportTickets : supportTickets.filter(t => t.status === filter);
@@ -83,8 +121,8 @@ export default function SupportModule() {
                     <span className={`text-xs px-2 py-0.5 rounded-full ${STATUS_STYLES[t.status] || ''}`}>{t.status}</span>
                   </td>
                   <td className="px-4 py-2.5 flex gap-2">
-                    {t.status === 'OPEN' && <button onClick={() => { updateTicketStatus(t.id, 'IN_PROGRESS'); addToast('Ticket picked up', 'info'); }} className="text-xs text-amber-400 hover:underline">Pick Up</button>}
-                    {t.status === 'IN_PROGRESS' && <button onClick={() => { updateTicketStatus(t.id, 'RESOLVED'); addToast('Ticket resolved', 'success'); }} className="text-xs text-emerald-400 hover:underline">Resolve</button>}
+                    {t.status === 'OPEN' && <button onClick={() => handleUpdateStatus(t.id, 'IN_PROGRESS')} className="text-xs text-amber-400 hover:underline">Pick Up</button>}
+                    {t.status === 'IN_PROGRESS' && <button onClick={() => handleUpdateStatus(t.id, 'RESOLVED')} className="text-xs text-emerald-400 hover:underline">Resolve</button>}
                   </td>
                 </tr>
               ))}

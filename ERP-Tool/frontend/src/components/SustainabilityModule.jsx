@@ -1,12 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Leaf, Plus, Zap, Droplets, Recycle, FileText, BarChart3 } from 'lucide-react';
 import { useERPStore } from '../store/useERPStore';
+import { api } from '../utils/api';
 import Modal from './ui/Modal';
 
 export default function SustainabilityModule() {
   const {
-    carbonFootprints, addCarbonFootprint,
-    esgReports, addESGReport,
+    carbonFootprints, setCarbonFootprints, addCarbonFootprint,
+    esgReports, setESGReports, addESGReport,
     energyConsumption, addEnergyConsumption,
     wasteManagement, addWasteManagement,
     addToast
@@ -15,12 +16,46 @@ export default function SustainabilityModule() {
   const [modal, setModal] = useState(false);
   const [form, setForm] = useState({ category: '', scope: '', value: 0, unit: '', period: '', target: 0 });
 
-  const handleAdd = () => {
+  // Fetch sustainability data from DB on mount
+  useEffect(() => {
+    let active = true;
+    const fetchData = async () => {
+      try {
+        const [carbon, esgs] = await Promise.all([
+          api.sustainability.getCarbonEntries(),
+          api.sustainability.getESGReports()
+        ]);
+        if (active) {
+          if (Array.isArray(carbon)) setCarbonFootprints(carbon);
+          if (Array.isArray(esgs)) setESGReports(esgs);
+        }
+      } catch (err) {
+        console.error('Error fetching sustainability data:', err);
+      }
+    };
+    fetchData();
+    return () => { active = false; };
+  }, [setCarbonFootprints, setESGReports]);
+
+  const handleAdd = async () => {
     if (!form.category || !form.value) return addToast('Category and value required', 'error');
-    if (activeTab === 'carbon') addCarbonFootprint({ ...form, value: parseFloat(form.value), target: parseFloat(form.target) });
-    else if (activeTab === 'energy') addEnergyConsumption({ ...form, consumption: parseFloat(form.value), cost: parseFloat(form.target) });
-    else if (activeTab === 'waste') addWasteManagement({ ...form, amount: parseFloat(form.value), recycled: parseFloat(form.target) });
-    addToast('Record added successfully', 'success');
+    try {
+      if (activeTab === 'carbon') {
+        const payload = { category: form.category, description: form.category, amount: parseFloat(form.value), unit: form.unit || 'tCO2e', date: new Date().toISOString().split('T')[0], scope: form.scope || '1' };
+        const saved = await api.sustainability.createCarbonEntry(payload);
+        addCarbonFootprint(saved || { ...form, value: parseFloat(form.value), target: parseFloat(form.target) });
+      } else if (activeTab === 'energy') {
+        addEnergyConsumption({ ...form, consumption: parseFloat(form.value), cost: parseFloat(form.target) });
+      } else if (activeTab === 'waste') {
+        addWasteManagement({ ...form, amount: parseFloat(form.value), recycled: parseFloat(form.target) });
+      }
+      addToast('Record added successfully', 'success');
+    } catch {
+      if (activeTab === 'carbon') addCarbonFootprint({ ...form, value: parseFloat(form.value), target: parseFloat(form.target) });
+      else if (activeTab === 'energy') addEnergyConsumption({ ...form, consumption: parseFloat(form.value), cost: parseFloat(form.target) });
+      else if (activeTab === 'waste') addWasteManagement({ ...form, amount: parseFloat(form.value), recycled: parseFloat(form.target) });
+      addToast('Record saved locally', 'info');
+    }
     setModal(false);
     setForm({ category: '', scope: '', value: 0, unit: '', period: '', target: 0 });
   };

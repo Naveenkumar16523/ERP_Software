@@ -10,8 +10,8 @@ from app.utils.db import get_db
 from app.utils.audit import log_audit_event
 from app.utils.crypto_ledger import calculate_block_hash, verify_ledger_chain
 from app.middlewares.auth_middleware import get_current_user, require_permission, AuthenticatedUser
-from app.models.models import Account, JournalEntry
-from app.models.schemas import VoucherCreate, AccountCreate
+from app.models.models import Account, JournalEntry, Invoice, Budget, Expense
+from app.models.schemas import VoucherCreate, AccountCreate, InvoiceCreate, BudgetCreate, ExpenseCreate
 
 router = APIRouter(prefix="/finance", tags=["Finance"])
 
@@ -61,6 +61,28 @@ async def get_accounts(current_user: AuthenticatedUser = Depends(get_current_use
         return accounts
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail={"error": "Internal Server Error", "message": str(e)})
+
+@router.post("/accounts", status_code=status.HTTP_201_CREATED)
+async def create_account(body: AccountCreate, current_user: AuthenticatedUser = Depends(require_permission("finance:write")), db: Session = Depends(get_db)):
+    try:
+        existing = db.query(Account).filter(or_(Account.code == body.code, Account.name == body.name)).first()
+        if existing:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Account code or name already exists")
+        acc = Account(
+            code=body.code,
+            name=body.name,
+            type=body.type,
+            balance=body.balance
+        )
+        db.add(acc)
+        db.commit()
+        db.refresh(acc)
+        return acc
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 # 2. CREATE VOUCHER & LEDGER ENTRY
 
@@ -329,4 +351,131 @@ async def get_tax_summary(current_user: AuthenticatedUser = Depends(get_current_
             "tdsStatus": "Deductions Verified"
         }
     except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail={"error": "Internal Server Error", "message": str(e)})
+
+# 9. INVOICES
+
+@router.get("/invoices")
+async def get_invoices(current_user: AuthenticatedUser = Depends(get_current_user), db: Session = Depends(get_db)):
+    try:
+        invoices = db.query(Invoice).order_by(Invoice.createdAt.desc()).all()
+        return invoices
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail={"error": "Internal Server Error", "message": str(e)})
+
+@router.post("/invoices", status_code=status.HTTP_201_CREATED)
+async def create_invoice(body: InvoiceCreate, current_user: AuthenticatedUser = Depends(require_permission("finance:write")), db: Session = Depends(get_db)):
+    try:
+        timestamp_ms = int(time.time() * 1000)
+        invoice_no = f"INV-{timestamp_ms}"
+        invoice = Invoice(
+            invoiceNo=invoice_no,
+            customerName=body.customerName,
+            totalAmount=body.totalAmount,
+            status="PENDING",
+            dueDate=body.dueDate,
+            sent=False
+        )
+        db.add(invoice)
+        db.commit()
+        db.refresh(invoice)
+        return invoice
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail={"error": "Internal Server Error", "message": str(e)})
+
+@router.patch("/invoices/{id}/status")
+async def update_invoice_status(id: str, body: dict, current_user: AuthenticatedUser = Depends(require_permission("finance:write")), db: Session = Depends(get_db)):
+    try:
+        invoice = db.query(Invoice).filter(Invoice.id == id).first()
+        if not invoice:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invoice not found")
+        status_val = body.get("status")
+        if status_val:
+            invoice.status = status_val
+        if body.get("sent") is not None:
+            invoice.sent = body.get("sent")
+        db.commit()
+        db.refresh(invoice)
+        return invoice
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail={"error": "Internal Server Error", "message": str(e)})
+
+# 10. BUDGETS
+
+@router.get("/budgets")
+async def get_budgets(current_user: AuthenticatedUser = Depends(get_current_user), db: Session = Depends(get_db)):
+    try:
+        budgets = db.query(Budget).order_by(Budget.createdAt.desc()).all()
+        return budgets
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail={"error": "Internal Server Error", "message": str(e)})
+
+@router.post("/budgets", status_code=status.HTTP_201_CREATED)
+async def create_budget(body: BudgetCreate, current_user: AuthenticatedUser = Depends(require_permission("finance:write")), db: Session = Depends(get_db)):
+    try:
+        budget = Budget(
+            costCenter=body.costCenter,
+            period=body.period,
+            amount=body.amount,
+            spent=0.0,
+            year=body.year,
+            month=body.month
+        )
+        db.add(budget)
+        db.commit()
+        db.refresh(budget)
+        return budget
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail={"error": "Internal Server Error", "message": str(e)})
+
+# 11. EXPENSES
+
+@router.get("/expenses")
+async def get_expenses(current_user: AuthenticatedUser = Depends(get_current_user), db: Session = Depends(get_db)):
+    try:
+        expenses = db.query(Expense).order_by(Expense.createdAt.desc()).all()
+        return expenses
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail={"error": "Internal Server Error", "message": str(e)})
+
+@router.post("/expenses", status_code=status.HTTP_201_CREATED)
+async def create_expense(body: ExpenseCreate, current_user: AuthenticatedUser = Depends(require_permission("finance:write")), db: Session = Depends(get_db)):
+    try:
+        expense = Expense(
+            description=body.description,
+            category=body.category,
+            amount=body.amount,
+            date=body.date,
+            status="PENDING"
+        )
+        db.add(expense)
+        db.commit()
+        db.refresh(expense)
+        return expense
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail={"error": "Internal Server Error", "message": str(e)})
+
+@router.patch("/expenses/{id}/status")
+async def update_expense_status(id: str, body: dict, current_user: AuthenticatedUser = Depends(require_permission("finance:write")), db: Session = Depends(get_db)):
+    try:
+        expense = db.query(Expense).filter(Expense.id == id).first()
+        if not expense:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Expense not found")
+        status_val = body.get("status")
+        if status_val:
+            expense.status = status_val
+        expense.approvedBy = current_user.email
+        db.commit()
+        db.refresh(expense)
+        return expense
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail={"error": "Internal Server Error", "message": str(e)})

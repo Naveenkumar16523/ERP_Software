@@ -86,12 +86,26 @@ export const api = {
       try { return await request('/finance/accounts'); }
       catch { return useERPStore.getState().accounts; }
     },
+    async createAccount(account) {
+      try { return await request('/finance/accounts', { method: 'POST', body: JSON.stringify(account) }); }
+      catch { useERPStore.getState().addAccount(account); return account; }
+    },
     async getJournalEntries() {
       try { return await request('/finance/journal-entries'); }
       catch { return useERPStore.getState().journalEntries; }
     },
     async createJournalEntry(entry) {
-      try { return await request('/finance/journal-entries', { method: 'POST', body: JSON.stringify(entry) }); }
+      const payload = {
+        voucherType: 'JOURNAL',
+        amount: entry.amount,
+        debitAcc: entry.debitAcc,
+        creditAcc: entry.creditAcc,
+        narration: entry.narration || ''
+      };
+      try { 
+        const res = await request('/finance/voucher', { method: 'POST', body: JSON.stringify(payload) }); 
+        return res.entry || res;
+      }
       catch { useERPStore.getState().addJournalEntry(entry); return entry; }
     },
     async getInvoices() {
@@ -105,6 +119,26 @@ export const api = {
     async updateInvoiceStatus(id, status) {
       try { return await request(`/finance/invoices/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }); }
       catch { useERPStore.getState().updateInvoiceStatus(id, status); }
+    },
+    async getBudgets() {
+      try { return await request('/finance/budgets'); }
+      catch { return useERPStore.getState().budgets; }
+    },
+    async createBudget(budget) {
+      try { return await request('/finance/budgets', { method: 'POST', body: JSON.stringify(budget) }); }
+      catch { useERPStore.getState().addBudget(budget); return budget; }
+    },
+    async getExpenses() {
+      try { return await request('/finance/expenses'); }
+      catch { return useERPStore.getState().expenses; }
+    },
+    async createExpense(expense) {
+      try { return await request('/finance/expenses', { method: 'POST', body: JSON.stringify(expense) }); }
+      catch { useERPStore.getState().addExpense(expense); return expense; }
+    },
+    async updateExpenseStatus(id, status) {
+      try { return await request(`/finance/expenses/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }); }
+      catch { useERPStore.getState().updateExpenseStatus(id, status); }
     }
   },
 
@@ -119,11 +153,15 @@ export const api = {
       catch { useERPStore.getState().addEmployee(employee); return employee; }
     },
     async getLeaveRequests() {
-      try { return await request('/hr/leave-requests'); }
+      try { return await request('/hr/leaves'); }
       catch { return useERPStore.getState().leaveRequests; }
     },
+    async createLeaveRequest(employeeId, leave) {
+      try { return await request(`/hr/leaves?employeeId=${employeeId}`, { method: 'POST', body: JSON.stringify(leave) }); }
+      catch { useERPStore.getState().addLeaveRequest(leave); return leave; }
+    },
     async updateLeaveStatus(id, status) {
-      try { return await request(`/hr/leave-requests/${id}`, { method: 'PATCH', body: JSON.stringify({ status }) }); }
+      try { return await request(`/hr/leaves/${id}`, { method: 'PATCH', body: JSON.stringify({ status }) }); }
       catch { useERPStore.getState().updateLeaveStatus(id, status); }
     }
   },
@@ -141,6 +179,30 @@ export const api = {
     async updateStock(id, quantity) {
       try { return await request(`/inventory/products/${id}/stock`, { method: 'PATCH', body: JSON.stringify({ quantity }) }); }
       catch { useERPStore.getState().updateProductStock(id, quantity); }
+    },
+    async getWarehouses() {
+      try { return await request('/inventory/warehouses'); }
+      catch { return useERPStore.getState().warehouses; }
+    },
+    async createWarehouse(warehouse) {
+      try { return await request('/inventory/warehouses', { method: 'POST', body: JSON.stringify(warehouse) }); }
+      catch { useERPStore.getState().addWarehouse(warehouse); return warehouse; }
+    },
+    async getBatches() {
+      try { return await request('/inventory/batches'); }
+      catch { return useERPStore.getState().inventoryBatches; }
+    },
+    async createBatch(batch) {
+      try { return await request('/inventory/batches', { method: 'POST', body: JSON.stringify(batch) }); }
+      catch { useERPStore.getState().addInventoryBatch(batch); return batch; }
+    },
+    async getStockMovements() {
+      try { return await request('/inventory/transactions'); }
+      catch { return useERPStore.getState().stockMovements; }
+    },
+    async createStockMovement(movement) {
+      try { return await request('/inventory/transactions', { method: 'POST', body: JSON.stringify(movement) }); }
+      catch { useERPStore.getState().addStockMovement(movement); return movement; }
     }
   },
 
@@ -277,6 +339,229 @@ export const api = {
     async updateTicketStatus(id, status) {
       try { return await request(`/support/tickets/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }); }
       catch { useERPStore.getState().updateTicketStatus?.(id, status); }
+    }
+  },
+
+  // ── E-Commerce ──
+  ecommerce: {
+    async getProducts() {
+      try { return await request('/ecommerce/products'); }
+      catch { return useERPStore.getState().ecommerceProducts; }
+    },
+    async getOrders() {
+      try { return await request('/ecommerce/orders'); }
+      catch { return useERPStore.getState().ecommerceOrders; }
+    },
+    async checkout(payload) {
+      return request('/ecommerce/checkout', { method: 'POST', body: JSON.stringify(payload) });
+    },
+    async updateOrderStatus(id, status) {
+      try { return await request(`/ecommerce/orders/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }); }
+      catch { useERPStore.getState().updateEcommerceOrderStatus(id, status); }
+    }
+  },
+
+  // ── Banking ──
+  banking: {
+    async getAccounts() {
+      try { return await request('/banking/accounts'); }
+      catch { return useERPStore.getState().bankingAccounts; }
+    },
+    async createAccount(account) {
+      try { return await request('/banking/accounts', { method: 'POST', body: JSON.stringify(account) }); }
+      catch { useERPStore.getState().addBankingAccount(account); return account; }
+    },
+    async getTransactions() {
+      try { return await request('/banking/transactions'); }
+      catch { return useERPStore.getState().bankingTransactions; }
+    },
+    async createTransaction(tx) {
+      try { return await request('/banking/transactions', { method: 'POST', body: JSON.stringify(tx) }); }
+      catch { useERPStore.getState().addBankingTransaction(tx); return tx; }
+    },
+    async getLoans() {
+      try { return await request('/banking/loans'); }
+      catch { return useERPStore.getState().bankingLoans; }
+    },
+    async createLoan(loan) {
+      try { return await request('/banking/loans', { method: 'POST', body: JSON.stringify(loan) }); }
+      catch { useERPStore.getState().addBankingLoan(loan); return loan; }
+    }
+  },
+
+  // ── Healthcare ──
+  healthcare: {
+    async getPatients() {
+      try { return await request('/healthcare/patients'); }
+      catch { return useERPStore.getState().patients || []; }
+    },
+    async createPatient(patient) {
+      try { return await request('/healthcare/patients', { method: 'POST', body: JSON.stringify(patient) }); }
+      catch { return patient; }
+    },
+    async getAppointments() {
+      try { return await request('/healthcare/appointments'); }
+      catch { return useERPStore.getState().appointments || []; }
+    },
+    async createAppointment(appt) {
+      try { return await request('/healthcare/appointments', { method: 'POST', body: JSON.stringify(appt) }); }
+      catch { return appt; }
+    },
+    async getPrescriptions() {
+      try { return await request('/healthcare/prescriptions'); }
+      catch { return useERPStore.getState().prescriptions || []; }
+    },
+    async createPrescription(rx) {
+      try { return await request('/healthcare/prescriptions', { method: 'POST', body: JSON.stringify(rx) }); }
+      catch { return rx; }
+    }
+  },
+
+  // ── Education ──
+  education: {
+    async getCourses() {
+      try { return await request('/education/courses'); }
+      catch { return useERPStore.getState().courses || []; }
+    },
+    async createCourse(course) {
+      try { return await request('/education/courses', { method: 'POST', body: JSON.stringify(course) }); }
+      catch { return course; }
+    },
+    async getEnrollments() {
+      try { return await request('/education/enrollments'); }
+      catch { return useERPStore.getState().enrollments || []; }
+    },
+    async createEnrollment(enrollment) {
+      try { return await request('/education/enrollments', { method: 'POST', body: JSON.stringify(enrollment) }); }
+      catch { return enrollment; }
+    },
+    async getAssessments() {
+      try { return await request('/education/assessments'); }
+      catch { return useERPStore.getState().assessments || []; }
+    }
+  },
+
+  // ── Sustainability ──
+  sustainability: {
+    async getCarbonEntries() {
+      try { return await request('/sustainability/carbon'); }
+      catch { return useERPStore.getState().carbonEntries || []; }
+    },
+    async createCarbonEntry(entry) {
+      try { return await request('/sustainability/carbon', { method: 'POST', body: JSON.stringify(entry) }); }
+      catch { return entry; }
+    },
+    async getESGReports() {
+      try { return await request('/sustainability/esg-reports'); }
+      catch { return useERPStore.getState().esgReports || []; }
+    },
+    async createESGReport(report) {
+      try { return await request('/sustainability/esg-reports', { method: 'POST', body: JSON.stringify(report) }); }
+      catch { return report; }
+    },
+    async getInitiatives() {
+      try { return await request('/sustainability/initiatives'); }
+      catch { return useERPStore.getState().greenInitiatives || []; }
+    },
+    async createInitiative(initiative) {
+      try { return await request('/sustainability/initiatives', { method: 'POST', body: JSON.stringify(initiative) }); }
+      catch { return initiative; }
+    }
+  },
+
+  // ── Marketing ──
+  marketing: {
+    async getCampaigns() {
+      try { return await request('/marketing/campaigns'); }
+      catch { return useERPStore.getState().marketingCampaigns; }
+    },
+    async createCampaign(campaign) {
+      try { return await request('/marketing/campaigns', { method: 'POST', body: JSON.stringify(campaign) }); }
+      catch { useERPStore.getState().addMarketingCampaign(campaign); return campaign; }
+    },
+    async getLeads() {
+      try { return await request('/marketing/leads'); }
+      catch { return useERPStore.getState().marketingLeads; }
+    },
+    async createLead(lead) {
+      try { return await request('/marketing/leads', { method: 'POST', body: JSON.stringify(lead) }); }
+      catch { useERPStore.getState().addMarketingLead(lead); return lead; }
+    },
+    async getSocialPosts() {
+      try { return await request('/marketing/social-posts'); }
+      catch { return useERPStore.getState().socialMediaPosts; }
+    },
+    async createSocialPost(post) {
+      try { return await request('/marketing/social-posts', { method: 'POST', body: JSON.stringify(post) }); }
+      catch { useERPStore.getState().addSocialMediaPost(post); return post; }
+    }
+  },
+
+  // ── Security ──
+  security: {
+    async getEvents() {
+      try { return await request('/security/events'); }
+      catch { return useERPStore.getState().securityEvents || []; }
+    },
+    async createEvent(event) {
+      try { return await request('/security/events', { method: 'POST', body: JSON.stringify(event) }); }
+      catch { return event; }
+    },
+    async getIncidents() {
+      try { return await request('/security/incidents'); }
+      catch { return useERPStore.getState().securityIncidents || []; }
+    },
+    async createIncident(incident) {
+      try { return await request('/security/incidents', { method: 'POST', body: JSON.stringify(incident) }); }
+      catch { return incident; }
+    },
+    async updateIncidentStatus(id, status) {
+      try { return await request(`/security/incidents/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }); }
+      catch { /* offline no-op */ }
+    }
+  },
+
+  // ── Analytics ──
+  analytics: {
+    async getReports() {
+      try { return await request('/analytics/reports'); }
+      catch { return useERPStore.getState().analyticsReports || []; }
+    },
+    async createReport(report) {
+      try { return await request('/analytics/reports', { method: 'POST', body: JSON.stringify(report) }); }
+      catch { return report; }
+    },
+    async getKPIs() {
+      try { return await request('/analytics/kpis'); }
+      catch { return useERPStore.getState().kpiSnapshots || []; }
+    },
+    async createKPI(kpi) {
+      try { return await request('/analytics/kpis', { method: 'POST', body: JSON.stringify(kpi) }); }
+      catch { return kpi; }
+    }
+  },
+
+  // ── Automation ──
+  automation: {
+    async getWorkflows() {
+      try { return await request('/automation/workflows'); }
+      catch { return useERPStore.getState().automationWorkflows || []; }
+    },
+    async createWorkflow(workflow) {
+      try { return await request('/automation/workflows', { method: 'POST', body: JSON.stringify(workflow) }); }
+      catch { return workflow; }
+    },
+    async updateWorkflowStatus(id, status) {
+      try { return await request(`/automation/workflows/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }); }
+      catch { /* offline no-op */ }
+    },
+    async getRunLogs() {
+      try { return await request('/automation/run-logs'); }
+      catch { return useERPStore.getState().botRunLogs || []; }
+    },
+    async createRunLog(log) {
+      try { return await request('/automation/run-logs', { method: 'POST', body: JSON.stringify(log) }); }
+      catch { return log; }
     }
   },
 

@@ -702,3 +702,471 @@ class AccessRequest(Base):
     createdAt = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     reviewer = relationship("ERPUser", foreign_keys=[reviewedBy])
+
+class Invoice(Base):
+    __tablename__ = "Invoice"
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    invoiceNo = Column(String(191), unique=True, nullable=False, index=True)
+    customerName = Column(String(191), nullable=False)
+    totalAmount = Column(Float, nullable=False)
+    status = Column(String(191), default="PENDING", nullable=False)  # PENDING, PAID, OVERDUE, CANCELLED
+    dueDate = Column(String(191), nullable=True)
+    sent = Column(Boolean, default=False, nullable=False)
+    createdAt = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updatedAt = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+class Budget(Base):
+    __tablename__ = "Budget"
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    costCenter = Column(String(191), nullable=False)
+    period = Column(String(191), default="monthly", nullable=False)
+    amount = Column(Float, nullable=False)
+    spent = Column(Float, default=0.0, nullable=False)
+    year = Column(Integer, nullable=False)
+    month = Column(Integer, nullable=True)
+    createdAt = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updatedAt = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+class Expense(Base):
+    __tablename__ = "Expense"
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    description = Column(String(191), nullable=False)
+    category = Column(String(191), nullable=False)
+    amount = Column(Float, nullable=False)
+    date = Column(String(191), nullable=False)
+    receipt = Column(String(191), nullable=True)
+    approvedBy = Column(String(191), nullable=True)
+    status = Column(String(191), default="PENDING", nullable=False)  # PENDING, APPROVED, REJECTED
+    createdAt = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updatedAt = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+class ApprovalWorkflow(Base):
+    __tablename__ = "ApprovalWorkflow"
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    type = Column(String(191), nullable=False)  # e.g., PAYMENT, EXPENSE
+    amount = Column(Float, nullable=False)
+    requester = Column(String(191), nullable=False)
+    currentLevel = Column(Integer, default=1, nullable=False)
+    status = Column(String(191), default="PENDING", nullable=False)  # PENDING, APPROVED, REJECTED, IN_PROGRESS
+    createdAt = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updatedAt = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    levels = relationship("ApprovalLevel", back_populates="workflow", cascade="all, delete-orphan")
+
+class ApprovalLevel(Base):
+    __tablename__ = "ApprovalLevel"
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    workflowId = Column(String(36), ForeignKey("ApprovalWorkflow.id", ondelete="CASCADE"), nullable=False, index=True)
+    level = Column(Integer, nullable=False)
+    approver = Column(String(191), nullable=False)
+    status = Column(String(191), default="PENDING", nullable=False)  # PENDING, APPROVED, REJECTED
+    timestamp = Column(String(191), nullable=True)
+
+    workflow = relationship("ApprovalWorkflow", back_populates="levels")
+
+class TaxDeadline(Base):
+    __tablename__ = "TaxDeadline"
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    taxType = Column(String(191), nullable=False)  # GST, VAT, TDS, etc.
+    dueDate = Column(String(191), nullable=False)
+    status = Column(String(191), default="PENDING", nullable=False)  # PENDING, COMPLETED, OVERDUE
+    period = Column(String(191), nullable=False)
+    createdAt = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updatedAt = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+class PerformanceReview(Base):
+    __tablename__ = "PerformanceReview"
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    employeeName = Column(String(191), nullable=False)
+    reviewPeriod = Column(String(191), nullable=False)
+    rating = Column(Integer, nullable=False)
+    goals = Column(Text, nullable=True)  # JSON serialized string
+    status = Column(String(191), default="IN_PROGRESS", nullable=False)  # IN_PROGRESS, COMPLETED
+    reviewDate = Column(String(191), nullable=False)
+    createdAt = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+class OnboardingChecklist(Base):
+    __tablename__ = "OnboardingChecklist"
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    employeeName = Column(String(191), nullable=False)
+    role = Column(String(191), nullable=False)
+    status = Column(String(191), default="IN_PROGRESS", nullable=False)  # IN_PROGRESS, COMPLETED
+    createdAt = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updatedAt = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    tasks = relationship("OnboardingTask", back_populates="checklist", cascade="all, delete-orphan")
+
+class OnboardingTask(Base):
+    __tablename__ = "OnboardingTask"
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    checklistId = Column(String(36), ForeignKey("OnboardingChecklist.id", ondelete="CASCADE"), nullable=False, index=True)
+    title = Column(String(191), nullable=False)
+    completed = Column(Boolean, default=False, nullable=False)
+    dueDate = Column(String(191), nullable=False)
+    createdAt = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    checklist = relationship("OnboardingChecklist", back_populates="tasks")
+
+class InventoryBatch(Base):
+    __tablename__ = "InventoryBatch"
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    batchNumber = Column(String(191), unique=True, nullable=False, index=True)
+    productId = Column(String(36), ForeignKey("Product.id", ondelete="CASCADE"), nullable=False, index=True)
+    quantity = Column(Float, nullable=False)
+    manufactureDate = Column(String(191), nullable=False)
+    expiryDate = Column(String(191), nullable=True)
+    warehouse = Column(String(191), nullable=False)
+    status = Column(String(191), default="IN_STOCK", nullable=False)  # IN_STOCK, expired, etc.
+    createdAt = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+class Project(Base):
+    __tablename__ = "Project"
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    name = Column(String(191), nullable=False)
+    code = Column(String(191), unique=True, nullable=False, index=True)
+    description = Column(Text, nullable=True)
+    manager = Column(String(191), nullable=True)
+    startDate = Column(String(191), nullable=True)
+    endDate = Column(String(191), nullable=True)
+    status = Column(String(191), default="PLANNING", nullable=False)  # PLANNING, ACTIVE, COMPLETED, ON_HOLD
+    budget = Column(Float, default=0.0, nullable=False)
+    createdAt = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updatedAt = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    tasks = relationship("ProjectTask", back_populates="project", cascade="all, delete-orphan")
+
+class ProjectTask(Base):
+    __tablename__ = "ProjectTask"
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    projectId = Column(String(36), ForeignKey("Project.id", ondelete="CASCADE"), nullable=False, index=True)
+    title = Column(String(191), nullable=False)
+    description = Column(Text, nullable=True)
+    assignedTo = Column(String(191), nullable=True)
+    status = Column(String(191), default="TODO", nullable=False)  # TODO, IN_PROGRESS, DONE
+    dueDate = Column(String(191), nullable=True)
+    createdAt = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    project = relationship("Project", back_populates="tasks")
+
+class SupportTicket(Base):
+    __tablename__ = "SupportTicket"
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    ticketNo = Column(String(191), unique=True, nullable=False, index=True)
+    title = Column(String(191), nullable=False)
+    customer = Column(String(191), nullable=False)
+    priority = Column(String(191), default="MEDIUM", nullable=False)  # LOW, MEDIUM, HIGH, CRITICAL
+    status = Column(String(191), default="OPEN", nullable=False)  # OPEN, IN_PROGRESS, RESOLVED, CLOSED
+    assignedTo = Column(String(191), nullable=True)
+    createdAt = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updatedAt = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+class Shipment(Base):
+    __tablename__ = "Shipment"
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    shipmentNo = Column(String(191), unique=True, nullable=False, index=True)
+    carrier = Column(String(191), nullable=False)
+    origin = Column(String(191), nullable=False)
+    destination = Column(String(191), nullable=False)
+    status = Column(String(191), default="PENDING", nullable=False)  # PENDING, IN_TRANSIT, DELIVERED, DELAYED
+    estimatedDelivery = Column(String(191), nullable=True)
+    createdAt = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updatedAt = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+# ─── Banking & Treasury Module ─────────────────────────────────────────────────
+
+class BankAccount(Base):
+    __tablename__ = "BankAccount"
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    name = Column(String(191), nullable=False)
+    bank = Column(String(191), nullable=False)
+    accountNo = Column(String(191), unique=True, nullable=False, index=True)
+    type = Column(String(191), nullable=False)  # CURRENT, SAVINGS, FD, CC
+    balance = Column(Float, default=0.0, nullable=False)
+    currency = Column(String(10), default="INR", nullable=False)
+    createdAt = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updatedAt = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    transactions = relationship("BankTransaction", back_populates="account", cascade="all, delete-orphan")
+
+class BankTransaction(Base):
+    __tablename__ = "BankTransaction"
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    accountId = Column(String(36), ForeignKey("BankAccount.id", ondelete="CASCADE"), nullable=False, index=True)
+    description = Column(String(191), nullable=False)
+    category = Column(String(191), nullable=True)
+    amount = Column(Float, nullable=False)
+    type = Column(String(191), nullable=False)  # CREDIT, DEBIT
+    date = Column(String(191), nullable=False)
+    createdAt = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    account = relationship("BankAccount", back_populates="transactions")
+
+class BankLoan(Base):
+    __tablename__ = "BankLoan"
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    loanNo = Column(String(191), unique=True, nullable=False, index=True)
+    type = Column(String(191), nullable=False)  # TERM, REVOLVING, MORTGAGE
+    lender = Column(String(191), nullable=False)
+    principal = Column(Float, nullable=False)
+    outstanding = Column(Float, nullable=False)
+    interestRate = Column(Float, nullable=False)
+    emi = Column(Float, nullable=False)
+    nextDue = Column(String(191), nullable=True)
+    status = Column(String(191), default="ACTIVE", nullable=False)  # ACTIVE, PAID, DEFAULTED
+    createdAt = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updatedAt = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+# ─── Healthcare Module ─────────────────────────────────────────────────────────
+
+class Patient(Base):
+    __tablename__ = "Patient"
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    patientCode = Column(String(191), unique=True, nullable=False, index=True)
+    name = Column(String(191), nullable=False)
+    age = Column(Integer, nullable=False)
+    gender = Column(String(20), nullable=False)
+    bloodGroup = Column(String(10), nullable=True)
+    phone = Column(String(191), nullable=True)
+    email = Column(String(191), nullable=True)
+    diagnosis = Column(Text, nullable=True)
+    status = Column(String(191), default="ACTIVE", nullable=False)
+    createdAt = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updatedAt = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    appointments = relationship("Appointment", back_populates="patient", cascade="all, delete-orphan")
+    prescriptions = relationship("Prescription", back_populates="patient", cascade="all, delete-orphan")
+
+class Appointment(Base):
+    __tablename__ = "Appointment"
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    patientId = Column(String(36), ForeignKey("Patient.id", ondelete="CASCADE"), nullable=False, index=True)
+    doctor = Column(String(191), nullable=False)
+    department = Column(String(191), nullable=False)
+    date = Column(String(191), nullable=False)
+    time = Column(String(50), nullable=True)
+    type = Column(String(191), default="CONSULTATION", nullable=False)
+    status = Column(String(191), default="SCHEDULED", nullable=False)  # SCHEDULED, COMPLETED, CANCELLED
+    notes = Column(Text, nullable=True)
+    createdAt = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    patient = relationship("Patient", back_populates="appointments")
+
+class Prescription(Base):
+    __tablename__ = "Prescription"
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    patientId = Column(String(36), ForeignKey("Patient.id", ondelete="CASCADE"), nullable=False, index=True)
+    doctor = Column(String(191), nullable=False)
+    medication = Column(String(191), nullable=False)
+    dosage = Column(String(191), nullable=False)
+    duration = Column(String(191), nullable=False)
+    notes = Column(Text, nullable=True)
+    createdAt = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    patient = relationship("Patient", back_populates="prescriptions")
+
+# ─── Education Module ──────────────────────────────────────────────────────────
+
+class Course(Base):
+    __tablename__ = "Course"
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    courseCode = Column(String(191), unique=True, nullable=False, index=True)
+    title = Column(String(191), nullable=False)
+    instructor = Column(String(191), nullable=False)
+    department = Column(String(191), nullable=False)
+    duration = Column(String(191), nullable=False)
+    capacity = Column(Integer, default=30, nullable=False)
+    enrolled = Column(Integer, default=0, nullable=False)
+    status = Column(String(191), default="ACTIVE", nullable=False)
+    startDate = Column(String(191), nullable=True)
+    endDate = Column(String(191), nullable=True)
+    createdAt = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    enrollments = relationship("Enrollment", back_populates="course", cascade="all, delete-orphan")
+
+class Enrollment(Base):
+    __tablename__ = "Enrollment"
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    courseId = Column(String(36), ForeignKey("Course.id", ondelete="CASCADE"), nullable=False, index=True)
+    studentName = Column(String(191), nullable=False)
+    studentEmail = Column(String(191), nullable=False)
+    enrollDate = Column(String(191), nullable=False)
+    progress = Column(Float, default=0.0, nullable=False)
+    grade = Column(String(10), nullable=True)
+    status = Column(String(191), default="ENROLLED", nullable=False)  # ENROLLED, COMPLETED, DROPPED
+    createdAt = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    course = relationship("Course", back_populates="enrollments")
+
+class Assessment(Base):
+    __tablename__ = "Assessment"
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    courseId = Column(String(36), ForeignKey("Course.id", ondelete="CASCADE"), nullable=True, index=True)
+    title = Column(String(191), nullable=False)
+    type = Column(String(191), nullable=False)  # QUIZ, EXAM, ASSIGNMENT
+    maxScore = Column(Float, default=100.0, nullable=False)
+    dueDate = Column(String(191), nullable=True)
+    createdAt = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+# ─── Sustainability Module ─────────────────────────────────────────────────────
+
+class CarbonEntry(Base):
+    __tablename__ = "CarbonEntry"
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    category = Column(String(191), nullable=False)  # Energy, Transport, Waste, etc.
+    description = Column(String(191), nullable=False)
+    amount = Column(Float, nullable=False)  # CO2 tonnes
+    unit = Column(String(50), default="tCO2e", nullable=False)
+    date = Column(String(191), nullable=False)
+    scope = Column(String(10), default="1", nullable=False)  # 1, 2, 3
+    createdAt = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+class ESGReport(Base):
+    __tablename__ = "ESGReport"
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    title = Column(String(191), nullable=False)
+    period = Column(String(191), nullable=False)
+    envScore = Column(Float, default=0.0, nullable=False)
+    socialScore = Column(Float, default=0.0, nullable=False)
+    govScore = Column(Float, default=0.0, nullable=False)
+    overallScore = Column(Float, default=0.0, nullable=False)
+    status = Column(String(191), default="DRAFT", nullable=False)  # DRAFT, PUBLISHED
+    createdAt = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updatedAt = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+class GreenInitiative(Base):
+    __tablename__ = "GreenInitiative"
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    title = Column(String(191), nullable=False)
+    description = Column(Text, nullable=True)
+    category = Column(String(191), nullable=False)
+    targetReduction = Column(Float, default=0.0, nullable=False)
+    actualReduction = Column(Float, default=0.0, nullable=False)
+    status = Column(String(191), default="PLANNED", nullable=False)  # PLANNED, ACTIVE, COMPLETED
+    startDate = Column(String(191), nullable=True)
+    endDate = Column(String(191), nullable=True)
+    createdAt = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+# ─── Marketing Module ──────────────────────────────────────────────────────────
+
+class MarketingCampaign(Base):
+    __tablename__ = "MarketingCampaign"
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    name = Column(String(191), nullable=False)
+    type = Column(String(191), nullable=False)  # EMAIL, SOCIAL, DISPLAY, SEARCH
+    budget = Column(Float, default=0.0, nullable=False)
+    spent = Column(Float, default=0.0, nullable=False)
+    leads = Column(Integer, default=0, nullable=False)
+    conversions = Column(Integer, default=0, nullable=False)
+    status = Column(String(191), default="DRAFT", nullable=False)  # DRAFT, ACTIVE, PAUSED, COMPLETED
+    startDate = Column(String(191), nullable=True)
+    endDate = Column(String(191), nullable=True)
+    createdAt = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updatedAt = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+class MarketingLead(Base):
+    __tablename__ = "MarketingLead"
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    name = Column(String(191), nullable=False)
+    email = Column(String(191), nullable=False, index=True)
+    source = Column(String(191), nullable=True)
+    score = Column(Integer, default=50, nullable=False)
+    status = Column(String(191), default="NEW", nullable=False)  # NEW, CONTACTED, QUALIFIED, LOST
+    assignedTo = Column(String(191), nullable=True)
+    createdAt = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updatedAt = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+class SocialPost(Base):
+    __tablename__ = "SocialPost"
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    platform = Column(String(100), nullable=False)
+    content = Column(Text, nullable=False)
+    status = Column(String(191), default="DRAFT", nullable=False)  # DRAFT, SCHEDULED, PUBLISHED
+    publishedDate = Column(String(191), nullable=True)
+    likes = Column(Integer, default=0, nullable=False)
+    shares = Column(Integer, default=0, nullable=False)
+    comments = Column(Integer, default=0, nullable=False)
+    createdAt = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+# ─── Security Module ───────────────────────────────────────────────────────────
+
+class SecurityEvent(Base):
+    __tablename__ = "SecurityEvent"
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    type = Column(String(191), nullable=False)  # LOGIN, FAILED_LOGIN, ACCESS_DENIED, etc.
+    severity = Column(String(50), nullable=False)  # LOW, MEDIUM, HIGH, CRITICAL
+    description = Column(Text, nullable=False)
+    userId = Column(String(191), nullable=True)
+    ipAddress = Column(String(191), nullable=True)
+    userAgent = Column(Text, nullable=True)
+    status = Column(String(191), default="OPEN", nullable=False)  # OPEN, ACKNOWLEDGED, RESOLVED
+    createdAt = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+class SecurityIncident(Base):
+    __tablename__ = "SecurityIncident"
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    incidentNo = Column(String(191), unique=True, nullable=False, index=True)
+    title = Column(String(191), nullable=False)
+    description = Column(Text, nullable=False)
+    severity = Column(String(50), nullable=False)  # LOW, MEDIUM, HIGH, CRITICAL
+    affectedSystems = Column(Text, nullable=True)
+    assignedTo = Column(String(191), nullable=True)
+    status = Column(String(191), default="OPEN", nullable=False)  # OPEN, INVESTIGATING, RESOLVED, CLOSED
+    resolvedAt = Column(DateTime, nullable=True)
+    createdAt = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updatedAt = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+# ─── Analytics Module ──────────────────────────────────────────────────────────
+
+class AnalyticsReport(Base):
+    __tablename__ = "AnalyticsReport"
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    title = Column(String(191), nullable=False)
+    reportType = Column(String(191), nullable=False)  # SALES, HR, FINANCE, OPERATIONAL
+    period = Column(String(191), nullable=False)
+    data = Column(Text, nullable=True)  # JSON serialized
+    status = Column(String(191), default="DRAFT", nullable=False)  # DRAFT, PUBLISHED
+    createdAt = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updatedAt = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+class KPISnapshot(Base):
+    __tablename__ = "KPISnapshot"
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    name = Column(String(191), nullable=False)
+    value = Column(Float, nullable=False)
+    unit = Column(String(100), nullable=True)
+    category = Column(String(191), nullable=False)
+    trend = Column(String(50), nullable=True)  # UP, DOWN, STABLE
+    snapshotDate = Column(String(191), nullable=False)
+    createdAt = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+# ─── RPA Automation Module ─────────────────────────────────────────────────────
+
+class AutomationWorkflow(Base):
+    __tablename__ = "AutomationWorkflow"
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    name = Column(String(191), nullable=False)
+    description = Column(Text, nullable=True)
+    trigger = Column(String(191), nullable=False)  # SCHEDULED, EVENT, MANUAL
+    schedule = Column(String(191), nullable=True)
+    status = Column(String(191), default="ACTIVE", nullable=False)  # ACTIVE, PAUSED, DISABLED
+    lastRun = Column(String(191), nullable=True)
+    successCount = Column(Integer, default=0, nullable=False)
+    failureCount = Column(Integer, default=0, nullable=False)
+    createdAt = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updatedAt = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    runLogs = relationship("BotRunLog", back_populates="workflow", cascade="all, delete-orphan")
+
+class BotRunLog(Base):
+    __tablename__ = "BotRunLog"
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    workflowId = Column(String(36), ForeignKey("AutomationWorkflow.id", ondelete="CASCADE"), nullable=False, index=True)
+    status = Column(String(191), nullable=False)  # SUCCESS, FAILED, RUNNING
+    startedAt = Column(DateTime, nullable=False)
+    completedAt = Column(DateTime, nullable=True)
+    duration = Column(Float, nullable=True)  # seconds
+    recordsProcessed = Column(Integer, default=0, nullable=False)
+    errorMessage = Column(Text, nullable=True)
+    createdAt = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    workflow = relationship("AutomationWorkflow", back_populates="runLogs")

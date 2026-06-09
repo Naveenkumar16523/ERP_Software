@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Plus, FileText, Users, Award, FileCheck } from 'lucide-react';
 import { useERPStore } from '../store/useERPStore';
 import Modal from './ui/Modal';
+import api from '../utils/api';
 
 export default function ProcurementModule() {
   const {
@@ -11,24 +12,65 @@ export default function ProcurementModule() {
     rfqResponses, addRFQResponse,
     vendorEvaluations, addVendorEvaluation,
     contracts, addContract,
-    addToast
+    addToast,
+    setPurchaseOrders,
+    setSuppliers
   } = useERPStore();
 
   const [activeTab, setActiveTab] = useState('pos');
   const [modal, setModal] = useState(false);
   const [form, setForm] = useState({ supplierId: '', description: '', totalAmount: 0 });
 
-  const handleAdd = () => {
+  useEffect(() => {
+    let active = true;
+    async function loadProcurementData() {
+      try {
+        const [posData, suppliersData] = await Promise.all([
+          api.procurement.getPurchaseOrders(),
+          api.procurement.getSuppliers()
+        ]);
+        if (active) {
+          setPurchaseOrders(posData);
+          setSuppliers(suppliersData);
+        }
+      } catch (err) {
+        console.error("Failed to load procurement data", err);
+      }
+    }
+    loadProcurementData();
+    return () => { active = false; };
+  }, [setPurchaseOrders, setSuppliers]);
+
+  const handleAdd = async () => {
     if (!form.supplierId || !form.totalAmount) return addToast('Supplier and amount required', 'error');
     const sup = suppliers.find(s => s.id === form.supplierId);
-    addPurchaseOrder({
-      ...form,
-      supplierName: sup?.name || 'Unknown',
-      totalAmount: parseFloat(form.totalAmount),
-      items: [{ desc: form.description, qty: 1, price: parseFloat(form.totalAmount) }],
-    });
-    addToast('Purchase order created', 'success');
-    setModal(false);
+    
+    try {
+      const poPayload = {
+        supplierId: form.supplierId,
+        items: JSON.stringify([{ desc: form.description, qty: 1, price: parseFloat(form.totalAmount) }]),
+        totalAmount: parseFloat(form.totalAmount),
+        status: 'PENDING'
+      };
+      const created = await api.procurement.createPurchaseOrder(poPayload);
+      if (created && created.id) {
+        addPurchaseOrder(created);
+      }
+      addToast('Purchase order created', 'success');
+      setModal(false);
+    } catch (err) {
+      addToast(err.message || 'Failed to create purchase order', 'error');
+    }
+  };
+
+  const handleApprove = async (id) => {
+    try {
+      await api.procurement.approvePurchaseOrder(id);
+      approvePurchaseOrder(id);
+      addToast('PO approved', 'success');
+    } catch (err) {
+      addToast(err.message || 'Failed to approve purchase order', 'error');
+    }
   };
 
   const TABS = [
@@ -110,7 +152,7 @@ export default function ProcurementModule() {
                     <td className="px-4 py-2.5">
                       {po.status === 'PENDING' && (
                         <button
-                          onClick={() => { approvePurchaseOrder(po.id); addToast('PO approved', 'success'); }}
+                          onClick={() => handleApprove(po.id)}
                           className="text-xs text-emerald-400 hover:underline"
                         >
                           Approve

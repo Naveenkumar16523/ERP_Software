@@ -113,13 +113,36 @@ async def create_employee(body: EmployeeCreate, current_user: AuthenticatedUser 
         if existing:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail={"error": "Conflict", "message": "Employee code or email already registered"})
 
+        # Resolve departmentId: check by ID, name, or code
+        dept = db.query(Department).filter(Department.id == body.departmentId).first()
+        if not dept:
+            dept = db.query(Department).filter(Department.name == body.departmentId).first()
+        if not dept:
+            dept = db.query(Department).filter(Department.code == body.departmentId).first()
+
+        # If not found, dynamically create it on the fly
+        if not dept:
+            import uuid
+            clean_name = body.departmentId.strip()
+            if not clean_name:
+                clean_name = "Default Department"
+            code_base = clean_name.upper().replace(" ", "_")[:10]
+            dept_code = f"DEPT-{code_base}-{str(uuid.uuid4())[:4].upper()}"
+            dept = Department(
+                code=dept_code,
+                name=clean_name
+            )
+            db.add(dept)
+            db.commit()
+            db.refresh(dept)
+
         employee = Employee(
             employeeCode=body.employeeCode,
             firstName=body.firstName,
             lastName=body.lastName,
             email=body.email,
             phone=body.phone,
-            departmentId=body.departmentId,
+            departmentId=dept.id,
             jobTitle=body.jobTitle,
             managerId=body.managerId or None,
             baseSalary=float(body.baseSalary)
@@ -127,7 +150,24 @@ async def create_employee(body: EmployeeCreate, current_user: AuthenticatedUser 
         db.add(employee)
         db.commit()
         db.refresh(employee)
-        return employee
+        
+        return {
+            "id": employee.id,
+            "employeeCode": employee.employeeCode,
+            "firstName": employee.firstName,
+            "lastName": employee.lastName,
+            "email": employee.email,
+            "phone": employee.phone,
+            "departmentId": employee.departmentId,
+            "jobTitle": employee.jobTitle,
+            "managerId": employee.managerId,
+            "baseSalary": employee.baseSalary,
+            "joiningDate": employee.joiningDate,
+            "isActive": employee.isActive,
+            "createdAt": employee.createdAt,
+            "updatedAt": employee.updatedAt,
+            "department": {"id": dept.id, "code": dept.code, "name": dept.name}
+        }
     except HTTPException:
         raise
     except Exception as e:

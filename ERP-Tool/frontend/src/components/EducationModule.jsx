@@ -1,12 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Plus, Users, BookOpen, FileCheck, Calendar } from 'lucide-react';
 import { useERPStore } from '../store/useERPStore';
+import { api } from '../utils/api';
 import Modal from './ui/Modal';
 
 export default function EducationModule() {
   const {
-    students, addStudent,
-    courses, addCourse,
+    students, setStudents, addStudent,
+    courses, setCourses, addCourse,
     grades, addGrade,
     studentAttendance, addStudentAttendance,
     addToast
@@ -15,10 +16,34 @@ export default function EducationModule() {
   const [modal, setModal] = useState(false);
   const [form, setForm] = useState({ name: '', rollNo: '', grade: '', section: '', dob: '', guardian: '', contact: '', email: '' });
 
-  const handleAddStudent = () => {
+  // Fetch education data from DB on mount
+  useEffect(() => {
+    let active = true;
+    const fetchData = async () => {
+      try {
+        const [cs] = await Promise.all([api.education.getCourses()]);
+        if (active) {
+          if (Array.isArray(cs)) setCourses(cs);
+        }
+      } catch (err) {
+        console.error('Error fetching education data:', err);
+      }
+    };
+    fetchData();
+    return () => { active = false; };
+  }, [setCourses]);
+
+  const handleAddStudent = async () => {
     if (!form.name || !form.rollNo) return addToast('Name and roll number required', 'error');
-    addStudent(form);
-    addToast('Student enrolled successfully', 'success');
+    try {
+      const payload = { ...form, studentName: form.name, studentEmail: form.email || 'student@school.com', enrollDate: new Date().toISOString().split('T')[0], courseId: courses[0]?.id };
+      const saved = await api.education.createEnrollment(payload);
+      addStudent(saved || form);
+      addToast('Student enrolled successfully', 'success');
+    } catch {
+      addStudent(form);
+      addToast('Student saved locally', 'info');
+    }
     setModal(false);
     setForm({ name: '', rollNo: '', grade: '', section: '', dob: '', guardian: '', contact: '', email: '' });
   };

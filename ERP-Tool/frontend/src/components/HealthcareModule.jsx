@@ -1,14 +1,15 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Plus, Users, Calendar, FileText, DollarSign } from 'lucide-react';
 import { useERPStore } from '../store/useERPStore';
+import { api } from '../utils/api';
 import Modal from './ui/Modal';
 
 const WARDS = ['General', 'Cardiology', 'Orthopedics', 'Neurology', 'Pediatrics', 'ICU', 'Emergency'];
 
 export default function HealthcareModule() {
   const {
-    patients, addPatient,
-    appointments, addAppointment, updateAppointmentStatus,
+    patients, setPatients, addPatient,
+    appointments, setAppointments, addAppointment, updateAppointmentStatus,
     medicalHistory, addMedicalHistory,
     medicalBills, addMedicalBill,
     addToast
@@ -17,10 +18,38 @@ export default function HealthcareModule() {
   const [modal, setModal] = useState(false);
   const [form, setForm] = useState({ name: '', dob: '', gender: '', bloodType: '', contact: '', email: '', address: '', emergencyContact: '' });
 
-  const handleAddPatient = () => {
+  // Fetch healthcare data from DB on mount
+  useEffect(() => {
+    let active = true;
+    const fetchData = async () => {
+      try {
+        const [pats, appts] = await Promise.all([
+          api.healthcare.getPatients(),
+          api.healthcare.getAppointments()
+        ]);
+        if (active) {
+          if (Array.isArray(pats)) setPatients(pats);
+          if (Array.isArray(appts)) setAppointments(appts);
+        }
+      } catch (err) {
+        console.error('Error fetching healthcare data:', err);
+      }
+    };
+    fetchData();
+    return () => { active = false; };
+  }, [setPatients, setAppointments]);
+
+  const handleAddPatient = async () => {
     if (!form.name || !form.contact) return addToast('Name and contact required', 'error');
-    addPatient(form);
-    addToast('Patient added successfully', 'success');
+    const payload = { ...form, age: 0, phone: form.contact, bloodGroup: form.bloodType };
+    try {
+      const saved = await api.healthcare.createPatient(payload);
+      addPatient(saved || form);
+      addToast('Patient added successfully', 'success');
+    } catch {
+      addPatient(form);
+      addToast('Patient saved locally', 'info');
+    }
     setModal(false);
     setForm({ name: '', dob: '', gender: '', bloodType: '', contact: '', email: '', address: '', emergencyContact: '' });
   };

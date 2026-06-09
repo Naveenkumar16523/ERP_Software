@@ -1,20 +1,58 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Plus, Users, UserCheck, Calendar, Clock, Edit2, Check, X } from 'lucide-react';
 import { useERPStore } from '../store/useERPStore';
+import { api } from '../utils/api';
 import Modal from './ui/Modal';
 
 export default function HRModule() {
   const {
-    employees, addEmployee, updateEmployee,
-    leaveRequests, addLeaveRequest, updateLeaveStatus, leaveBalances,
+    employees, setEmployees, addEmployee, updateEmployee,
+    leaveRequests, setLeaveRequests, addLeaveRequest, updateLeaveStatus, leaveBalances,
     jobPostings, addJobPosting,
     applicants, addApplicant, updateApplicantStatus,
     performanceReviews, addPerformanceReview, updateReviewStatus,
     onboardingChecklists, addOnboardingChecklist, updateOnboardingTask,
     attendanceLogs, addAttendanceLog,
+    dbLive,
     addToast
   } = useERPStore();
+
+  useEffect(() => {
+    let active = true;
+    const loadHRData = async () => {
+      try {
+        const [empData, leaveData] = await Promise.all([
+          api.hr.getEmployees(),
+          api.hr.getLeaveRequests()
+        ]);
+        if (active) {
+          if (Array.isArray(empData)) {
+            const formatted = empData.map(emp => ({
+              ...emp,
+              department: emp.department?.name || emp.departmentId || emp.department || 'Unknown'
+            }));
+            setEmployees(formatted);
+          }
+          if (Array.isArray(leaveData)) {
+            const formattedLeaves = leaveData.map(lr => ({
+              ...lr,
+              employeeName: lr.employee ? `${lr.employee.firstName} ${lr.employee.lastName}` : lr.employeeName || 'Unknown',
+              startDate: typeof lr.startDate === 'string' ? lr.startDate.split('T')[0] : lr.startDate,
+              endDate: typeof lr.endDate === 'string' ? lr.endDate.split('T')[0] : lr.endDate
+            }));
+            setLeaveRequests(formattedLeaves);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load HR data:', err);
+      }
+    };
+    loadHRData();
+    return () => {
+      active = false;
+    };
+  }, [setEmployees, setLeaveRequests]);
 
   const [activeTab, setActiveTab] = useState('employees');
   const [empModalOpen, setEmpModalOpen] = useState(false);
@@ -22,20 +60,77 @@ export default function HRModule() {
   const [newEmp, setNewEmp] = useState({ firstName: '', lastName: '', email: '', department: '', jobTitle: '', baseSalary: 0 });
   const [newLeave, setNewLeave] = useState({ employeeId: '', leaveType: 'CASUAL', startDate: '', endDate: '', reason: '' });
 
-  const handleAddEmployee = () => {
+  const handleAddEmployee = async () => {
     if (!newEmp.firstName || !newEmp.email || !newEmp.department) return addToast('First name, email, and department required', 'error');
-    addEmployee({ ...newEmp, baseSalary: parseFloat(newEmp.baseSalary) || 0, employeeCode: `EMP-${Date.now().toString().slice(-4)}` });
-    addToast(`Employee ${newEmp.firstName} ${newEmp.lastName} added`, 'success');
+    
+    const payload = {
+      employeeCode: `EMP-${Date.now().toString().slice(-4)}`,
+      firstName: newEmp.firstName,
+      lastName: newEmp.lastName || '',
+      email: newEmp.email,
+      phone: newEmp.phone || '',
+      departmentId: newEmp.department,
+      jobTitle: newEmp.jobTitle || 'Staff',
+      baseSalary: parseFloat(newEmp.baseSalary) || 50000,
+    };
+
+    try {
+      const savedEmp = await api.hr.addEmployee(payload);
+      const formattedSavedEmp = {
+        ...savedEmp,
+        department: savedEmp.department?.name || savedEmp.departmentId || savedEmp.department || payload.departmentId
+      };
+      
+      const exists = employees.some(e => e.email === formattedSavedEmp.email || e.employeeCode === formattedSavedEmp.employeeCode);
+      if (!exists) {
+        addEmployee(formattedSavedEmp);
+      }
+      addToast(`Employee ${newEmp.firstName} ${newEmp.lastName} added successfully`, 'success');
+    } catch (err) {
+      addToast(`Error adding employee: ${err.message}`, 'error');
+    }
+    
     setNewEmp({ firstName: '', lastName: '', email: '', department: '', jobTitle: '', baseSalary: 0 });
     setEmpModalOpen(false);
   };
 
-  const handleAddLeave = () => {
+  const handleAddLeave = async () => {
     if (!newLeave.employeeId || !newLeave.startDate || !newLeave.endDate) return addToast('All leave fields required', 'error');
     const emp = employees.find(e => e.id === newLeave.employeeId);
-    addLeaveRequest({ ...newLeave, employeeName: emp ? `${emp.firstName} ${emp.lastName}` : 'Unknown' });
-    addToast('Leave request submitted', 'success');
-    setLeaveModalOpen(false);
+    
+    try {
+      const leavePayload = {
+        leaveType: newLeave.leaveType,
+        startDate: new Date(newLeave.startDate).toISOString(),
+        endDate: new Date(newLeave.endDate).toISOString(),
+        reason: newLeave.reason || null
+      };
+      
+      const created = await api.hr.createLeaveRequest(newLeave.employeeId, leavePayload);
+      if (created && created.id) {
+        const formattedCreated = {
+          ...created,
+          employeeName: emp ? `${emp.firstName} ${emp.lastName}` : 'Unknown',
+          startDate: newLeave.startDate,
+          endDate: newLeave.endDate
+        };
+        addLeaveRequest(formattedCreated);
+      }
+      addToast('Leave request submitted', 'success');
+      setLeaveModalOpen(false);
+    } catch (err) {
+      addToast(err.message || 'Failed to submit leave request', 'error');
+    }
+  };
+
+  const handleUpdateLeaveStatus = async (id, status) => {
+    try {
+      await api.hr.updateLeaveStatus(id, status);
+      updateLeaveStatus(id, status);
+      addToast(`Leave request ${status.toLowerCase()}`, 'success');
+    } catch (err) {
+      addToast(err.message || 'Failed to update leave status', 'error');
+    }
   };
 
   const TABS = [
@@ -324,9 +419,9 @@ export default function HRModule() {
                     <td className="px-4 py-2.5">
                       {lr.status === 'PENDING' && (
                         <div className="flex gap-2">
-                          <button onClick={() => { updateLeaveStatus(lr.id, 'APPROVED'); addToast('Leave approved', 'success'); }}
+                          <button onClick={() => handleUpdateLeaveStatus(lr.id, 'APPROVED')}
                             className="text-xs text-emerald-400 hover:underline flex items-center gap-1"><Check className="w-3 h-3" /> Approve</button>
-                          <button onClick={() => { updateLeaveStatus(lr.id, 'REJECTED'); addToast('Leave rejected', 'info'); }}
+                          <button onClick={() => handleUpdateLeaveStatus(lr.id, 'REJECTED')}
                             className="text-xs text-rose-400 hover:underline flex items-center gap-1"><X className="w-3 h-3" /> Reject</button>
                         </div>
                       )}
@@ -342,6 +437,12 @@ export default function HRModule() {
       {/* Modals */}
       <Modal isOpen={empModalOpen} onClose={() => setEmpModalOpen(false)} title="Add New Employee">
         <div className="space-y-4">
+          {!dbLive && (
+            <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg text-amber-400 text-xs flex items-center gap-2">
+              <span className="font-bold uppercase tracking-wider bg-amber-500/20 px-1.5 py-0.5 rounded text-[10px]">Offline Mode</span>
+              <span>Backend database is offline. Changes are saved locally and will reset on page reload.</span>
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-3">
             <div><label className="form-label">First Name</label><input className="form-input" value={newEmp.firstName} onChange={e => setNewEmp({...newEmp, firstName: e.target.value})} /></div>
             <div><label className="form-label">Last Name</label><input className="form-input" value={newEmp.lastName} onChange={e => setNewEmp({...newEmp, lastName: e.target.value})} /></div>

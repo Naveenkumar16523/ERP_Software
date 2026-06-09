@@ -587,7 +587,28 @@ export const useERPStore = create((set, get) => ({
     URL.revokeObjectURL(url);
   },
 
+  setAccounts: (accounts) => set({ accounts }),
+  setJournalEntries: (journalEntries) => set({ journalEntries }),
+  setInvoices: (invoices) => set({ invoices }),
+  setBudgets: (budgets) => set({ budgets }),
+  setExpenses: (expenses) => set({ expenses }),
+  setProjects: (projects) => set({ projects }),
+  setSupportTickets: (supportTickets) => set({ supportTickets }),
+  setShipments: (shipments) => set({ shipments }),
+  setProducts: (products) => set({ products }),
+  setWarehouses: (warehouses) => set({ warehouses }),
+  setInventoryBatches: (inventoryBatches) => set({ inventoryBatches }),
+  setStockMovements: (stockMovements) => set({ stockMovements }),
+  setLeads: (leads) => set({ leads }),
+  setCustomers: (customers) => set({ customers }),
+  setPurchaseOrders: (purchaseOrders) => set({ purchaseOrders }),
+  setSuppliers: (suppliers) => set({ suppliers }),
+  setPayrolls: (payrolls) => set({ payrolls }),
+  setTasks: (tasks) => set({ tasks }),
+
   // ── HR ────────────────────────────────────────────────────────────
+  setEmployees: (employees) => set({ employees }),
+  setLeaveRequests: (leaveRequests) => set({ leaveRequests }),
   addEmployee: (emp) => set((s) => ({
     employees: [...s.employees, { ...emp, id: `emp-${Date.now()}`, isActive: true, joinDate: new Date().toISOString(), documents: [], skills: [] }]
   })),
@@ -823,6 +844,11 @@ export const useERPStore = create((set, get) => ({
     bankingLoans: [...s.bankingLoans, { ...loan, id: `loan-${Date.now()}`, status: 'ACTIVE' }]
   })),
 
+  // ── Banking Set Actions ───────────────────────────────────────────
+  setBankingAccounts: (bankingAccounts) => set({ bankingAccounts }),
+  setBankingTransactions: (bankingTransactions) => set({ bankingTransactions }),
+  setBankingLoans: (bankingLoans) => set({ bankingLoans }),
+
   // ── Healthcare ─────────────────────────────────────────────────
   patients: [
     { id: 'patient-1', name: 'Rajesh Kumar', dob: '1985-03-15', gender: 'Male', bloodType: 'O+', contact: '+91 98765 43210', email: 'rajesh@example.com', address: '123 Main St, Bangalore', emergencyContact: 'Priya Kumar +91 98765 43211' },
@@ -841,7 +867,9 @@ export const useERPStore = create((set, get) => ({
     { id: 'bill-2', patientId: 'patient-2', patientName: 'Sunita Sharma', date: '2024-04-20', amount: 1800, status: 'PENDING', services: ['Consultation', 'X-Ray'] }
   ],
 
-  // ── Healthcare Actions ───────────────────────────────────────────
+  // ── Healthcare Set & Add Actions ─────────────────────────────────
+  setPatients: (patients) => set({ patients }),
+  setAppointments: (appointments) => set({ appointments }),
   addPatient: (patient) => set((s) => ({
     patients: [...s.patients, { ...patient, id: `patient-${Date.now()}` }]
   })),
@@ -877,7 +905,9 @@ export const useERPStore = create((set, get) => ({
     { id: 'att-3', studentId: 'student-2', studentName: 'Priya Singh', date: '2024-06-01', status: 'ABSENT' }
   ],
 
-  // ── Education Actions ─────────────────────────────────────────────
+  // ── Education Set & Add Actions ──────────────────────────────────
+  setStudents: (students) => set({ students }),
+  setCourses: (courses) => set({ courses }),
   addStudent: (student) => set((s) => ({
     students: [...s.students, { ...student, id: `student-${Date.now()}` }]
   })),
@@ -909,7 +939,9 @@ export const useERPStore = create((set, get) => ({
     { id: 'waste-2', type: 'Hazardous', amount: 150, unit: 'kg', period: '2024-05', recycled: 0, disposalMethod: 'Licensed Disposal' }
   ],
 
-  // ── Sustainability Actions ─────────────────────────────────────────
+  // ── Sustainability Set & Add Actions ──────────────────────────────
+  setCarbonFootprints: (carbonFootprints) => set({ carbonFootprints }),
+  setESGReports: (esgReports) => set({ esgReports }),
   addCarbonFootprint: (footprint) => set((s) => ({
     carbonFootprints: [...s.carbonFootprints, { ...footprint, id: `cf-${Date.now()}` }]
   })),
@@ -941,7 +973,10 @@ export const useERPStore = create((set, get) => ({
     { id: 'social-2', platform: 'Twitter', content: 'Join our webinar', status: 'SCHEDULED', publishedDate: '2024-06-15', likes: 0, shares: 0, comments: 0 }
   ],
 
-  // ── Marketing Actions ─────────────────────────────────────────────
+  // ── Marketing Set & Add Actions ──────────────────────────────────
+  setMarketingCampaigns: (marketingCampaigns) => set({ marketingCampaigns }),
+  setMarketingLeads: (marketingLeads) => set({ marketingLeads }),
+  setSocialMediaPosts: (socialMediaPosts) => set({ socialMediaPosts }),
   addMarketingCampaign: (campaign) => set((s) => ({
     marketingCampaigns: [...s.marketingCampaigns, { ...campaign, id: `camp-${Date.now()}`, status: 'SCHEDULED' }]
   })),
@@ -973,7 +1008,9 @@ export const useERPStore = create((set, get) => ({
     { id: 'compliance-2', regulation: 'SOX', status: 'COMPLIANT', lastAudit: '2024-04-10', nextAudit: '2024-10-10', score: 88 }
   ],
 
-  // ── Security Actions ───────────────────────────────────────────────
+  // ── Security Set & Add Actions ───────────────────────────────────
+  setAccessLogs: (accessLogs) => set({ accessLogs }),
+  setSecurityAlerts: (securityAlerts) => set({ securityAlerts }),
   addAccessLog: (log) => set((s) => ({
     accessLogs: [...s.accessLogs, { ...log, id: `access-${Date.now()}` }]
   })),
@@ -1037,7 +1074,8 @@ export const useERPStore = create((set, get) => ({
     { id: 'perf-2', botId: 'bot-1', botName: 'FinanceBot-01', metric: 'Success Rate', value: 98.5, unit: '%', date: '2024-06-10' }
   ],
 
-  // ── RPA Automation Actions ─────────────────────────────────────────
+  // ── RPA Automation Set & Add Actions ──────────────────────────────
+  setRPAWorkflows: (rpaWorkflows) => set({ rpaWorkflows }),
   addRPAWorkflow: (workflow) => set((s) => ({
     rpaWorkflows: [...s.rpaWorkflows, { ...workflow, id: `workflow-${Date.now()}`, status: 'ACTIVE' }]
   })),

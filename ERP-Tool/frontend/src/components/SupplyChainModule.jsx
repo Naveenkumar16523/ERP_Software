@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Plus, Truck, Map, Building2 } from 'lucide-react';
 import { useERPStore } from '../store/useERPStore';
 import Modal from './ui/Modal';
+import api from '../utils/api';
 
 const STATUS_COLORS = {
   DISPATCHED: 'text-sky-400 bg-sky-500/10',
@@ -16,19 +17,56 @@ export default function SupplyChainModule() {
     shipments, addShipment, updateShipmentStatus,
     carriers, addCarrier,
     routes, addRoute,
-    fieldWorkOrders, addToast
+    fieldWorkOrders, addToast,
+    setShipments
   } = useERPStore();
 
   const [activeTab, setActiveTab] = useState('shipments');
   const [shipModal, setShipModal] = useState(false);
   const [form, setForm] = useState({ trackingNo: '', carrier: '', origin: '', destination: '', orderId: '' });
 
-  const handleAdd = () => {
+  useEffect(() => {
+    let active = true;
+    async function loadShipments() {
+      try {
+        const shipmentData = await api.supplyChain.getShipments();
+        if (active) setShipments(shipmentData);
+      } catch (err) {
+        console.error("Failed to load shipments", err);
+      }
+    }
+    loadShipments();
+    return () => { active = false; };
+  }, [setShipments]);
+
+  const handleAdd = async () => {
     if (!form.carrier || !form.destination) return addToast('Carrier and destination required', 'error');
-    addShipment({ ...form, trackingNo: form.trackingNo || `TRK-${Date.now()}`, dispatchedAt: new Date().toISOString() });
-    addToast('Shipment created', 'success');
-    setShipModal(false);
-    setForm({ trackingNo: '', carrier: '', origin: '', destination: '', orderId: '' });
+    try {
+      const created = await api.supplyChain.createShipment({
+        carrier: form.carrier,
+        origin: form.origin || "Unknown",
+        destination: form.destination,
+        estimatedDelivery: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+      });
+      if (created && created.id) {
+        addShipment(created);
+      }
+      addToast('Shipment created', 'success');
+      setShipModal(false);
+      setForm({ trackingNo: '', carrier: '', origin: '', destination: '', orderId: '' });
+    } catch (err) {
+      addToast(err.message || 'Failed to create shipment', 'error');
+    }
+  };
+
+  const handleUpdateStatus = async (id, status) => {
+    try {
+      await api.supplyChain.updateShipmentStatus(id, status);
+      updateShipmentStatus(id, status);
+      addToast(`Shipment status updated to ${status}`, 'success');
+    } catch (err) {
+      addToast(err.message || 'Failed to update shipment status', 'error');
+    }
   };
 
   const TABS = [
@@ -93,7 +131,7 @@ export default function SupplyChainModule() {
               <tbody>
                 {shipments.map(s => (
                   <tr key={s.id} className="border-b border-main hover:bg-surface/60 transition-colors">
-                    <td className="px-4 py-2.5 text-xs font-mono text-indigo-400">{s.trackingNo}</td>
+                    <td className="px-4 py-2.5 text-xs font-mono text-indigo-400">{s.trackingNo || s.shipmentNo}</td>
                     <td className="px-4 py-2.5 text-sm text-main">{s.carrier}</td>
                     <td className="px-4 py-2.5 text-xs text-muted">{s.origin} → {s.destination}</td>
                     <td className="px-4 py-2.5">
@@ -102,11 +140,11 @@ export default function SupplyChainModule() {
                       </span>
                     </td>
                     <td className="px-4 py-2.5 flex gap-2">
-                      {s.status === 'DISPATCHED' && (
-                        <button onClick={() => { updateShipmentStatus(s.id, 'IN_TRANSIT'); addToast('Shipment in transit', 'info'); }} className="text-xs text-amber-400 hover:underline">In Transit</button>
+                      {(s.status === 'DISPATCHED' || s.status === 'PENDING') && (
+                        <button onClick={() => handleUpdateStatus(s.id, 'IN_TRANSIT')} className="text-xs text-amber-400 hover:underline">In Transit</button>
                       )}
                       {s.status === 'IN_TRANSIT' && (
-                        <button onClick={() => { updateShipmentStatus(s.id, 'DELIVERED'); addToast('Shipment delivered!', 'success'); }} className="text-xs text-emerald-400 hover:underline">Delivered</button>
+                        <button onClick={() => handleUpdateStatus(s.id, 'DELIVERED')} className="text-xs text-emerald-400 hover:underline">Delivered</button>
                       )}
                     </td>
                   </tr>

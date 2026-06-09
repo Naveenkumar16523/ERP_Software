@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Plus, Check, FileText, Clock, Settings } from 'lucide-react';
 import { useERPStore } from '../store/useERPStore';
 import Modal from './ui/Modal';
+import api from '../utils/api';
 
 export default function PayrollModule() {
   const {
@@ -9,7 +10,9 @@ export default function PayrollModule() {
     salaryStructures, addSalaryStructure,
     payslips, generatePayslip,
     attendanceLogs,
-    addToast
+    addToast,
+    setPayrolls,
+    setEmployees
   } = useERPStore();
 
   const [activeTab, setActiveTab] = useState('payslips');
@@ -20,28 +23,54 @@ export default function PayrollModule() {
     year: new Date().getFullYear(),
   });
 
-  const handleGenerateSlip = () => {
+  useEffect(() => {
+    let active = true;
+    async function loadData() {
+      try {
+        const [payrollData, employeeData] = await Promise.all([
+          api.payroll.getPayrolls(),
+          api.hr.getEmployees()
+        ]);
+        if (active) {
+          setPayrolls(payrollData);
+          setEmployees(employeeData);
+        }
+      } catch (err) {
+        console.error("Failed to load payroll data", err);
+      }
+    }
+    loadData();
+    return () => { active = false; };
+  }, [setPayrolls, setEmployees]);
+
+  const handleGenerateSlip = async () => {
     const emp = employees.find(e => e.id === form.employeeId);
     if (!emp) return addToast('Select an employee', 'error');
-    const base = emp.baseSalary || 0;
-    const pf = Math.round(base * 0.12);
-    const esi = Math.round(base * 0.0075);
-    const tds = Math.round(base * 0.1);
-    const net = base - pf - esi - tds;
-    addPayrollEntry({
-      employeeId: emp.id,
-      employeeName: `${emp.firstName} ${emp.lastName}`,
-      month: form.month,
-      year: form.year,
-      baseSalary: base,
-      pfDeduction: pf,
-      esiDeduction: esi,
-      tdsDeduction: tds,
-      netPay: net,
-      status: 'PENDING',
-    });
-    addToast('Payslip generated successfully', 'success');
+    
+    try {
+      const generated = await api.payroll.generatePayslip({
+        employeeId: form.employeeId,
+        month: form.month,
+        year: form.year
+      });
+      if (generated && generated.id) {
+        addPayrollEntry(generated);
+      }
+      addToast('Payslip generated successfully', 'success');
+    } catch (err) {
+      addToast(err.message || 'Failed to generate payslip', 'error');
+    }
     setModal(false);
+  };
+
+  const handleProcessPayroll = async (id) => {
+    try {
+      await api.payroll.processPayroll(id);
+      processPayroll(id);
+      addToast('Payslip processed & paid', 'success');
+    } catch (err) {
+      addToast(err.message || 'Failed to process payroll', 'error');
+    }
   };
 
   const TABS = [
@@ -129,7 +158,7 @@ export default function PayrollModule() {
                     <td className="px-4 py-2.5">
                       {p.status === 'PENDING' && (
                         <button
-                          onClick={() => { processPayroll(p.id); addToast('Payslip processed & paid', 'success'); }}
+                          onClick={() => handleProcessPayroll(p.id)}
                           className="text-xs text-emerald-400 hover:underline flex items-center gap-1"
                         >
                           <Check className="w-3 h-3" /> Pay

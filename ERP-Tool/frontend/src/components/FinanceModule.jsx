@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
   Plus,
@@ -13,23 +13,29 @@ import {
   TrendingDown
 } from 'lucide-react';
 import { useERPStore } from '../store/useERPStore';
+import { api } from '../utils/api';
 import Modal from './ui/Modal';
 
 export default function FinanceModule() {
   const {
     accounts,
+    setAccounts,
     addAccount,
     journalEntries,
+    setJournalEntries,
     addJournalEntry,
     invoices,
+    setInvoices,
     addInvoice,
     updateInvoiceStatus,
     sendInvoice,
     checkOverdueInvoices,
     budgets,
+    setBudgets,
     addBudget,
     updateBudget,
     expenses,
+    setExpenses,
     addExpense,
     updateExpenseStatus,
     approvalWorkflows,
@@ -41,6 +47,34 @@ export default function FinanceModule() {
     addNotification,
     addToast
   } = useERPStore();
+
+  useEffect(() => {
+    let active = true;
+    const fetchFinanceData = async () => {
+      try {
+        const [accts, jEntries, invs, bdgts, exps] = await Promise.all([
+          api.finance.getAccounts(),
+          api.finance.getJournalEntries(),
+          api.finance.getInvoices(),
+          api.finance.getBudgets(),
+          api.finance.getExpenses()
+        ]);
+        if (active) {
+          if (Array.isArray(accts)) setAccounts(accts);
+          if (Array.isArray(jEntries)) setJournalEntries(jEntries);
+          if (Array.isArray(invs)) setInvoices(invs);
+          if (Array.isArray(bdgts)) setBudgets(bdgts);
+          if (Array.isArray(exps)) setExpenses(exps);
+        }
+      } catch (err) {
+        console.error('Error fetching finance data:', err);
+      }
+    };
+    fetchFinanceData();
+    return () => {
+      active = false;
+    };
+  }, [setAccounts, setJournalEntries, setInvoices, setBudgets, setExpenses]);
 
   const [activeTab, setActiveTab] = useState('accounts');
   const [acctModalOpen, setAcctModalOpen] = useState(false);
@@ -74,53 +108,106 @@ export default function FinanceModule() {
   const totalLiab = liabilityAccounts.reduce((sum, a) => sum + a.balance, 0);
   const totalEquity = equityAccounts.reduce((sum, a) => sum + a.balance, 0);
 
-  const handleAddAccount = () => {
+  const handleAddAccount = async () => {
     if (!newAcct.code || !newAcct.name) return addToast('Account code and name are required', 'error');
-    addAccount({ ...newAcct, balance: parseFloat(newAcct.balance) || 0 });
-    addToast('Account created successfully', 'success');
-    addNotification(`New account "${newAcct.name}" added to ledger`);
+    const payload = { ...newAcct, balance: parseFloat(newAcct.balance) || 0 };
+    try {
+      const savedAcc = await api.finance.createAccount(payload);
+      const exists = accounts.some(a => a.code === savedAcc.code);
+      if (!exists) {
+        addAccount(savedAcc);
+      }
+      addToast('Account created successfully', 'success');
+      addNotification(`New account "${newAcct.name}" added to ledger`);
+    } catch (err) {
+      addToast(`Error creating account: ${err.message}`, 'error');
+    }
     setNewAcct({ code: '', name: '', type: 'ASSET', balance: 0 });
     setAcctModalOpen(false);
   };
 
-  const handleAddJournal = () => {
+  const handleAddJournal = async () => {
     if (!newJournal.debitAcc || !newJournal.creditAcc || !newJournal.amount) {
       return addToast('All journal fields are required', 'error');
     }
-    addJournalEntry({ ...newJournal, amount: parseFloat(newJournal.amount) });
-    addToast('Journal entry recorded', 'success');
+    const payload = { ...newJournal, amount: parseFloat(newJournal.amount) };
+    try {
+      const savedJE = await api.finance.createJournalEntry(payload);
+      const exists = journalEntries.some(j => j.voucherNo === savedJE.voucherNo);
+      if (!exists) {
+        addJournalEntry(savedJE);
+      }
+      // Refetch accounts to reflect ledger double-entry balances
+      const accts = await api.finance.getAccounts();
+      if (Array.isArray(accts)) setAccounts(accts);
+      addToast('Journal entry recorded', 'success');
+    } catch (err) {
+      addToast(`Error recording journal: ${err.message}`, 'error');
+    }
     setNewJournal({ debitAcc: '', creditAcc: '', amount: 0, narration: '' });
     setJournalModalOpen(false);
   };
 
-  const handleAddInvoice = () => {
+  const handleAddInvoice = async () => {
     if (!newInv.customerName || !newInv.totalAmount) return addToast('Customer name and amount required', 'error');
-    addInvoice({ ...newInv, totalAmount: parseFloat(newInv.totalAmount), invoiceNo: `INV-${Date.now()}` });
-    addToast('Invoice created', 'success');
+    const payload = { ...newInv, totalAmount: parseFloat(newInv.totalAmount) };
+    try {
+      const savedInv = await api.finance.createInvoice(payload);
+      const exists = invoices.some(i => i.invoiceNo === savedInv.invoiceNo);
+      if (!exists) {
+        addInvoice(savedInv);
+      }
+      addToast('Invoice created', 'success');
+    } catch (err) {
+      addToast(`Error creating invoice: ${err.message}`, 'error');
+    }
     setNewInv({ customerName: '', totalAmount: 0 });
     setInvoiceModalOpen(false);
   };
 
-  const handleAddBudget = () => {
+  const handleAddBudget = async () => {
     if (!newBudget.costCenter || !newBudget.amount) return addToast('Cost center and amount are required', 'error');
-    addBudget({ ...newBudget, amount: parseFloat(newBudget.amount), spent: 0 });
-    addToast('Budget created successfully', 'success');
-    addNotification(`New budget for ${newBudget.costCenter} created`);
+    const payload = { ...newBudget, amount: parseFloat(newBudget.amount) };
+    try {
+      const savedBgt = await api.finance.createBudget(payload);
+      const exists = budgets.some(b => b.id === savedBgt.id);
+      if (!exists) {
+        addBudget(savedBgt);
+      }
+      addToast('Budget created successfully', 'success');
+      addNotification(`New budget for ${newBudget.costCenter} created`);
+    } catch (err) {
+      addToast(`Error creating budget: ${err.message}`, 'error');
+    }
     setNewBudget({ costCenter: '', period: 'monthly', amount: 0, year: 2026, month: 6 });
     setBudgetModalOpen(false);
   };
 
-  const handleAddExpense = () => {
+  const handleAddExpense = async () => {
     if (!newExpense.description || !newExpense.category || !newExpense.amount) return addToast('Description, category, and amount are required', 'error');
-    addExpense({ ...newExpense, amount: parseFloat(newExpense.amount), date: newExpense.date || new Date().toISOString().split('T')[0] });
-    addToast('Expense logged successfully', 'success');
+    const payload = { ...newExpense, amount: parseFloat(newExpense.amount), date: newExpense.date || new Date().toISOString().split('T')[0] };
+    try {
+      const savedExp = await api.finance.createExpense(payload);
+      const exists = expenses.some(e => e.id === savedExp.id);
+      if (!exists) {
+        addExpense(savedExp);
+      }
+      addToast('Expense logged successfully', 'success');
+    } catch (err) {
+      addToast(`Error logging expense: ${err.message}`, 'error');
+    }
     setNewExpense({ description: '', category: '', amount: 0, date: '' });
     setExpenseModalOpen(false);
   };
 
-  const handleApproveExpense = (expenseId) => {
-    updateExpenseStatus(expenseId, 'APPROVED', 'currentUser');
-    addToast('Expense approved', 'success');
+  const handleApproveExpense = async (expenseId) => {
+    try {
+      await api.finance.updateExpenseStatus(expenseId, 'APPROVED');
+      updateExpenseStatus(expenseId, 'APPROVED', 'currentUser');
+      addToast('Expense approved', 'success');
+    } catch (err) {
+      addToast(`Error approving expense: ${err.message}`, 'error');
+    }
   };
 
   const handleApproveWorkflow = (workflowId, level) => {
@@ -128,10 +215,15 @@ export default function FinanceModule() {
     addToast('Workflow level approved', 'success');
   };
 
-  const handleSendInvoice = (invoiceId) => {
-    sendInvoice(invoiceId);
-    addToast('Invoice sent successfully', 'success');
-    addNotification(`Invoice sent to customer`);
+  const handleSendInvoice = async (invoiceId) => {
+    try {
+      await api.finance.updateInvoiceStatus(invoiceId, 'SENT');
+      sendInvoice(invoiceId);
+      addToast('Invoice sent successfully', 'success');
+      addNotification(`Invoice sent to customer`);
+    } catch (err) {
+      addToast(`Error sending invoice: ${err.message}`, 'error');
+    }
   };
 
   const handleCheckOverdue = () => {
@@ -335,7 +427,15 @@ export default function FinanceModule() {
                             </button>
                           )}
                           {inv.status === 'PENDING' && !isOverdue && (
-                            <button onClick={() => { updateInvoiceStatus(inv.id, 'PAID'); addToast('Invoice marked as paid', 'success'); }}
+                            <button onClick={async () => {
+                              try {
+                                await api.finance.updateInvoiceStatus(inv.id, 'PAID');
+                                updateInvoiceStatus(inv.id, 'PAID');
+                                addToast('Invoice marked as paid', 'success');
+                              } catch (err) {
+                                addToast(`Error marking invoice as paid: ${err.message}`, 'error');
+                              }
+                            }}
                               className="text-xs text-emerald-400 hover:underline">
                               Mark Paid
                             </button>

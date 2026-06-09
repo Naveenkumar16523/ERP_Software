@@ -1,15 +1,42 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AlertTriangle, Package, Warehouse, Scan, BarChart3, Layers } from 'lucide-react';
 import { useERPStore } from '../store/useERPStore';
+import { api } from '../utils/api';
 
 export default function InventoryModule() {
   const {
-    products, addProduct, updateProductStock,
-    inventoryBatches, addInventoryBatch,
-    warehouses, addWarehouse,
-    stockMovements, addStockMovement,
+    products, setProducts, addProduct, updateProductStock,
+    inventoryBatches, setInventoryBatches, addInventoryBatch,
+    warehouses, setWarehouses, addWarehouse,
+    stockMovements, setStockMovements, addStockMovement,
     addToast
   } = useERPStore();
+
+  useEffect(() => {
+    let active = true;
+    const fetchInventoryData = async () => {
+      try {
+        const [prods, whs, bts, mvts] = await Promise.all([
+          api.inventory.getProducts(),
+          api.inventory.getWarehouses(),
+          api.inventory.getBatches(),
+          api.inventory.getStockMovements()
+        ]);
+        if (active) {
+          if (Array.isArray(prods)) setProducts(prods);
+          if (Array.isArray(whs)) setWarehouses(whs);
+          if (Array.isArray(bts)) setInventoryBatches(bts);
+          if (Array.isArray(mvts)) setStockMovements(mvts);
+        }
+      } catch (err) {
+        console.error('Error fetching inventory data:', err);
+      }
+    };
+    fetchInventoryData();
+    return () => {
+      active = false;
+    };
+  }, [setProducts, setWarehouses, setInventoryBatches, setStockMovements]);
 
   const [activeTab, setActiveTab] = useState('products');
   const [search, setSearch] = useState('');

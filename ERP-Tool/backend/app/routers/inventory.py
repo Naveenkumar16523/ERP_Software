@@ -7,7 +7,7 @@ from sqlalchemy import desc
 from app.utils.db import get_db
 from app.utils.audit import log_audit_event
 from app.middlewares.auth_middleware import get_current_user, require_permission, AuthenticatedUser
-from app.models.models import Product, Warehouse, StockTransaction
+from app.models.models import Product, Warehouse, StockTransaction, InventoryBatch
 from app.models.schemas import ProductCreate, ProductUpdate, WarehouseCreate, StockTransactionCreate
 
 router = APIRouter(prefix="/inventory", tags=["Inventory"])
@@ -330,3 +330,35 @@ async def get_valuation(current_user: AuthenticatedUser = Depends(get_current_us
         }
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail={"error": "Internal Server Error", "message": str(e)})
+
+# 6. BATCH TRACKING
+
+@router.get("/batches")
+async def get_batches(current_user: AuthenticatedUser = Depends(get_current_user), db: Session = Depends(get_db)):
+    try:
+        batches = db.query(InventoryBatch).order_by(InventoryBatch.createdAt.desc()).all()
+        return batches
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+@router.post("/batches", status_code=status.HTTP_201_CREATED)
+async def create_batch(body: dict, current_user: AuthenticatedUser = Depends(require_permission("inventory:write")), db: Session = Depends(get_db)):
+    try:
+        import uuid
+        batch_no = body.get("batchNumber") or f"BAT-{str(uuid.uuid4())[:8].upper()}"
+        batch = InventoryBatch(
+            batchNumber=batch_no,
+            productId=body.get("productId"),
+            quantity=float(body.get("quantity") or 0.0),
+            manufactureDate=body.get("manufactureDate") or datetime.utcnow().strftime("%Y-%m-%d"),
+            expiryDate=body.get("expiryDate"),
+            warehouse=body.get("warehouse"),
+            status="IN_STOCK"
+        )
+        db.add(batch)
+        db.commit()
+        db.refresh(batch)
+        return batch
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
