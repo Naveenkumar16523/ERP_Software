@@ -7,7 +7,7 @@ import os
 import sys
 
 # Allow override via env, otherwise use the production TiDB URL
-DATABASE_URL = os.getenv("DATABASE_URL", "mysql+pymysql://4SzBPjMpGha8uCz.root:PhLJKe4vCVloVnfK@gateway01.ap-southeast-1.prod.alicloud.tidbcloud.com:4000/erp_db")
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres.jqzxgtftluqpymkqyiwq:Naveen16523%40%23%24@aws-1-ap-northeast-1.pooler.supabase.com:6543/postgres")
 NEW_PASSWORD = os.getenv("CEO_PASSWORD", "admin123")
 
 print(f"Connecting to database...")

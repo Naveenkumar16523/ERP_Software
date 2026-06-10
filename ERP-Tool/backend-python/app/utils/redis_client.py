@@ -1,1 +1,53 @@
-"import os\nimport redis\nfrom dotenv import load_dotenv\n\nload_dotenv()\n\nredis_url = os.getenv(\"REDIS_URL\", \"redis://localhost:6379\")\nclient = None\nis_connected = False\n\ndef connect_redis():\n    global client, is_connected\n    if is_connected:\n        return\n    try:\n        # Connect using the redis url\n        client = redis.Redis.from_url(redis_url, socket_connect_timeout=2.0, decode_responses=True)\n        # Test connection with a ping\n        client.ping()\n        is_connected = True\n        print(\"🔌 Connected to Redis cache server successfully.\")\n    except Exception as e:\n        print(f\"⚠️ Redis connection failed. Operating with Database-only sessions. Error: {e}\")\n        client = None\n        is_connected = False\n\ndef cache_set(key: str, value: str, expiry_seconds: int = None):\n    if not is_connected or client is None:\n        return\n    try:\n        if expiry_seconds:\n            client.setex(key, expiry_seconds, value)\n        else:\n            client.set(key, value)\n    except Exception as e:\n        print(f\"Error setting key {key} in Redis: {e}\")\n\ndef cache_get(key: str) -> str:\n    if not is_connected or client is None:\n        return None\n    try:\n        return client.get(key)\n    except Exception as e:\n        print(f\"Error getting key {key} from Redis: {e}\")\n        return None\n\ndef cache_del(key: str):\n    if not is_connected or client is None:\n        return\n    try:\n        client.delete(key)\n    except Exception as e:\n        print(f\"Error deleting key {key} in Redis: {e}\")\n"
+import os
+import redis
+from dotenv import load_dotenv
+
+load_dotenv()
+
+redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
+client = None
+is_connected = False
+
+def connect_redis():
+    global client, is_connected
+    if is_connected:
+        return
+    try:
+        # Connect using the redis url
+        client = redis.Redis.from_url(redis_url, socket_connect_timeout=2.0, decode_responses=True)
+        # Test connection with a ping
+        client.ping()
+        is_connected = True
+        print("🔌 Connected to Redis cache server successfully.")
+    except Exception as e:
+        print(f"⚠️ Redis connection failed. Operating with Database-only sessions. Error: {e}")
+        client = None
+        is_connected = False
+
+def cache_set(key: str, value: str, expiry_seconds: int = None):
+    if not is_connected or client is None:
+        return
+    try:
+        if expiry_seconds:
+            client.setex(key, expiry_seconds, value)
+        else:
+            client.set(key, value)
+    except Exception as e:
+        print(f"Error setting key {key} in Redis: {e}")
+
+def cache_get(key: str) -> str:
+    if not is_connected or client is None:
+        return None
+    try:
+        return client.get(key)
+    except Exception as e:
+        print(f"Error getting key {key} from Redis: {e}")
+        return None
+
+def cache_del(key: str):
+    if not is_connected or client is None:
+        return
+    try:
+        client.delete(key)
+    except Exception as e:
+        print(f"Error deleting key {key} in Redis: {e}")
