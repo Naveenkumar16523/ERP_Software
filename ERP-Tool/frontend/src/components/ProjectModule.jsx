@@ -36,8 +36,8 @@ export default function ProjectModule() {
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-main">Project Management</h1>
-          <p className="text-sm text-muted mt-1">Project tracking, task management, and budgets</p>
+          <h1 className="text-2xl font-bold text-main">Logistics Project Management</h1>
+          <p className="text-sm text-muted mt-1">Warehouse setup, fleet expansion, IT integration, and infrastructure projects</p>
         </div>
         <button onClick={() => setModal(true)} className="btn-primary text-sm flex items-center gap-1.5">
           <Plus className="w-4 h-4" /> New Project
@@ -134,11 +134,32 @@ export default function ProjectModule() {
 
       <Modal isOpen={modal} onClose={() => setModal(false)} title="New Project">
         <div className="space-y-4">
+          <div>
+            <label className="form-label">Project Type / Template</label>
+            <select 
+              className="form-input mb-2" 
+              onChange={e => {
+                const val = e.target.value;
+                if (val === 'warehouse') {
+                  setForm({...form, name: 'New Warehouse Setup', description: 'Leasing, layout design, and infrastructure setup for a new Sector warehouse.'});
+                } else if (val === 'fleet') {
+                  setForm({...form, name: 'Fleet Expansion', description: 'Acquisition, safety testing, and licensing of new heavy cargo freight vehicles.'});
+                } else if (val === 'it') {
+                  setForm({...form, name: 'IT Route Optimization Integration', description: 'Deploying machine learning algorithms and APIs for real-time fleet dispatch optimization.'});
+                }
+              }}
+            >
+              <option value="">Select a template (or enter details below)...</option>
+              <option value="warehouse">Warehouse Setup</option>
+              <option value="fleet">Fleet Expansion</option>
+              <option value="it">Logistics IT Integration</option>
+            </select>
+          </div>
           <div><label className="form-label">Project Name</label>
-            <input className="form-input" value={form.name} onChange={e => setForm({...form, name: e.target.value})} />
+            <input className="form-input" value={form.name} onChange={e => setForm({...form, name: e.target.value})} placeholder="e.g., Warehouse Sector 4" />
           </div>
           <div><label className="form-label">Description</label>
-            <textarea className="form-input" rows={2} value={form.description} onChange={e => setForm({...form, description: e.target.value})} />
+            <textarea className="form-input" rows={2} value={form.description} onChange={e => setForm({...form, description: e.target.value})} placeholder="Describe the logistics project objective..." />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div><label className="form-label">Budget (₹)</label>

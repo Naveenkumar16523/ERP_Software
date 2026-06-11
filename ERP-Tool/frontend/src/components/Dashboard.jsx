@@ -18,7 +18,8 @@ import {
   Truck,
   Factory,
   DollarSign,
-  Building
+  Building,
+  Wrench
 } from 'lucide-react';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid, PieChart, Pie, Cell } from 'recharts';
 import { useERPStore } from '../store/useERPStore';
@@ -102,7 +103,7 @@ export default function Dashboard() {
     {
       label: 'Total Revenue',
       value: `$${(dashboardData.ecommerce?.totalRevenue || 0).toFixed(2)}`,
-      subValue: 'From orders',
+      subValue: 'From shipment bookings',
       change: '+12%',
       up: true,
       icon: DollarSign,
@@ -137,7 +138,7 @@ export default function Dashboard() {
     {
       label: 'Total Revenue',
       value: '$0',
-      subValue: 'From orders',
+      subValue: 'From shipment bookings',
       change: '+0%',
       up: true,
       icon: DollarSign,
@@ -213,7 +214,7 @@ export default function Dashboard() {
         {/* Data Table Card */}
         <motion.div variants={itemVariants} className="lg:col-span-2 theme-card flex flex-col">
           <div className="p-5 border-b border-main flex items-center justify-between">
-            <h3 className="text-base font-bold text-main">Top Products by Stock Value</h3>
+            <h3 className="text-base font-bold text-main">Warehouse Inventory by Stock Value</h3>
             <button className="flex items-center gap-2 px-3 py-1.5 btn-secondary text-sm rounded-lg transition-all">
               Stock Level <ChevronDown className="w-4 h-4" />
             </button>
@@ -229,11 +230,11 @@ export default function Dashboard() {
               </thead>
               <tbody>
                 {[
-                  { name: 'Conveyor Belt System', stock: '15 units', value: '$30,000', type: 'FINISHED_GOOD' },
-                  { name: 'Industrial Pump', stock: '50 units', value: '$25,000', type: 'FINISHED_GOOD' },
-                  { name: 'Steel Sheet', stock: '500 kg', value: '$12,500', type: 'RAW_MATERIAL' },
-                  { name: 'Aluminum Rod', stock: '800 kg', value: '$12,000', type: 'RAW_MATERIAL' },
-                  { name: 'Plastic Pellets', stock: '1,500 kg', value: '$3,750', type: 'RAW_MATERIAL' }
+                  { name: 'Pallet Racking System', stock: '40 units', value: '₹8,00,000', type: 'WAREHOUSE_ASSET' },
+                  { name: 'Cargo Strapping Rolls', stock: '1,200 units', value: '₹1,80,000', type: 'PACKAGING' },
+                  { name: 'Diesel (Drum)', stock: '300 drums', value: '₹4,50,000', type: 'CONSUMABLE' },
+                  { name: 'Shrink Wrap Film', stock: '900 kg', value: '₹2,70,000', type: 'PACKAGING' },
+                  { name: 'Forklift Hydraulic Oil', stock: '200 liters', value: '₹60,000', type: 'CONSUMABLE' }
                 ].map((row, idx) => (
                   <tr key={idx} className="hover:bg-surface/30 transition-colors group">
                     <td className="px-5 py-4 text-sm font-semibold text-main border-b border-main/50 group-last:border-0">{row.name}</td>
@@ -315,8 +316,8 @@ export default function Dashboard() {
           {[
             { title: 'Low stock alert', sub: 'Steel Sheet below reorder point', icon: Package, color: 'rose' },
             { title: 'New supplier registered', sub: 'TechSupply Corp pending approval', icon: Truck, color: 'indigo' },
-            { title: 'Production order delayed', sub: 'PO-2024-MFG-002 behind schedule', icon: Factory, color: 'amber' },
-            { title: 'Monthly revenue target achieved', sub: 'E-commerce sales exceeded goal', icon: TrendingUp, color: 'emerald' }
+            { title: 'Service order delayed', sub: 'WO-MAIN-102 behind schedule', icon: Wrench, color: 'amber' },
+            { title: 'Monthly revenue target achieved', sub: 'Portal shipment bookings exceeded goal', icon: TrendingUp, color: 'emerald' }
           ].map((alert, idx) => {
             const Icon = alert.icon;
             
@@ -413,7 +414,7 @@ export default function Dashboard() {
         <div className="space-y-6">
           {[
             { img: 'bg-indigo-100 text-indigo-750 dark:bg-indigo-500/10 dark:text-indigo-400', name: 'John Smith', action: 'created purchase order', target: 'PO-2024-002', time: '15 minutes ago' },
-            { img: 'bg-emerald-100 text-emerald-750 dark:bg-emerald-500/10 dark:text-emerald-400', name: 'Sarah Johnson', action: 'completed production order', target: 'PO-2024-MFG-001', time: '30 minutes ago' },
+            { img: 'bg-emerald-100 text-emerald-750 dark:bg-emerald-500/10 dark:text-emerald-400', name: 'Sarah Johnson', action: 'completed vehicle maintenance', target: 'WO-MAIN-101', time: '30 minutes ago' },
             { img: 'bg-amber-100 text-amber-750 dark:bg-amber-500/10 dark:text-amber-400', name: 'Mike Wilson', action: 'received goods from', target: 'TechSupply Corp', time: '1 hour ago', note: 'Goods receipt GRN-2024-001 processed successfully. All items verified and quality checked.' },
             { img: 'bg-teal-100 text-teal-750 dark:bg-teal-500/10 dark:text-teal-400', name: 'Emily Davis', action: 'approved supplier invoice', target: 'INV-2024-001', time: '2 hours ago' }
           ].map((item, idx) => (

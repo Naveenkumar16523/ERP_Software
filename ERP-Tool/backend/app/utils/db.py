@@ -19,8 +19,8 @@ if DATABASE_URL and "tidbcloud.com" in DATABASE_URL:
         }
     }
 elif DATABASE_URL and "postgresql" in DATABASE_URL:
-    # PostgreSQL connection settings
-    connect_args = {}
+    # PostgreSQL connection settings with strict timeout to prevent hangs
+    connect_args = {"connect_timeout": 3}
 
 # Use SQLite as fallback if DATABASE_URL is not set or connection fails
 if not DATABASE_URL:

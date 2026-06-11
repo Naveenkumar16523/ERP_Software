@@ -21,21 +21,8 @@ default_suppliers = [
 ]
 
 def seed_suppliers_if_empty(db: Session):
-    count = db.query(func.count(Supplier.id)).scalar()
-    if count == 0:
-        for s in default_suppliers:
-            db_sup = Supplier(
-                name=s["name"],
-                email=s["email"],
-                phone=s["phone"],
-                address=s["address"],
-                deliveryScore=s["deliveryScore"],
-                qualityScore=s["qualityScore"],
-                priceScore=s["priceScore"],
-                overallScore=s["overallScore"]
-            )
-            db.add(db_sup)
-        db.commit()
+    # Seeding disabled to start completely empty
+    pass
 
 def update_account_balance(db: Session, account_id: str, amount: float, is_debit: bool):
     account = db.query(Account).filter(Account.id == account_id).first()

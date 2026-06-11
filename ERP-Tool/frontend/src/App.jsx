@@ -21,9 +21,6 @@ const SupplyChainModule  = lazy(() => import('./components/SupplyChainModule'));
 const EcommerceModule    = lazy(() => import('./components/EcommerceModule'));
 const AnalyticsModule    = lazy(() => import('./components/AnalyticsModule'));
 const BankingModule      = lazy(() => import('./components/BankingModule'));
-const HealthcareModule   = lazy(() => import('./components/HealthcareModule'));
-const EducationModule    = lazy(() => import('./components/EducationModule'));
-const SustainabilityModule = lazy(() => import('./components/SustainabilityModule'));
 const MarketingModule    = lazy(() => import('./components/MarketingModule'));
 const SecurityModule     = lazy(() => import('./components/SecurityModule'));
 const MobileModule       = lazy(() => import('./components/MobileModule'));
@@ -33,6 +30,7 @@ const SupportModule      = lazy(() => import('./components/SupportModule'));
 const AutomationModule   = lazy(() => import('./components/AutomationModule'));
 const AdminPanel         = lazy(() => import('./components/AdminPanel'));
 const ChangePassword     = lazy(() => import('./components/ChangePassword'));
+
 
 import SignIn from './components/auth/SignIn';
 
@@ -51,9 +49,6 @@ const MODULE_MAP = {
   ecommerce:      EcommerceModule,
   analytics:      AnalyticsModule,
   banking:        BankingModule,
-  healthcare:     HealthcareModule,
-  education:      EducationModule,
-  sustainability: SustainabilityModule,
   marketing:      MarketingModule,
   security:       SecurityModule,
   mobile:         MobileModule,
@@ -81,9 +76,6 @@ const MODULE_KEY_MAP = {
   ecommerce: 'ecommerce',
   analytics: 'analytics_hub',
   banking: 'banking',
-  healthcare: 'healthcare',
-  education: 'education',
-  sustainability: 'sustainability',
   marketing: 'marketing',
   security: 'security',
   mobile: 'mobile',

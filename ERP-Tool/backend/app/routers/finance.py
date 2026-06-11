@@ -27,29 +27,8 @@ def update_account_balance(db: Session, account_id: str, amount: float, is_debit
     account.balance += balance_change
 
 def seed_accounts_if_empty(db: Session):
-    count = db.query(func.count(Account.id)).scalar()
-    if count == 0:
-        default_accounts = [
-            {"code": "1000", "name": "Bank A/C", "type": "ASSET", "balance": 1000000.0},
-            {"code": "1010", "name": "Cash A/C", "type": "ASSET", "balance": 50000.0},
-            {"code": "1200", "name": "Accounts Receivable", "type": "ASSET", "balance": 340000.0},
-            {"code": "2000", "name": "Accounts Payable", "type": "LIABILITY", "balance": 120000.0},
-            {"code": "2200", "name": "GST Payable", "type": "LIABILITY", "balance": 18000.0},
-            {"code": "2300", "name": "TDS Payable", "type": "LIABILITY", "balance": 5000.0},
-            {"code": "3000", "name": "Share Capital", "type": "EQUITY", "balance": 800000.0},
-            {"code": "4000", "name": "Sales Revenue", "type": "REVENUE", "balance": 650000.0},
-            {"code": "5000", "name": "Consulting Expense", "type": "EXPENSE", "balance": 150000.0},
-            {"code": "5010", "name": "Salary Expense", "type": "EXPENSE", "balance": 714000.0}
-        ]
-        for acc in default_accounts:
-            db_acc = Account(
-                code=acc["code"],
-                name=acc["name"],
-                type=acc["type"],
-                balance=acc["balance"]
-            )
-            db.add(db_acc)
-        db.commit()
+    # Seeding disabled to start completely empty
+    pass
 
 # 1. ACCOUNTS LIST
 
