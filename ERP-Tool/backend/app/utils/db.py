@@ -1,4 +1,5 @@
 import os
+from urllib.parse import urlparse, urlunparse
 from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 from dotenv import load_dotenv
@@ -6,7 +7,26 @@ from dotenv import load_dotenv
 # Load env variables
 load_dotenv()
 
-DATABASE_URL = os.getenv("DATABASE_URL")
+def clean_database_url(url):
+    """Remove all query parameters from DATABASE_URL"""
+    if not url:
+        return url
+    
+    parsed = urlparse(url)
+    
+    # Rebuild URL without query parameters
+    cleaned_url = urlunparse((
+        parsed.scheme,
+        parsed.netloc,
+        parsed.path,
+        parsed.params,
+        '',  # Empty query string
+        parsed.fragment
+    ))
+    
+    return cleaned_url
+
+DATABASE_URL = clean_database_url(os.getenv("DATABASE_URL"))
 IS_DEV = os.getenv("NODE_ENV", "development") == "development"
 
 # Configure connection arguments, enabling SSL for TiDB Cloud and PostgreSQL
@@ -18,9 +38,6 @@ if DATABASE_URL and "tidbcloud.com" in DATABASE_URL:
             # "strict" or cert dict can also be passed depending on needs.
         }
     }
-elif DATABASE_URL and "postgresql" in DATABASE_URL:
-    # PostgreSQL connection settings with strict timeout to prevent hangs
-    connect_args = {"connect_timeout": 3}
 
 # Use SQLite as fallback if DATABASE_URL is not set or connection fails
 if not DATABASE_URL:

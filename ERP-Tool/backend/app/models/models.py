@@ -102,27 +102,29 @@ class AuditLog(Base):
 # ─── Finance Module ────────────────────────────────────────────────────────────
 
 class JournalEntry(Base):
-    __tablename__ = "journal_entries"
+    __tablename__ = "JournalEntry"
     id = Column(String(36), primary_key=True, default=generate_uuid)
-    reference_number = Column(String(191), unique=True, nullable=False, index=True)
-    entry_date = Column(DateTime, nullable=False)
-    description = Column(Text, nullable=True)
-    debit_account = Column(String(36), ForeignKey("chart_of_accounts.id"), nullable=True)
-    credit_account = Column(String(36), ForeignKey("chart_of_accounts.id"), nullable=True)
+    blockIndex = Column(Integer, unique=True, nullable=False, index=True)
+    voucherType = Column(String(191), nullable=False)
+    voucherNo = Column(String(191), unique=True, nullable=False, index=True)
+    date = Column(DateTime, default=datetime.utcnow, nullable=False)
     amount = Column(Float, nullable=False)
-    status = Column(String(191), default='Posted', nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    debitAcc = Column(String(191), nullable=False)
+    creditAcc = Column(String(191), nullable=False)
+    narration = Column(Text, nullable=False)
+    prevHash = Column(String(191), nullable=False)
+    blockHash = Column(String(191), nullable=False)
+    createdAt = Column(DateTime, default=datetime.utcnow, nullable=False)
 
 class Account(Base):
-    __tablename__ = "chart_of_accounts"
+    __tablename__ = "Account"
     id = Column(String(36), primary_key=True, default=generate_uuid)
-    account_code = Column(String(191), unique=True, nullable=False, index=True)
-    account_name = Column(String(191), nullable=False)
-    account_type = Column(String(191), nullable=False)  # Asset, Liability, Equity, Income, Expense
-    opening_balance = Column(Float, default=0.0, nullable=False)
-    current_balance = Column(Float, default=0.0, nullable=False)
-    status = Column(String(191), default='Active', nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    code = Column(String(191), unique=True, nullable=False, index=True)
+    name = Column(String(191), unique=True, nullable=False, index=True)
+    type = Column(String(191), nullable=False)  # ASSET, LIABILITY, EQUITY, REVENUE, EXPENSE
+    balance = Column(Float, default=0.0, nullable=False)
+    createdAt = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updatedAt = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
 # ─── Procurement & Suppliers ───────────────────────────────────────────────────
 
@@ -702,78 +704,41 @@ class AccessRequest(Base):
     reviewer = relationship("ERPUser", foreign_keys=[reviewedBy])
 
 class Invoice(Base):
-    __tablename__ = "invoices"
+    __tablename__ = "Invoice"
     id = Column(String(36), primary_key=True, default=generate_uuid)
-    invoice_number = Column(String(191), unique=True, nullable=False, index=True)
-    client_name = Column(String(191), nullable=False)
-    invoice_date = Column(DateTime, nullable=False)
-    due_date = Column(DateTime, nullable=False)
-    subtotal = Column(Float, nullable=False)
-    tax_rate = Column(Float, default=0, nullable=False)
-    tax_amount = Column(Float, default=0, nullable=False)
-    total_amount = Column(Float, nullable=False)
-    status = Column(String(191), nullable=False)  # Paid, Pending, Overdue
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    invoiceNo = Column(String(191), unique=True, nullable=False, index=True)
+    customerName = Column(String(191), nullable=False)
+    totalAmount = Column(Float, nullable=False)
+    status = Column(String(191), default="PENDING", nullable=False)  # PENDING, PAID, OVERDUE, CANCELLED
+    dueDate = Column(String(191), nullable=True)
+    sent = Column(Boolean, default=False, nullable=False)
+    createdAt = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updatedAt = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
 class Budget(Base):
-    __tablename__ = "budget_planner"
+    __tablename__ = "Budget"
     id = Column(String(36), primary_key=True, default=generate_uuid)
-    budget_name = Column(String(191), nullable=False)
-    category = Column(String(191), nullable=False)
-    month = Column(String(191), nullable=False)
-    allocated_amount = Column(Float, nullable=False)
-    spent_amount = Column(Float, default=0.0, nullable=False)
-    remaining_amount = Column(Float, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    costCenter = Column(String(191), nullable=False)
+    period = Column(String(191), default="monthly", nullable=False)
+    amount = Column(Float, nullable=False)
+    spent = Column(Float, default=0.0, nullable=False)
+    year = Column(Integer, nullable=False)
+    month = Column(Integer, nullable=True)
+    createdAt = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updatedAt = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
 class Expense(Base):
-    __tablename__ = "expense_tracker"
+    __tablename__ = "Expense"
     id = Column(String(36), primary_key=True, default=generate_uuid)
-    expense_date = Column(DateTime, nullable=False)
+    description = Column(String(191), nullable=False)
     category = Column(String(191), nullable=False)
-    description = Column(Text, nullable=True)
     amount = Column(Float, nullable=False)
-    paid_by = Column(String(191), nullable=True)
-    receipt_attached = Column(Boolean, default=False, nullable=False)
-    status = Column(String(191), nullable=False)  # Approved, Pending, Rejected
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-
-class Approval(Base):
-    __tablename__ = "approvals"
-    id = Column(String(36), primary_key=True, default=generate_uuid)
-    request_number = Column(String(191), nullable=False)
-    request_type = Column(String(191), nullable=False)
-    requested_by = Column(String(191), nullable=False)
-    amount = Column(Float, nullable=True)
-    request_date = Column(DateTime, nullable=False)
-    reason = Column(Text, nullable=True)
-    document_url = Column(String(191), nullable=True)
-    status = Column(String(191), nullable=False)  # Approved, Pending, Rejected
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-
-class TaxCompliance(Base):
-    __tablename__ = "tax_compliance"
-    id = Column(String(36), primary_key=True, default=generate_uuid)
-    tax_name = Column(String(191), nullable=False)
-    tax_type = Column(String(191), nullable=False)
-    rate = Column(Float, nullable=False)
-    applicable_on = Column(String(191), nullable=True)
-    effective_date = Column(DateTime, nullable=False)
-    status = Column(String(191), default='Active', nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-
-class Statement(Base):
-    __tablename__ = "statements"
-    id = Column(String(36), primary_key=True, default=generate_uuid)
-    statement_type = Column(String(191), nullable=False)  # Profit & Loss, Balance Sheet, Cash Flow, Trial Balance
-    period = Column(String(191), nullable=False)
-    total_income = Column(Float, nullable=True)
-    total_expense = Column(Float, nullable=True)
-    net_amount = Column(Float, nullable=True)
-    date_range_start = Column(DateTime, nullable=True)
-    date_range_end = Column(DateTime, nullable=True)
-    status = Column(String(191), default='Generated', nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    date = Column(String(191), nullable=False)
+    receipt = Column(String(191), nullable=True)
+    approvedBy = Column(String(191), nullable=True)
+    status = Column(String(191), default="PENDING", nullable=False)  # PENDING, APPROVED, REJECTED
+    createdAt = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updatedAt = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
 class ApprovalWorkflow(Base):
     __tablename__ = "ApprovalWorkflow"

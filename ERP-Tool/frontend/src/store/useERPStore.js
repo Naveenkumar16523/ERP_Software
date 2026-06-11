@@ -249,7 +249,7 @@ export const useERPStore = create((set, get) => ({
 
   // ── Finance ───────────────────────────────────────────────────────
   setAccounts: (accounts) => set({ accounts }),
-  addAccount: (account) => set((s) => ({ accounts: [...s.accounts, { ...account, id: `acc-${Date.now()}` }] })),
+  addAccount: (account) => set((s) => ({ accounts: [...s.accounts, { id: `acc-${Date.now()}`, ...account }] })),
   addJournalEntry: (entry) => set((s) => ({
     journalEntries: [...s.journalEntries, { ...entry, id: `je-${Date.now()}`, blockIndex: s.journalEntries.length + 1 }]
   })),

@@ -88,7 +88,11 @@ export const api = {
     },
     async createAccount(account) {
       try { return await request('/finance/accounts', { method: 'POST', body: JSON.stringify(account) }); }
-      catch { useERPStore.getState().addAccount(account); return account; }
+      catch (e) {
+        if (e.message !== 'Failed to fetch') throw e;
+        useERPStore.getState().addAccount(account);
+        return account;
+      }
     },
     async getJournalEntries() {
       try { return await request('/finance/journal-entries'); }
