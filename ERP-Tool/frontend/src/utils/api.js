@@ -36,7 +36,11 @@ async function request(path, options = {}) {
           errorMessage = errorMessage.message || errorMessage.error || JSON.stringify(errorMessage);
       }
 
-      if (res.status === 401 || res.status === 403) {
+      if (res.status === 403) {
+        throw new Error('Access denied: you do not have permission to perform this action.');
+      }
+
+      if (res.status === 401) {
         const isAuthError = errorMessage === 'Invalid or expired token' || 
                             errorMessage === 'Session has expired or been revoked' || 
                             errorMessage === 'Access token is required' || 

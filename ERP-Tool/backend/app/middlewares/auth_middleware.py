@@ -11,11 +11,12 @@ from app.models.models import User, Session as UserSession, UserRole, RolePermis
 security_scheme = HTTPBearer(auto_error=False)
 
 class AuthenticatedUser:
-    def __init__(self, id: str, email: str, permissions: list, token: str):
+    def __init__(self, id: str, email: str, permissions: list, token: str, is_ceo: bool = False):
         self.id = id
         self.email = email
         self.permissions = permissions
         self.token = token
+        self.is_ceo = is_ceo
 
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security_scheme),
@@ -31,7 +32,7 @@ async def get_current_user(
     payload = verify_access_token(token)
     if not payload:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
+            status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired token"
         )
         
@@ -39,7 +40,7 @@ async def get_current_user(
     email = payload.get("email")
     if not user_id or not email:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
+            status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired token"
         )
 
@@ -79,30 +80,49 @@ async def get_current_user(
             permissions_list = json.loads(cached_perms)
         except Exception:
             permissions_list = []
-    else:
-        # Retrieve user permissions
-        user = db.query(User).filter(User.id == user_id, User.isActive == True).first()
-        if not user:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="User account is inactive or deleted"
-            )
-            
-        # Flatten permissions
-        perms = db.query(Permission.name).join(
-            RolePermission, RolePermission.permissionId == Permission.id
+    
+    # Retrieve user
+    user = db.query(User).filter(User.id == user_id, User.isActive == True).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User account is inactive or deleted"
+        )
+
+    if not permissions_list:
+        # Check if user is CEO/admin directly from roles
+        from app.models.models import UserRole, Role
+        is_ceo = db.query(UserRole).join(Role).filter(
+            UserRole.userId == user.id,
+            Role.name.in_(["CEO", "admin", "ADMIN", "superadmin"])
+        ).first() is not None
+        
+        # We need to compute permissions by joining UserRole -> Role -> RolePermission -> Permission
+        from app.models.models import RolePermission, Permission
+        permissions = db.query(Permission.name).join(
+            RolePermission, Permission.id == RolePermission.permissionId
         ).join(
-            UserRole, UserRole.roleId == RolePermission.roleId
+            UserRole, RolePermission.roleId == UserRole.roleId
         ).filter(
-            UserRole.userId == user_id
+            UserRole.userId == user.id
         ).all()
         
-        permissions_list = list(set([p[0] for p in perms if p[0]]))
+        permissions_list = [p[0] for p in permissions]
         
         # Cache for 5 minutes (300 seconds)
         cache_set(permissions_cache_key, json.dumps(permissions_list), 300)
-        
-    return AuthenticatedUser(id=user_id, email=email, permissions=permissions_list, token=token)
+    else:
+        # If we used cached permissions, we also need to know if they're a CEO.
+        # It's faster to check if '*' or 'admin:all' is in permissions, but if not, query.
+        is_ceo = "*" in permissions_list or "admin:all" in permissions_list
+        if not is_ceo:
+            from app.models.models import UserRole, Role
+            is_ceo = db.query(UserRole).join(Role).filter(
+                UserRole.userId == user.id,
+                Role.name.in_(["CEO", "admin", "ADMIN", "superadmin"])
+            ).first() is not None
+
+    return AuthenticatedUser(id=user_id, email=email, permissions=permissions_list, token=token, is_ceo=is_ceo)
 
 def require_permission(required_permission: str):
     async def permission_dependency(
@@ -113,6 +133,9 @@ def require_permission(required_permission: str):
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="User is not authenticated"
             )
+            
+        if current_user.is_ceo:
+            return current_user
             
         has_permission = (
             required_permission in current_user.permissions or

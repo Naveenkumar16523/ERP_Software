@@ -33,7 +33,7 @@ def seed_accounts_if_empty(db: Session):
 # 1. ACCOUNTS LIST
 
 @router.get("/accounts")
-async def get_accounts(current_user: AuthenticatedUser = Depends(get_current_user), db: Session = Depends(get_db)):
+async def get_accounts(current_user: AuthenticatedUser = Depends(require_permission("finance:read")), db: Session = Depends(get_db)):
     try:
         seed_accounts_if_empty(db)
         accounts = db.query(Account).order_by(Account.code.asc()).all()
@@ -164,7 +164,7 @@ async def create_voucher(body: VoucherCreate, req: Request, current_user: Authen
 # 2.5 GET JOURNAL ENTRIES
 
 @router.get("/journal-entries")
-async def get_journal_entries(current_user: AuthenticatedUser = Depends(get_current_user), db: Session = Depends(get_db)):
+async def get_journal_entries(current_user: AuthenticatedUser = Depends(require_permission("finance:read")), db: Session = Depends(get_db)):
     try:
         entries = db.query(JournalEntry).order_by(JournalEntry.blockIndex.desc()).all()
         return entries
@@ -174,7 +174,7 @@ async def get_journal_entries(current_user: AuthenticatedUser = Depends(get_curr
 # 3. VERIFY LEDGER CHAIN INTEGRITY
 
 @router.get("/verify-ledger")
-async def verify_ledger(current_user: AuthenticatedUser = Depends(get_current_user), db: Session = Depends(get_db)):
+async def verify_ledger(current_user: AuthenticatedUser = Depends(require_permission("finance:read")), db: Session = Depends(get_db)):
     try:
         audit_result = verify_ledger_chain(db)
         return audit_result
@@ -184,7 +184,7 @@ async def verify_ledger(current_user: AuthenticatedUser = Depends(get_current_us
 # 4. REPORT: TRIAL BALANCE
 
 @router.get("/reports/trial-balance")
-async def get_trial_balance_report(current_user: AuthenticatedUser = Depends(get_current_user), db: Session = Depends(get_db)):
+async def get_trial_balance_report(current_user: AuthenticatedUser = Depends(require_permission("finance:read")), db: Session = Depends(get_db)):
     try:
         seed_accounts_if_empty(db)
         accounts = db.query(Account).all()
@@ -224,7 +224,7 @@ async def get_trial_balance_report(current_user: AuthenticatedUser = Depends(get
 # 5. REPORT: PROFIT AND LOSS
 
 @router.get("/reports/profit-loss")
-async def get_profit_loss_report(current_user: AuthenticatedUser = Depends(get_current_user), db: Session = Depends(get_db)):
+async def get_profit_loss_report(current_user: AuthenticatedUser = Depends(require_permission("finance:read")), db: Session = Depends(get_db)):
     try:
         seed_accounts_if_empty(db)
         revenues = db.query(Account).filter(Account.type.in_(["REVENUE", "Income"])).all()
@@ -246,7 +246,7 @@ async def get_profit_loss_report(current_user: AuthenticatedUser = Depends(get_c
 # 6. REPORT: BALANCE SHEET
 
 @router.get("/reports/balance-sheet")
-async def get_balance_sheet_report(current_user: AuthenticatedUser = Depends(get_current_user), db: Session = Depends(get_db)):
+async def get_balance_sheet_report(current_user: AuthenticatedUser = Depends(require_permission("finance:read")), db: Session = Depends(get_db)):
     try:
         seed_accounts_if_empty(db)
         assets = db.query(Account).filter(Account.type.in_(["ASSET", "Asset"])).all()
@@ -272,7 +272,7 @@ async def get_balance_sheet_report(current_user: AuthenticatedUser = Depends(get
 # 7. BANK STATEMENT RECONCILIATION MATCHING ENGINE
 
 @router.post("/reconcile")
-async def reconcile_bank_statement(body: dict, current_user: AuthenticatedUser = Depends(get_current_user), db: Session = Depends(get_db)):
+async def reconcile_bank_statement(body: dict, current_user: AuthenticatedUser = Depends(require_permission("finance:write")), db: Session = Depends(get_db)):
     statement_lines = body.get("statementLines")
     if not statement_lines or not isinstance(statement_lines, list):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail={"error": "Bad Request", "message": "Please provide statementLines list."})
@@ -287,7 +287,7 @@ async def reconcile_bank_statement(body: dict, current_user: AuthenticatedUser =
 # 8. TAX SUMMARY
 
 @router.get("/tax/summary")
-async def get_tax_summary(current_user: AuthenticatedUser = Depends(get_current_user), db: Session = Depends(get_db)):
+async def get_tax_summary(current_user: AuthenticatedUser = Depends(require_permission("finance:read")), db: Session = Depends(get_db)):
     try:
         seed_accounts_if_empty(db)
         gst_acc = db.query(Account).filter(Account.name == "GST Payable").first()
@@ -305,7 +305,7 @@ async def get_tax_summary(current_user: AuthenticatedUser = Depends(get_current_
 # 9. INVOICES
 
 @router.get("/invoices")
-async def get_invoices(current_user: AuthenticatedUser = Depends(get_current_user), db: Session = Depends(get_db)):
+async def get_invoices(current_user: AuthenticatedUser = Depends(require_permission("finance:read")), db: Session = Depends(get_db)):
     try:
         invoices = db.query(Invoice).order_by(Invoice.createdAt.desc()).all()
         return invoices
@@ -356,7 +356,7 @@ async def update_invoice_status(id: str, body: dict, current_user: Authenticated
 # 10. BUDGETS
 
 @router.get("/budgets")
-async def get_budgets(current_user: AuthenticatedUser = Depends(get_current_user), db: Session = Depends(get_db)):
+async def get_budgets(current_user: AuthenticatedUser = Depends(require_permission("finance:read")), db: Session = Depends(get_db)):
     try:
         budgets = db.query(Budget).order_by(Budget.createdAt.desc()).all()
         return budgets
@@ -385,7 +385,7 @@ async def create_budget(body: BudgetCreate, current_user: AuthenticatedUser = De
 # 11. EXPENSES
 
 @router.get("/expenses")
-async def get_expenses(current_user: AuthenticatedUser = Depends(get_current_user), db: Session = Depends(get_db)):
+async def get_expenses(current_user: AuthenticatedUser = Depends(require_permission("finance:read")), db: Session = Depends(get_db)):
     try:
         expenses = db.query(Expense).order_by(Expense.createdAt.desc()).all()
         return expenses
