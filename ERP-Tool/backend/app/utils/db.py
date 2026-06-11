@@ -1,6 +1,6 @@
 import os
 from urllib.parse import urlparse, urlunparse
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import declarative_base, sessionmaker
 from dotenv import load_dotenv
 
@@ -55,7 +55,7 @@ try:
     )
     # Test connection
     with engine.connect() as conn:
-        conn.execute("SELECT 1")
+        conn.execute(text("SELECT 1"))
     print(f"Connected to database successfully: {DATABASE_URL}")
 except Exception as e:
     print(f"Failed to connect to {DATABASE_URL}. Falling back to SQLite.")

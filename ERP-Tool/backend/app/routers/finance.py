@@ -19,7 +19,7 @@ def update_account_balance(db: Session, account_id: str, amount: float, is_debit
     account = db.query(Account).filter(Account.id == account_id).first()
     if not account:
         return
-    if account.type in ["ASSET", "EXPENSE"]:
+    if account.type.upper() in ["ASSET", "EXPENSE"]:
         balance_change = amount if is_debit else -amount
     else:
         # LIABILITY, EQUITY, REVENUE
@@ -44,7 +44,7 @@ async def get_accounts(current_user: AuthenticatedUser = Depends(get_current_use
 @router.post("/accounts", status_code=status.HTTP_201_CREATED)
 async def create_account(body: AccountCreate, current_user: AuthenticatedUser = Depends(require_permission("finance:write")), db: Session = Depends(get_db)):
     try:
-        existing = db.query(Account).filter(or_(Account.account_code == body.code, Account.account_name == body.name)).first()
+        existing = db.query(Account).filter(or_(Account.code == body.code, Account.name == body.name)).first()
         if existing:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Account code or name already exists")
         
@@ -58,38 +58,23 @@ async def create_account(body: AccountCreate, current_user: AuthenticatedUser = 
         db_type = type_mapping.get(body.type, body.type)
         
         acc = Account(
-            account_code=body.code,
-            account_name=body.name,
-            account_type=db_type,
-            current_balance=body.balance,
-            opening_balance=body.balance
+            code=body.code,
+            name=body.name,
+            type=db_type,
+            balance=body.balance
         )
         db.add(acc)
         db.commit()
         db.refresh(acc)
         
-        type_reverse_mapping = {
-            "Asset": "ASSET",
-            "Liability": "LIABILITY",
-            "Equity": "EQUITY",
-            "Income": "REVENUE",
-            "Expense": "EXPENSE"
-        }
-        mapped_type = type_reverse_mapping.get(acc.account_type, acc.account_type)
-        
         return {
             "id": acc.id,
-            "code": acc.account_code,
-            "name": acc.account_name,
-            "type": mapped_type,
-            "balance": acc.current_balance,
-            "account_code": acc.account_code,
-            "account_name": acc.account_name,
-            "account_type": acc.account_type,
-            "current_balance": acc.current_balance,
-            "opening_balance": acc.opening_balance,
-            "status": acc.status,
-            "created_at": acc.created_at
+            "code": acc.code,
+            "name": acc.name,
+            "type": acc.type,
+            "balance": acc.balance,
+            "status": "ACTIVE",
+            "created_at": acc.createdAt
         }
     except HTTPException:
         raise
@@ -211,7 +196,7 @@ async def get_trial_balance_report(current_user: AuthenticatedUser = Depends(get
         for acc in accounts:
             debit = 0.0
             credit = 0.0
-            if acc.type in ["ASSET", "EXPENSE"]:
+            if acc.type.upper() in ["ASSET", "EXPENSE"]:
                 debit = acc.balance
                 total_debit += debit
             else:
@@ -242,8 +227,8 @@ async def get_trial_balance_report(current_user: AuthenticatedUser = Depends(get
 async def get_profit_loss_report(current_user: AuthenticatedUser = Depends(get_current_user), db: Session = Depends(get_db)):
     try:
         seed_accounts_if_empty(db)
-        revenues = db.query(Account).filter(Account.type == "REVENUE").all()
-        expenses = db.query(Account).filter(Account.type == "EXPENSE").all()
+        revenues = db.query(Account).filter(Account.type.in_(["REVENUE", "Income"])).all()
+        expenses = db.query(Account).filter(Account.type.in_(["EXPENSE", "Expense"])).all()
         
         total_revenue = sum(r.balance for r in revenues)
         total_expenses = sum(e.balance for e in expenses)
@@ -264,9 +249,9 @@ async def get_profit_loss_report(current_user: AuthenticatedUser = Depends(get_c
 async def get_balance_sheet_report(current_user: AuthenticatedUser = Depends(get_current_user), db: Session = Depends(get_db)):
     try:
         seed_accounts_if_empty(db)
-        assets = db.query(Account).filter(Account.type == "ASSET").all()
-        liabilities = db.query(Account).filter(Account.type == "LIABILITY").all()
-        equities = db.query(Account).filter(Account.type == "EQUITY").all()
+        assets = db.query(Account).filter(Account.type.in_(["ASSET", "Asset"])).all()
+        liabilities = db.query(Account).filter(Account.type.in_(["LIABILITY", "Liability"])).all()
+        equities = db.query(Account).filter(Account.type.in_(["EQUITY", "Equity"])).all()
         
         total_assets = sum(a.balance for a in assets)
         total_liabilities = sum(l.balance for l in liabilities)
