@@ -31,8 +31,49 @@ async function request(path, options = {}) {
 
     if (!res.ok) {
       const errBody = await res.json().catch(() => ({}));
-      // Extract detailed error message from backend response
-      const errorMessage = errBody.detail || errBody.message || errBody.error || `API Error: ${res.status} ${res.statusText}`;
+      let errorMessage = errBody.detail || errBody.message || errBody.error || `API Error: ${res.status} ${res.statusText}`;
+      if (typeof errorMessage === 'object' && errorMessage !== null) {
+          errorMessage = errorMessage.message || errorMessage.error || JSON.stringify(errorMessage);
+      }
+
+      if (res.status === 401 || res.status === 403) {
+        const isAuthError = errorMessage === 'Invalid or expired token' || 
+                            errorMessage === 'Session has expired or been revoked' || 
+                            errorMessage === 'Access token is required' || 
+                            errorMessage === 'User is not authenticated' ||
+                            (res.status === 401 && !String(errorMessage).includes('Invalid credentials'));
+        
+        if (isAuthError) {
+          const refreshToken = localStorage.getItem('erp_refresh_token');
+          if (refreshToken && !options._retry) {
+            try {
+              const refreshRes = await fetch(`${BASE_URL}/auth/refresh?refreshToken=${refreshToken}`, {
+                method: 'POST'
+              });
+              if (refreshRes.ok) {
+                const refreshData = await refreshRes.json();
+                useERPStore.getState().setToken(refreshData.token);
+                if (refreshData.refreshToken) {
+                  localStorage.setItem('erp_refresh_token', refreshData.refreshToken);
+                }
+                // Retry original request with new token
+                return await request(path, { ...options, _retry: true });
+              } else {
+                useERPStore.getState().logout();
+                throw new Error('Session expired. Please log in again.');
+              }
+            } catch (e) {
+              if (e.message.includes('Session expired')) throw e;
+              useERPStore.getState().logout();
+              throw new Error('Session expired. Please log in again.');
+            }
+          } else {
+            useERPStore.getState().logout();
+            throw new Error('Session expired. Please log in again.');
+          }
+        }
+      }
+
       throw new Error(errorMessage);
     }
 
