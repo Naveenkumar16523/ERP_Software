@@ -176,6 +176,16 @@ async def create_voucher(body: VoucherCreate, req: Request, current_user: Authen
         db.rollback()
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail={"error": "Internal Server Error", "message": str(e)})
 
+# 2.5 GET JOURNAL ENTRIES
+
+@router.get("/journal-entries")
+async def get_journal_entries(current_user: AuthenticatedUser = Depends(get_current_user), db: Session = Depends(get_db)):
+    try:
+        entries = db.query(JournalEntry).order_by(JournalEntry.blockIndex.desc()).all()
+        return entries
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail={"error": "Internal Server Error", "message": str(e)})
+
 # 3. VERIFY LEDGER CHAIN INTEGRITY
 
 @router.get("/verify-ledger")
