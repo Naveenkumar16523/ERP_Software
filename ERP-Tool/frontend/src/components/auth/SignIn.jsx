@@ -45,7 +45,10 @@ export default function SignIn() {
     try {
       const data = await api.auth.login({ username: email.trim(), password });
 
-      setToken(data.access_token);
+      setToken(data.token);
+      if (data.refreshToken) {
+        localStorage.setItem('erp_refresh_token', data.refreshToken);
+      }
 
       const userObj = {
         ...data.user,
