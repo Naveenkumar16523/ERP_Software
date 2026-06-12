@@ -41,10 +41,11 @@ if DATABASE_URL:
         }
     elif "supabase.com" in DATABASE_URL or "supabase.co" in DATABASE_URL:
         connect_args = {
-            "sslmode": "require"
+            "sslmode": "require",
+            "connect_timeout": 3
         }
 
-# Use SQLite as fallback if DATABASE_URL is not set or connection fails
+# Use SQLite as fallback if DATABASE_URL is not set
 if not DATABASE_URL:
     print("DATABASE_URL not set. Using SQLite as fallback database.")
     DATABASE_URL = "sqlite:///./erp.db"
@@ -63,15 +64,43 @@ try:
         conn.execute(text("SELECT 1"))
     print(f"Connected to database successfully: {DATABASE_URL}")
 except Exception as e:
-    print(f"Failed to connect to {DATABASE_URL}. Falling back to SQLite.")
-    DATABASE_URL = "sqlite:///./erp.db"
-    engine = create_engine(
-        DATABASE_URL,
-        echo=False,
-        connect_args={"check_same_thread": False},
-        pool_pre_ping=True,
-        pool_recycle=3600
-    )
+    print(f"Failed to connect to {DATABASE_URL} directly: {e}")
+    supabase_url = os.getenv("SUPABASE_URL")
+    supabase_key = os.getenv("SUPABASE_SERVICE_KEY")
+    if supabase_url and supabase_key:
+        print("Attempting fallback connection to Supabase via HTTP PostgREST API...")
+        try:
+            from app.utils.supabase_dbapi import get_supabase_http_connection
+            engine = create_engine(
+                'postgresql+psycopg2://',
+                creator=lambda: get_supabase_http_connection(supabase_url, supabase_key),
+                pool_pre_ping=True
+            )
+            # Test connection
+            with engine.connect() as conn:
+                conn.execute(text("SELECT 1"))
+            print("Connected to Supabase via HTTP PostgREST successfully!")
+        except Exception as http_e:
+            print(f"Failed to connect via Supabase HTTP: {http_e}. Falling back to SQLite.")
+            DATABASE_URL = "sqlite:///./erp.db"
+            engine = create_engine(
+                DATABASE_URL,
+                echo=False,
+                connect_args={"check_same_thread": False},
+                pool_pre_ping=True,
+                pool_recycle=3600
+            )
+    else:
+        print("Supabase credentials not found in .env. Falling back to SQLite.")
+        DATABASE_URL = "sqlite:///./erp.db"
+        engine = create_engine(
+            DATABASE_URL,
+            echo=False,
+            connect_args={"check_same_thread": False},
+            pool_pre_ping=True,
+            pool_recycle=3600
+        )
+
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
