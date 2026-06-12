@@ -98,12 +98,14 @@ async def create_voucher(body: VoucherCreate, req: Request, current_user: Authen
 
         # Run inside single atomic database transaction
         # Voucher number generation
-        if body.voucherNo:
-            # Check if this voucher number already exists
-            existing_vchr = db.query(JournalEntry).filter(JournalEntry.voucherNo == body.voucherNo).first()
-            if existing_vchr:
-                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Voucher/Reference number already exists")
-            voucher_no = body.voucherNo
+        if body.referenceNo:
+            voucher_no = body.referenceNo.strip()
+            existing_voucher = db.query(JournalEntry).filter(JournalEntry.voucherNo == voucher_no).first()
+            if existing_voucher:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Voucher/Reference number already exists."
+                )
         else:
             count = db.query(func.count(JournalEntry.id)).scalar()
             timestamp_ms = int(time.time() * 1000)
@@ -113,7 +115,20 @@ async def create_voucher(body: VoucherCreate, req: Request, current_user: Authen
         last_entry = db.query(JournalEntry).order_by(JournalEntry.blockIndex.desc()).first()
         prev_hash = last_entry.blockHash if last_entry else "0"
         next_index = (last_entry.blockIndex + 1) if last_entry else 1
-        date = body.date if body.date else datetime.utcnow()
+
+        # Date parsing
+        date = datetime.utcnow()
+        if body.date:
+            try:
+                date = datetime.strptime(body.date.strip(), "%Y-%m-%d")
+            except ValueError:
+                try:
+                    date = datetime.fromisoformat(body.date.strip().replace('Z', ''))
+                except ValueError:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Invalid date format. Please use YYYY-MM-DD."
+                    )
 
         # Compute hash
         block_hash = calculate_block_hash(
@@ -322,13 +337,29 @@ async def get_invoices(current_user: AuthenticatedUser = Depends(require_permiss
 @router.post("/invoices", status_code=status.HTTP_201_CREATED)
 async def create_invoice(body: InvoiceCreate, current_user: AuthenticatedUser = Depends(require_permission("finance:write")), db: Session = Depends(get_db)):
     try:
-        timestamp_ms = int(time.time() * 1000)
-        invoice_no = f"INV-{timestamp_ms}"
+        if body.invoiceNo:
+            invoice_no = body.invoiceNo.strip()
+            existing = db.query(Invoice).filter(Invoice.invoiceNo == invoice_no).first()
+            if existing:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invoice number already exists.")
+        else:
+            timestamp_ms = int(time.time() * 1000)
+            invoice_no = f"INV-{timestamp_ms}"
+
+        subtotal = body.subtotal
+        tax_rate = body.taxRate
+        tax_amount = subtotal * (tax_rate / 100)
+        total_amount = subtotal + tax_amount
+
         invoice = Invoice(
             invoiceNo=invoice_no,
             customerName=body.customerName,
-            totalAmount=body.totalAmount,
-            status="PENDING",
+            subtotal=subtotal,
+            taxRate=tax_rate,
+            taxAmount=tax_amount,
+            totalAmount=total_amount,
+            status=body.status or "PENDING",
+            invoiceDate=body.invoiceDate or datetime.utcnow().strftime("%Y-%m-%d"),
             dueDate=body.dueDate,
             sent=False
         )
@@ -374,10 +405,12 @@ async def get_budgets(current_user: AuthenticatedUser = Depends(require_permissi
 async def create_budget(body: BudgetCreate, current_user: AuthenticatedUser = Depends(require_permission("finance:write")), db: Session = Depends(get_db)):
     try:
         budget = Budget(
-            costCenter=body.costCenter,
+            budgetName=body.budgetName,
+            category=body.category,
+            costCenter=body.costCenter or body.category,
             period=body.period,
             amount=body.amount,
-            spent=0.0,
+            spent=body.spent or 0.0,
             year=body.year,
             month=body.month
         )

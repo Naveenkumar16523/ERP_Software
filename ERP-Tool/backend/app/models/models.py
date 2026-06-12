@@ -708,8 +708,12 @@ class Invoice(Base):
     id = Column(String(36), primary_key=True, default=generate_uuid)
     invoiceNo = Column(String(191), unique=True, nullable=False, index=True)
     customerName = Column(String(191), nullable=False)
+    subtotal = Column(Float, nullable=True, default=0.0)
+    taxRate = Column(Float, nullable=True, default=0.0)
+    taxAmount = Column(Float, nullable=True, default=0.0)
     totalAmount = Column(Float, nullable=False)
     status = Column(String(191), default="PENDING", nullable=False)  # PENDING, PAID, OVERDUE, CANCELLED
+    invoiceDate = Column(String(191), nullable=True)
     dueDate = Column(String(191), nullable=True)
     sent = Column(Boolean, default=False, nullable=False)
     createdAt = Column(DateTime, default=datetime.utcnow, nullable=False)
@@ -718,6 +722,8 @@ class Invoice(Base):
 class Budget(Base):
     __tablename__ = "Budget"
     id = Column(String(36), primary_key=True, default=generate_uuid)
+    budgetName = Column(String(191), nullable=True)
+    category = Column(String(191), nullable=True)
     costCenter = Column(String(191), nullable=False)
     period = Column(String(191), default="monthly", nullable=False)
     amount = Column(Float, nullable=False)

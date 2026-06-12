@@ -84,16 +84,9 @@ export default function FinanceModule() {
   const [expenseModalOpen, setExpenseModalOpen] = useState(false);
 
   const [newAcct, setNewAcct] = useState({ code: '', name: '', type: 'ASSET', balance: 0 });
-  const [newJournal, setNewJournal] = useState({
-    debitAcc: '',
-    creditAcc: '',
-    amount: 0,
-    narration: '',
-    date: new Date().toISOString().split('T')[0],
-    voucherNo: ''
-  });
-  const [newInv, setNewInv] = useState({ customerName: '', totalAmount: 0 });
-  const [newBudget, setNewBudget] = useState({ costCenter: '', period: 'monthly', amount: 0, year: 2026, month: 6 });
+  const [newJournal, setNewJournal] = useState({ debitAcc: '', creditAcc: '', amount: 0, narration: '', date: '', referenceNo: '' });
+  const [newInv, setNewInv] = useState({ invoiceNo: '', customerName: '', invoiceDate: '', dueDate: '', subtotal: 0, taxRate: 0, status: 'PENDING' });
+  const [newBudget, setNewBudget] = useState({ budgetName: '', category: '', period: 'monthly', amount: 0, spent: 0, year: 2026, month: 6 });
   const [newExpense, setNewExpense] = useState({ description: '', category: '', amount: 0, date: '' });
   const [ledgerStatus, setLedgerStatus] = useState(null);
   const [isValidating, setIsValidating] = useState(false);
@@ -155,14 +148,7 @@ export default function FinanceModule() {
       const accts = await api.finance.getAccounts();
       if (Array.isArray(accts)) setAccounts(accts);
       addToast('Journal entry recorded', 'success');
-      setNewJournal({
-        debitAcc: '',
-        creditAcc: '',
-        amount: 0,
-        narration: '',
-        date: new Date().toISOString().split('T')[0],
-        voucherNo: ''
-      });
+      setNewJournal({ debitAcc: '', creditAcc: '', amount: 0, narration: '', date: '', referenceNo: '' });
       setJournalModalOpen(false);
     } catch (err) {
       addToast(`Error recording journal: ${err.message}`, 'error');
@@ -172,10 +158,14 @@ export default function FinanceModule() {
   };
 
   const handleAddInvoice = async () => {
-    if (!newInv.customerName || !newInv.totalAmount) return addToast('Customer name and amount required', 'error');
+    if (!newInv.customerName || !newInv.subtotal) return addToast('Customer name and amount are required', 'error');
     if (isSubmitting) return;
     setIsSubmitting(true);
-    const payload = { ...newInv, totalAmount: parseFloat(newInv.totalAmount) };
+    const payload = { 
+      ...newInv, 
+      subtotal: parseFloat(newInv.subtotal) || 0,
+      taxRate: parseFloat(newInv.taxRate) || 0 
+    };
     try {
       const savedInv = await api.finance.createInvoice(payload);
       const exists = invoices.some(i => i.invoiceNo === savedInv.invoiceNo);
@@ -183,7 +173,7 @@ export default function FinanceModule() {
         addInvoice(savedInv);
       }
       addToast('Invoice created', 'success');
-      setNewInv({ customerName: '', totalAmount: 0 });
+      setNewInv({ invoiceNo: '', customerName: '', invoiceDate: '', dueDate: '', subtotal: 0, taxRate: 0, status: 'PENDING' });
       setInvoiceModalOpen(false);
     } catch (err) {
       addToast(`Error creating invoice: ${err.message}`, 'error');
@@ -193,10 +183,17 @@ export default function FinanceModule() {
   };
 
   const handleAddBudget = async () => {
-    if (!newBudget.costCenter || !newBudget.amount) return addToast('Cost center and amount are required', 'error');
+    if (!newBudget.budgetName || !newBudget.category || !newBudget.amount) {
+      return addToast('Budget Name, Category, and Allocated Amount are required', 'error');
+    }
     if (isSubmitting) return;
     setIsSubmitting(true);
-    const payload = { ...newBudget, amount: parseFloat(newBudget.amount) };
+    const payload = { 
+      ...newBudget, 
+      amount: parseFloat(newBudget.amount) || 0,
+      spent: parseFloat(newBudget.spent) || 0,
+      costCenter: newBudget.category 
+    };
     try {
       const savedBgt = await api.finance.createBudget(payload);
       const exists = budgets.some(b => b.id === savedBgt.id);
@@ -204,8 +201,8 @@ export default function FinanceModule() {
         addBudget(savedBgt);
       }
       addToast('Budget created successfully', 'success');
-      addNotification(`New budget for ${newBudget.costCenter} created`);
-      setNewBudget({ costCenter: '', period: 'monthly', amount: 0, year: 2026, month: 6 });
+      addNotification(`New budget "${newBudget.budgetName}" created`);
+      setNewBudget({ budgetName: '', category: '', period: 'monthly', amount: 0, spent: 0, year: 2026, month: 6 });
       setBudgetModalOpen(false);
     } catch (err) {
       addToast(`Error creating budget: ${err.message}`, 'error');
@@ -429,31 +426,40 @@ export default function FinanceModule() {
               <thead>
                 <tr className="text-left text-xs text-muted border-b border-main bg-surface">
                   <th className="px-4 py-2.5">Invoice No</th>
-                  <th className="px-4 py-2.5">Customer</th>
+                  <th className="px-4 py-2.5">Client Name</th>
+                  <th className="px-4 py-2.5">Invoice Date</th>
                   <th className="px-4 py-2.5">Due Date</th>
                   <th className="px-4 py-2.5">Status</th>
                   <th className="px-4 py-2.5">Sent</th>
                   <th className="px-4 py-2.5 text-right">Amount</th>
+                  <th className="px-4 py-2.5 text-right">Tax</th>
+                  <th className="px-4 py-2.5 text-right">Total</th>
                   <th className="px-4 py-2.5">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {invoices.map((inv) => {
-                  const isOverdue = inv.dueDate && new Date(inv.dueDate) < new Date() && inv.status !== 'PAID';
+                  const isOverdue = inv.dueDate && new Date(inv.dueDate) < new Date() && inv.status !== 'PAID' && inv.status !== 'Paid';
+                  const statusFormatted = inv.status ? inv.status.toUpperCase() : 'PENDING';
                   return (
                     <tr key={inv.id} className="border-b border-main/50 hover:bg-surface/50 transition-colors">
                       <td className="px-4 py-2.5 text-xs font-mono text-indigo-400">{inv.invoiceNo}</td>
                       <td className="px-4 py-2.5 text-sm text-main">{inv.customerName}</td>
+                      <td className="px-4 py-2.5 text-xs text-muted">{inv.invoiceDate || '—'}</td>
                       <td className="px-4 py-2.5 text-xs text-muted">{inv.dueDate || '—'}</td>
                       <td className="px-4 py-2.5">
                         <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                          inv.status === 'PAID' ? 'bg-emerald-500/10 text-emerald-400' :
-                          inv.status === 'OVERDUE' || isOverdue ? 'bg-rose-500/10 text-rose-400' :
+                          statusFormatted === 'PAID' ? 'bg-emerald-500/10 text-emerald-400' :
+                          statusFormatted === 'OVERDUE' || isOverdue ? 'bg-rose-500/10 text-rose-400' :
                           'bg-amber-500/10 text-amber-400'
-                        }`}>{isOverdue ? 'OVERDUE' : inv.status}</span>
+                        }`}>{isOverdue ? 'OVERDUE' : statusFormatted}</span>
                       </td>
-                      <td className="px-4 py-2.5 text-xs text-muted">{inv.sent ? '✓' : '—'}</td>
-                      <td className="px-4 py-2.5 text-right text-sm font-data font-semibold text-main">₹{inv.totalAmount.toLocaleString('en-IN')}</td>
+                      <td className="px-4 py-2.5 text-xs text-muted">{inv.sent ? 'Yes' : 'No'}</td>
+                      <td className="px-4 py-2.5 text-right text-sm font-data text-muted">₹{(inv.subtotal || inv.totalAmount || 0).toLocaleString('en-IN')}</td>
+                      <td className="px-4 py-2.5 text-right text-xs font-data text-muted">
+                        ₹{(inv.taxAmount || 0).toLocaleString('en-IN')} <span className="text-[10px] text-dimmed">({inv.taxRate || 0}%)</span>
+                      </td>
+                      <td className="px-4 py-2.5 text-right text-sm font-data font-semibold text-main">₹{(inv.totalAmount || 0).toLocaleString('en-IN')}</td>
                       <td className="px-4 py-2.5">
                         <div className="flex items-center gap-2">
                           {!inv.sent && (
@@ -461,7 +467,7 @@ export default function FinanceModule() {
                               Send
                             </button>
                           )}
-                          {inv.status === 'PENDING' && !isOverdue && (
+                          {(statusFormatted === 'PENDING' || statusFormatted === 'OVERDUE') && !isOverdue && (
                             <button onClick={async () => {
                               try {
                                 await api.finance.updateInvoiceStatus(inv.id, 'PAID');
@@ -498,10 +504,11 @@ export default function FinanceModule() {
             <table className="w-full">
               <thead>
                 <tr className="text-left text-xs text-muted border-b border-main bg-surface">
-                  <th className="px-4 py-2.5">Cost Center</th>
+                  <th className="px-4 py-2.5">Budget Name</th>
+                  <th className="px-4 py-2.5">Category</th>
                   <th className="px-4 py-2.5">Period</th>
-                  <th className="px-4 py-2.5">Budget</th>
-                  <th className="px-4 py-2.5">Spent</th>
+                  <th className="px-4 py-2.5">Allocated Amount</th>
+                  <th className="px-4 py-2.5">Spent Amount</th>
                   <th className="px-4 py-2.5">Remaining</th>
                   <th className="px-4 py-2.5">Status</th>
                 </tr>
@@ -509,16 +516,21 @@ export default function FinanceModule() {
               <tbody>
                 {budgets.map((budget) => {
                   const remaining = budget.amount - budget.spent;
-                  const percentage = (budget.spent / budget.amount) * 100;
+                  const percentage = budget.amount > 0 ? (budget.spent / budget.amount) * 100 : 0;
                   const isOverBudget = percentage > 100;
                   const isNearLimit = percentage > 80 && percentage <= 100;
                   return (
                     <tr key={budget.id} className="border-b border-main/50 hover:bg-surface/50 transition-colors">
-                      <td className="px-4 py-2.5 text-sm text-main">{budget.costCenter}</td>
-                      <td className="px-4 py-2.5 text-xs text-muted">{budget.period} ({budget.year})</td>
+                      <td className="px-4 py-2.5 text-sm font-semibold text-main">{budget.budgetName || '—'}</td>
+                      <td className="px-4 py-2.5 text-sm text-main">{budget.category || budget.costCenter || '—'}</td>
+                      <td className="px-4 py-2.5 text-xs text-muted">{budget.period} ({budget.year}{budget.month ? `-${budget.month}` : ''})</td>
                       <td className="px-4 py-2.5 text-sm font-data font-semibold text-main">₹{budget.amount.toLocaleString('en-IN')}</td>
-                      <td className="px-4 py-2.5 text-sm font-data text-muted">₹{budget.spent.toLocaleString('en-IN')}</td>
-                      <td className="px-4 py-2.5 text-sm font-data {isOverBudget ? 'text-rose-400' : isNearLimit ? 'text-amber-400' : 'text-emerald-400'}">₹{remaining.toLocaleString('en-IN')}</td>
+                      <td className="px-4 py-2.5 text-sm font-data text-muted">₹{(budget.spent || 0).toLocaleString('en-IN')}</td>
+                      <td className="px-4 py-2.5 text-sm font-data font-semibold text-main">
+                        <span className={isOverBudget ? 'text-rose-400' : isNearLimit ? 'text-amber-400' : 'text-emerald-400'}>
+                          ₹{remaining.toLocaleString('en-IN')}
+                        </span>
+                      </td>
                       <td className="px-4 py-2.5">
                         <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
                           isOverBudget ? 'bg-rose-500/10 text-rose-400' :
@@ -786,8 +798,16 @@ export default function FinanceModule() {
       {/* Add Journal Modal */}
       <Modal isOpen={journalModalOpen} onClose={() => setJournalModalOpen(false)} title="New Journal Entry">
         <div className="space-y-4">
-          <div><label className="form-label">Reference Number (Optional)</label><input className="form-input" value={newJournal.voucherNo} onChange={e => setNewJournal({...newJournal, voucherNo: e.target.value})} placeholder="e.g. VCHR-1001 (auto-generated if empty)" /></div>
-          <div><label className="form-label">Date (Optional)</label><input type="date" className="form-input" value={newJournal.date} onChange={e => setNewJournal({...newJournal, date: e.target.value})} /></div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="form-label">Date</label>
+              <input type="date" className="form-input" value={newJournal.date} onChange={e => setNewJournal({...newJournal, date: e.target.value})} />
+            </div>
+            <div>
+              <label className="form-label">Reference No</label>
+              <input type="text" className="form-input" placeholder="e.g. REF-1001" value={newJournal.referenceNo} onChange={e => setNewJournal({...newJournal, referenceNo: e.target.value})} />
+            </div>
+          </div>
           <div><label className="form-label">Debit Account</label>
             <select className="form-input" value={newJournal.debitAcc} onChange={e => setNewJournal({...newJournal, debitAcc: e.target.value})}>
               <option value="">Select account...</option>
@@ -801,7 +821,7 @@ export default function FinanceModule() {
             </select>
           </div>
           <div><label className="form-label">Amount (₹)</label><input type="number" className="form-input" value={newJournal.amount} onChange={e => setNewJournal({...newJournal, amount: e.target.value})} /></div>
-          <div><label className="form-label">Description</label><textarea className="form-input" rows={2} value={newJournal.narration} onChange={e => setNewJournal({...newJournal, narration: e.target.value})} placeholder="Narration or entry description" /></div>
+          <div><label className="form-label">Description</label><textarea className="form-input" rows={2} value={newJournal.narration} onChange={e => setNewJournal({...newJournal, narration: e.target.value})} /></div>
           <div className="flex gap-2 justify-end pt-2">
             <button onClick={() => setJournalModalOpen(false)} disabled={isSubmitting} className="btn-secondary text-sm">Cancel</button>
             <button onClick={handleAddJournal} disabled={isSubmitting} className="btn-primary text-sm">
@@ -814,9 +834,44 @@ export default function FinanceModule() {
       {/* Add Invoice Modal */}
       <Modal isOpen={invoiceModalOpen} onClose={() => setInvoiceModalOpen(false)} title="New Invoice">
         <div className="space-y-4">
-          <div><label className="form-label">Customer Name</label><input className="form-input" value={newInv.customerName} onChange={e => setNewInv({...newInv, customerName: e.target.value})} placeholder="Customer name" /></div>
-          <div><label className="form-label">Total Amount (₹)</label><input type="number" className="form-input" value={newInv.totalAmount} onChange={e => setNewInv({...newInv, totalAmount: e.target.value})} /></div>
-          <div><label className="form-label">Due Date</label><input type="date" className="form-input" value={newInv.dueDate || ''} onChange={e => setNewInv({...newInv, dueDate: e.target.value})} /></div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="form-label">Invoice No</label>
+              <input type="text" className="form-input" placeholder="e.g. INV-1001" value={newInv.invoiceNo} onChange={e => setNewInv({...newInv, invoiceNo: e.target.value})} />
+            </div>
+            <div>
+              <label className="form-label">Client Name</label>
+              <input type="text" className="form-input" placeholder="Client name" value={newInv.customerName} onChange={e => setNewInv({...newInv, customerName: e.target.value})} />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="form-label">Invoice Date</label>
+              <input type="date" className="form-input" value={newInv.invoiceDate} onChange={e => setNewInv({...newInv, invoiceDate: e.target.value})} />
+            </div>
+            <div>
+              <label className="form-label">Due Date</label>
+              <input type="date" className="form-input" value={newInv.dueDate} onChange={e => setNewInv({...newInv, dueDate: e.target.value})} />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="form-label">Amount (Subtotal ₹)</label>
+              <input type="number" className="form-input" value={newInv.subtotal} onChange={e => setNewInv({...newInv, subtotal: e.target.value})} />
+            </div>
+            <div>
+              <label className="form-label">Tax Rate (%)</label>
+              <input type="number" className="form-input" value={newInv.taxRate} onChange={e => setNewInv({...newInv, taxRate: e.target.value})} />
+            </div>
+          </div>
+          <div>
+            <label className="form-label">Status</label>
+            <select className="form-input" value={newInv.status} onChange={e => setNewInv({...newInv, status: e.target.value})}>
+              <option value="PENDING">Pending</option>
+              <option value="PAID">Paid</option>
+              <option value="OVERDUE">Overdue</option>
+            </select>
+          </div>
           <div className="flex gap-2 justify-end pt-2">
             <button onClick={() => setInvoiceModalOpen(false)} disabled={isSubmitting} className="btn-secondary text-sm">Cancel</button>
             <button onClick={handleAddInvoice} disabled={isSubmitting} className="btn-primary text-sm">
@@ -829,26 +884,40 @@ export default function FinanceModule() {
       {/* Add Budget Modal */}
       <Modal isOpen={budgetModalOpen} onClose={() => setBudgetModalOpen(false)} title="New Budget">
         <div className="space-y-4">
-          <div><label className="form-label">Cost Center</label>
-            <select className="form-input" value={newBudget.costCenter} onChange={e => setNewBudget({...newBudget, costCenter: e.target.value})}>
-              <option value="">Select cost center...</option>
-              <option value="Marketing">Marketing</option>
-              <option value="Operations">Operations</option>
-              <option value="IT">IT</option>
-              <option value="HR">HR</option>
-              <option value="Finance">Finance</option>
-              <option value="Sales">Sales</option>
-            </select>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="form-label">Budget Name</label>
+              <input type="text" className="form-input" placeholder="e.g. Q3 Marketing Campaign" value={newBudget.budgetName} onChange={e => setNewBudget({...newBudget, budgetName: e.target.value})} />
+            </div>
+            <div>
+              <label className="form-label">Category</label>
+              <input type="text" className="form-input" placeholder="e.g. Marketing" value={newBudget.category} onChange={e => setNewBudget({...newBudget, category: e.target.value})} />
+            </div>
           </div>
-          <div><label className="form-label">Period</label>
-            <select className="form-input" value={newBudget.period} onChange={e => setNewBudget({...newBudget, period: e.target.value})}>
-              <option value="monthly">Monthly</option>
-              <option value="quarterly">Quarterly</option>
-              <option value="yearly">Yearly</option>
-            </select>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="form-label">Allocated Amount (₹)</label>
+              <input type="number" className="form-input" value={newBudget.amount} onChange={e => setNewBudget({...newBudget, amount: e.target.value})} />
+            </div>
+            <div>
+              <label className="form-label">Spent Amount (₹)</label>
+              <input type="number" className="form-input" value={newBudget.spent} onChange={e => setNewBudget({...newBudget, spent: e.target.value})} />
+            </div>
           </div>
-          <div><label className="form-label">Budget Amount (₹)</label><input type="number" className="form-input" value={newBudget.amount} onChange={e => setNewBudget({...newBudget, amount: e.target.value})} /></div>
-          <div><label className="form-label">Year</label><input type="number" className="form-input" value={newBudget.year} onChange={e => setNewBudget({...newBudget, year: parseInt(e.target.value)})} /></div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="form-label">Period</label>
+              <select className="form-input" value={newBudget.period} onChange={e => setNewBudget({...newBudget, period: e.target.value})}>
+                <option value="monthly">Monthly</option>
+                <option value="quarterly">Quarterly</option>
+                <option value="yearly">Yearly</option>
+              </select>
+            </div>
+            <div>
+              <label className="form-label">Year</label>
+              <input type="number" className="form-input" value={newBudget.year} onChange={e => setNewBudget({...newBudget, year: parseInt(e.target.value) || 2026})} />
+            </div>
+          </div>
           {newBudget.period === 'monthly' && (
             <div><label className="form-label">Month</label>
               <select className="form-input" value={newBudget.month} onChange={e => setNewBudget({...newBudget, month: parseInt(e.target.value)})}>

@@ -150,8 +150,8 @@ export const api = {
         debitAcc: entry.debitAcc,
         creditAcc: entry.creditAcc,
         narration: entry.narration || '',
-        date: entry.date ? new Date(entry.date).toISOString() : null,
-        voucherNo: entry.voucherNo || null
+        date: entry.date || null,
+        referenceNo: entry.referenceNo || null
       };
       try { 
         const res = await request('/finance/voucher', { method: 'POST', body: JSON.stringify(payload) }); 

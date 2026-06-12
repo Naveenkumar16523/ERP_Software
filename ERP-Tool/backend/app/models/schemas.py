@@ -41,8 +41,8 @@ class VoucherCreate(BaseModel):
     debitAcc: str = Field(..., min_length=1, max_length=100)
     creditAcc: str = Field(..., min_length=1, max_length=100)
     narration: Optional[str] = Field(default="")
-    date: Optional[datetime] = None
-    voucherNo: Optional[str] = None
+    date: Optional[str] = Field(default=None)
+    referenceNo: Optional[str] = Field(default=None)
 
     @field_validator('debitAcc', 'creditAcc')
     @classmethod
@@ -183,15 +183,22 @@ class OrderPlace(BaseModel):
 
 class InvoiceCreate(BaseModel):
     customerName: str
-    totalAmount: float
+    subtotal: float
+    taxRate: float = Field(default=0.0)
     dueDate: Optional[str] = None
+    invoiceDate: Optional[str] = None
+    invoiceNo: Optional[str] = None
+    status: Optional[str] = "PENDING"
 
 class BudgetCreate(BaseModel):
-    costCenter: str
+    budgetName: str
+    category: str
     period: str
     amount: float
+    spent: Optional[float] = 0.0
     year: int
     month: Optional[int] = None
+    costCenter: Optional[str] = None
 
 class ExpenseCreate(BaseModel):
     description: str
