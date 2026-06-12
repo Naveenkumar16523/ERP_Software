@@ -51,6 +51,7 @@ export const useERPStore = create((set, get) => ({
   budgets: [],
   expenses: [],
   approvalWorkflows: [],
+  statements: [],
   taxCompliance: {
     gstRate: 18,
     vatRate: 20,
@@ -284,8 +285,9 @@ export const useERPStore = create((set, get) => ({
   updateExpenseStatus: (id, status, approvedBy) => set((s) => ({
     expenses: s.expenses.map((e) => e.id === id ? { ...e, status, approvedBy } : e)
   })),
+  setApprovalWorkflows: (approvalWorkflows) => set({ approvalWorkflows }),
   addApprovalWorkflow: (workflow) => set((s) => ({
-    approvalWorkflows: [...s.approvalWorkflows, { ...workflow, id: `workflow-${Date.now()}`, status: 'IN_PROGRESS' }]
+    approvalWorkflows: [workflow, ...s.approvalWorkflows]
   })),
   approveWorkflowLevel: (workflowId, level) => set((s) => ({
     approvalWorkflows: s.approvalWorkflows.map((w) => {
@@ -300,6 +302,9 @@ export const useERPStore = create((set, get) => ({
       return w;
     })
   })),
+  setFilingDeadlines: (filingDeadlines) => set((s) => ({
+    taxCompliance: { ...s.taxCompliance, filingDeadlines }
+  })),
   updateTaxDeadline: (deadlineId, status) => set((s) => ({
     taxCompliance: {
       ...s.taxCompliance,
@@ -307,6 +312,13 @@ export const useERPStore = create((set, get) => ({
         d.id === deadlineId ? { ...d, status } : d
       )
     }
+  })),
+  setStatements: (statements) => set({ statements }),
+  addStatement: (statement) => set((s) => ({
+    statements: [statement, ...s.statements]
+  })),
+  updateStatementStatus: (id, status) => set((s) => ({
+    statements: s.statements.map((stmt) => stmt.id === id ? { ...stmt, status } : stmt)
   })),
   addAuditEntry: (entry) => set((s) => ({
     taxCompliance: {

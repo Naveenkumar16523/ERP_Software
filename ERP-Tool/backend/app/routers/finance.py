@@ -10,8 +10,8 @@ from app.utils.db import get_db
 from app.utils.audit import log_audit_event
 from app.utils.crypto_ledger import calculate_block_hash, verify_ledger_chain
 from app.middlewares.auth_middleware import get_current_user, require_permission, AuthenticatedUser
-from app.models.models import Account, JournalEntry, Invoice, Budget, Expense
-from app.models.schemas import VoucherCreate, AccountCreate, InvoiceCreate, BudgetCreate, ExpenseCreate
+from app.models.models import Account, JournalEntry, Invoice, Budget, Expense, ApprovalWorkflow, ApprovalLevel, TaxDeadline, Statement
+from app.models.schemas import VoucherCreate, AccountCreate, InvoiceCreate, BudgetCreate, ExpenseCreate, ApprovalWorkflowCreate, TaxDeadlineCreate, StatementCreate
 
 router = APIRouter(prefix="/finance", tags=["Finance"])
 
@@ -440,6 +440,8 @@ async def create_expense(body: ExpenseCreate, current_user: AuthenticatedUser = 
             category=body.category,
             amount=body.amount,
             date=body.date,
+            paidBy=body.paidBy,
+            receiptStatus=body.receiptStatus or "Pending",
             status="PENDING"
         )
         db.add(expense)
@@ -463,6 +465,195 @@ async def update_expense_status(id: str, body: dict, current_user: Authenticated
         db.commit()
         db.refresh(expense)
         return expense
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail={"error": "Internal Server Error", "message": str(e)})
+
+# 12. APPROVAL WORKFLOWS
+
+@router.get("/approvals")
+async def get_approvals(current_user: AuthenticatedUser = Depends(require_permission("finance:read")), db: Session = Depends(get_db)):
+    try:
+        workflows = db.query(ApprovalWorkflow).order_by(ApprovalWorkflow.createdAt.desc()).all()
+        return workflows
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail={"error": "Internal Server Error", "message": str(e)})
+
+@router.post("/approvals", status_code=status.HTTP_201_CREATED)
+async def create_approval_workflow(body: ApprovalWorkflowCreate, current_user: AuthenticatedUser = Depends(require_permission("finance:write")), db: Session = Depends(get_db)):
+    try:
+        if body.requestNo:
+            req_no = body.requestNo.strip()
+            existing = db.query(ApprovalWorkflow).filter(ApprovalWorkflow.requestNo == req_no).first()
+            if existing:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Request number already exists.")
+        else:
+            timestamp_ms = int(time.time() * 1000)
+            req_no = f"REQ-{timestamp_ms}"
+
+        workflow = ApprovalWorkflow(
+            requestNo=req_no,
+            type=body.type,
+            amount=body.amount,
+            requester=body.requester or current_user.email,
+            date=body.date or datetime.utcnow().strftime("%Y-%m-%d"),
+            reason=body.reason or "",
+            status="PENDING",
+            currentLevel=1
+        )
+        db.add(workflow)
+        db.flush()  # to get workflow.id
+
+        # Add default level 1 approval
+        level = ApprovalLevel(
+            workflowId=workflow.id,
+            level=1,
+            approver="Finance Manager",
+            status="PENDING"
+        )
+        db.add(level)
+        db.commit()
+        db.refresh(workflow)
+        return workflow
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail={"error": "Internal Server Error", "message": str(e)})
+
+@router.patch("/approvals/{id}/approve")
+async def approve_workflow(id: str, body: dict, current_user: AuthenticatedUser = Depends(require_permission("finance:write")), db: Session = Depends(get_db)):
+    try:
+        workflow = db.query(ApprovalWorkflow).filter(ApprovalWorkflow.id == id).first()
+        if not workflow:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Approval workflow not found")
+        
+        level_num = body.get("level", 1)
+        level = db.query(ApprovalLevel).filter(
+            ApprovalLevel.workflowId == id, 
+            ApprovalLevel.level == level_num
+        ).first()
+
+        if level:
+            level.status = "APPROVED"
+            level.timestamp = datetime.utcnow().isoformat()
+            
+            # Check if there's a next level, otherwise approve the whole workflow
+            next_level = db.query(ApprovalLevel).filter(
+                ApprovalLevel.workflowId == id,
+                ApprovalLevel.level > level_num,
+                ApprovalLevel.status == "PENDING"
+            ).order_by(ApprovalLevel.level.asc()).first()
+            
+            if next_level:
+                workflow.currentLevel = next_level.level
+                workflow.status = "IN_PROGRESS"
+            else:
+                workflow.status = "APPROVED"
+                
+            db.commit()
+            db.refresh(workflow)
+            return workflow
+        else:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Approval level not found")
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail={"error": "Internal Server Error", "message": str(e)})
+
+# 13. TAX & COMPLIANCE
+
+@router.get("/tax/deadlines")
+async def get_tax_deadlines(current_user: AuthenticatedUser = Depends(require_permission("finance:read")), db: Session = Depends(get_db)):
+    try:
+        deadlines = db.query(TaxDeadline).order_by(TaxDeadline.dueDate.asc()).all()
+        return deadlines
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail={"error": "Internal Server Error", "message": str(e)})
+
+@router.post("/tax/deadlines", status_code=status.HTTP_201_CREATED)
+async def create_tax_deadline(body: TaxDeadlineCreate, current_user: AuthenticatedUser = Depends(require_permission("finance:write")), db: Session = Depends(get_db)):
+    try:
+        deadline = TaxDeadline(
+            taxName=body.taxName,
+            taxType=body.taxType,
+            rate=body.rate,
+            applicableOn=body.applicableOn,
+            effectiveDate=body.effectiveDate,
+            dueDate=body.dueDate,
+            period=body.period,
+            status=body.status or "PENDING"
+        )
+        db.add(deadline)
+        db.commit()
+        db.refresh(deadline)
+        return deadline
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail={"error": "Internal Server Error", "message": str(e)})
+
+@router.patch("/tax/deadlines/{id}/status")
+async def update_tax_deadline_status(id: str, body: dict, current_user: AuthenticatedUser = Depends(require_permission("finance:write")), db: Session = Depends(get_db)):
+    try:
+        deadline = db.query(TaxDeadline).filter(TaxDeadline.id == id).first()
+        if not deadline:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tax deadline not found")
+        status_val = body.get("status")
+        if status_val:
+            deadline.status = status_val
+        db.commit()
+        db.refresh(deadline)
+        return deadline
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail={"error": "Internal Server Error", "message": str(e)})
+
+# 14. STATEMENTS
+
+@router.get("/statements")
+async def get_statements(current_user: AuthenticatedUser = Depends(require_permission("finance:read")), db: Session = Depends(get_db)):
+    try:
+        statements = db.query(Statement).order_by(Statement.createdAt.desc()).all()
+        return statements
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail={"error": "Internal Server Error", "message": str(e)})
+
+@router.post("/statements", status_code=status.HTTP_201_CREATED)
+async def create_statement(body: StatementCreate, current_user: AuthenticatedUser = Depends(require_permission("finance:write")), db: Session = Depends(get_db)):
+    try:
+        statement = Statement(
+            statementType=body.statementType,
+            period=body.period,
+            totalIncome=body.totalIncome,
+            totalExpense=body.totalExpense,
+            netAmount=body.netAmount,
+            status=body.status or "Generated"
+        )
+        db.add(statement)
+        db.commit()
+        db.refresh(statement)
+        return statement
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail={"error": "Internal Server Error", "message": str(e)})
+
+@router.patch("/statements/{id}/status")
+async def update_statement_status(id: str, body: dict, current_user: AuthenticatedUser = Depends(require_permission("finance:write")), db: Session = Depends(get_db)):
+    try:
+        statement = db.query(Statement).filter(Statement.id == id).first()
+        if not statement:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Statement not found")
+        status_val = body.get("status")
+        if status_val:
+            statement.status = status_val
+        db.commit()
+        db.refresh(statement)
+        return statement
     except HTTPException:
         raise
     except Exception as e:

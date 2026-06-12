@@ -190,6 +190,47 @@ export const api = {
     async updateExpenseStatus(id, status) {
       try { return await request(`/finance/expenses/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }); }
       catch { useERPStore.getState().updateExpenseStatus(id, status); }
+    },
+    async getApprovalWorkflows() {
+      try { return await request('/finance/approvals'); }
+      catch { return useERPStore.getState().approvalWorkflows; }
+    },
+    async createApprovalWorkflow(workflow) {
+      try { return await request('/finance/approvals', { method: 'POST', body: JSON.stringify(workflow) }); }
+      catch { useERPStore.getState().addApprovalWorkflow(workflow); return workflow; }
+    },
+    async approveApprovalWorkflow(id, level) {
+      try { return await request(`/finance/approvals/${id}/approve`, { method: 'PATCH', body: JSON.stringify({ level }) }); }
+      catch { useERPStore.getState().approveWorkflowLevel(id, level); }
+    },
+    async getTaxDeadlines() {
+      try { return await request('/finance/tax/deadlines'); }
+      catch { return useERPStore.getState().taxCompliance.filingDeadlines; }
+    },
+    async createTaxDeadline(tax) {
+      try { return await request('/finance/tax/deadlines', { method: 'POST', body: JSON.stringify(tax) }); }
+      catch {
+        const withId = { ...tax, id: `tax-${Date.now()}` };
+        const oldDeadlines = useERPStore.getState().taxCompliance.filingDeadlines;
+        useERPStore.getState().setFilingDeadlines([...oldDeadlines, withId]);
+        return withId;
+      }
+    },
+    async updateTaxDeadlineStatus(id, status) {
+      try { return await request(`/finance/tax/deadlines/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }); }
+      catch { useERPStore.getState().updateTaxDeadline(id, status); }
+    },
+    async getStatements() {
+      try { return await request('/finance/statements'); }
+      catch { return useERPStore.getState().statements; }
+    },
+    async createStatement(statement) {
+      try { return await request('/finance/statements', { method: 'POST', body: JSON.stringify(statement) }); }
+      catch { useERPStore.getState().addStatement(statement); return statement; }
+    },
+    async updateStatementStatus(id, status) {
+      try { return await request(`/finance/statements/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }); }
+      catch { useERPStore.getState().updateStatementStatus(id, status); }
     }
   },
 

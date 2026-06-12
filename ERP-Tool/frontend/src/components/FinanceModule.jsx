@@ -39,10 +39,16 @@ export default function FinanceModule() {
     addExpense,
     updateExpenseStatus,
     approvalWorkflows,
+    setApprovalWorkflows,
     addApprovalWorkflow,
     approveWorkflowLevel,
     taxCompliance,
+    setFilingDeadlines,
     updateTaxDeadline,
+    statements,
+    setStatements,
+    addStatement,
+    updateStatementStatus,
     exportAuditTrail,
     addNotification,
     addToast
@@ -52,12 +58,15 @@ export default function FinanceModule() {
     let active = true;
     const fetchFinanceData = async () => {
       try {
-        const [accts, jEntries, invs, bdgts, exps] = await Promise.all([
+        const [accts, jEntries, invs, bdgts, exps, appr, tx, stmts] = await Promise.all([
           api.finance.getAccounts(),
           api.finance.getJournalEntries(),
           api.finance.getInvoices(),
           api.finance.getBudgets(),
-          api.finance.getExpenses()
+          api.finance.getExpenses(),
+          api.finance.getApprovalWorkflows(),
+          api.finance.getTaxDeadlines(),
+          api.finance.getStatements()
         ]);
         if (active) {
           if (Array.isArray(accts)) setAccounts(accts);
@@ -65,6 +74,9 @@ export default function FinanceModule() {
           if (Array.isArray(invs)) setInvoices(invs);
           if (Array.isArray(bdgts)) setBudgets(bdgts);
           if (Array.isArray(exps)) setExpenses(exps);
+          if (Array.isArray(appr)) setApprovalWorkflows(appr);
+          if (Array.isArray(tx)) setFilingDeadlines(tx);
+          if (Array.isArray(stmts)) setStatements(stmts);
         }
       } catch (err) {
         console.error('Error fetching finance data:', err);
@@ -74,7 +86,7 @@ export default function FinanceModule() {
     return () => {
       active = false;
     };
-  }, [setAccounts, setJournalEntries, setInvoices, setBudgets, setExpenses]);
+  }, [setAccounts, setJournalEntries, setInvoices, setBudgets, setExpenses, setApprovalWorkflows, setFilingDeadlines, setStatements]);
 
   const [activeTab, setActiveTab] = useState('accounts');
   const [acctModalOpen, setAcctModalOpen] = useState(false);
@@ -82,12 +94,18 @@ export default function FinanceModule() {
   const [invoiceModalOpen, setInvoiceModalOpen] = useState(false);
   const [budgetModalOpen, setBudgetModalOpen] = useState(false);
   const [expenseModalOpen, setExpenseModalOpen] = useState(false);
+  const [approvalModalOpen, setApprovalModalOpen] = useState(false);
+  const [taxModalOpen, setTaxModalOpen] = useState(false);
+  const [stmtModalOpen, setStmtModalOpen] = useState(false);
 
   const [newAcct, setNewAcct] = useState({ code: '', name: '', type: 'ASSET', balance: 0 });
   const [newJournal, setNewJournal] = useState({ debitAcc: '', creditAcc: '', amount: 0, narration: '', date: '', referenceNo: '' });
   const [newInv, setNewInv] = useState({ invoiceNo: '', customerName: '', invoiceDate: '', dueDate: '', subtotal: 0, taxRate: 0, status: 'PENDING' });
   const [newBudget, setNewBudget] = useState({ budgetName: '', category: '', period: 'monthly', amount: 0, spent: 0, year: 2026, month: 6 });
-  const [newExpense, setNewExpense] = useState({ description: '', category: '', amount: 0, date: '' });
+  const [newExpense, setNewExpense] = useState({ description: '', category: '', amount: 0, date: '', paidBy: '', receiptStatus: 'Pending' });
+  const [newApproval, setNewApproval] = useState({ requestNo: '', type: 'PAYMENT', requester: '', amount: 0, date: '', reason: '' });
+  const [newTax, setNewTax] = useState({ taxName: '', taxType: 'GST', rate: 0, applicableOn: '', effectiveDate: '', dueDate: '', period: 'monthly', status: 'PENDING' });
+  const [newStmt, setNewStmt] = useState({ statementType: 'Profit & Loss', period: '', totalIncome: 0, totalExpense: 0, netAmount: 0, status: 'Generated' });
   const [ledgerStatus, setLedgerStatus] = useState(null);
   const [isValidating, setIsValidating] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -223,7 +241,7 @@ export default function FinanceModule() {
         addExpense(savedExp);
       }
       addToast('Expense logged successfully', 'success');
-      setNewExpense({ description: '', category: '', amount: 0, date: '' });
+      setNewExpense({ description: '', category: '', amount: 0, date: '', paidBy: '', receiptStatus: 'Pending' });
       setExpenseModalOpen(false);
     } catch (err) {
       addToast(`Error logging expense: ${err.message}`, 'error');
@@ -242,9 +260,109 @@ export default function FinanceModule() {
     }
   };
 
-  const handleApproveWorkflow = (workflowId, level) => {
-    approveWorkflowLevel(workflowId, level);
-    addToast('Workflow level approved', 'success');
+  const handleAddApproval = async () => {
+    if (!newApproval.type || !newApproval.requester || !newApproval.amount) {
+      return addToast('Type, Requester, and Amount are required', 'error');
+    }
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+    const payload = { ...newApproval, amount: parseFloat(newApproval.amount) || 0 };
+    try {
+      const savedApp = await api.finance.createApprovalWorkflow(payload);
+      const exists = approvalWorkflows.some(w => w.id === savedApp.id);
+      if (!exists) {
+        addApprovalWorkflow(savedApp);
+      }
+      addToast('Approval request created successfully', 'success');
+      setNewApproval({ requestNo: '', type: 'PAYMENT', requester: '', amount: 0, date: '', reason: '' });
+      setApprovalModalOpen(false);
+    } catch (err) {
+      addToast(`Error creating approval request: ${err.message}`, 'error');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleApproveWorkflow = async (workflowId, level) => {
+    try {
+      await api.finance.approveApprovalWorkflow(workflowId, level);
+      approveWorkflowLevel(workflowId, level);
+      addToast('Workflow level approved', 'success');
+    } catch (err) {
+      addToast(`Error approving workflow: ${err.message}`, 'error');
+    }
+  };
+
+  const handleAddTax = async () => {
+    if (!newTax.taxType || !newTax.dueDate) {
+      return addToast('Tax Type and Due Date are required', 'error');
+    }
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+    const payload = { ...newTax, rate: parseFloat(newTax.rate) || 0 };
+    try {
+      const savedTax = await api.finance.createTaxDeadline(payload);
+      const oldDeadlines = taxCompliance.filingDeadlines;
+      const exists = oldDeadlines.some(d => d.id === savedTax.id);
+      if (!exists) {
+        setFilingDeadlines([...oldDeadlines, savedTax]);
+      }
+      addToast('Tax record created successfully', 'success');
+      setNewTax({ taxName: '', taxType: 'GST', rate: 0, applicableOn: '', effectiveDate: '', dueDate: '', period: 'monthly', status: 'PENDING' });
+      setTaxModalOpen(false);
+    } catch (err) {
+      addToast(`Error creating tax record: ${err.message}`, 'error');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleUpdateTaxDeadline = async (deadlineId, status) => {
+    try {
+      await api.finance.updateTaxDeadlineStatus(deadlineId, status);
+      updateTaxDeadline(deadlineId, status);
+      addToast('Tax status updated', 'success');
+    } catch (err) {
+      addToast(`Error updating tax status: ${err.message}`, 'error');
+    }
+  };
+
+  const handleAddStatement = async () => {
+    if (!newStmt.statementType || !newStmt.period) {
+      return addToast('Statement Type and Period are required', 'error');
+    }
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+    const payload = {
+      ...newStmt,
+      totalIncome: parseFloat(newStmt.totalIncome) || 0,
+      totalExpense: parseFloat(newStmt.totalExpense) || 0,
+      netAmount: parseFloat(newStmt.netAmount) || 0
+    };
+    try {
+      const savedStmt = await api.finance.createStatement(payload);
+      const exists = statements.some(s => s.id === savedStmt.id);
+      if (!exists) {
+        addStatement(savedStmt);
+      }
+      addToast('Statement logged successfully', 'success');
+      setNewStmt({ statementType: 'Profit & Loss', period: '', totalIncome: 0, totalExpense: 0, netAmount: 0, status: 'Generated' });
+      setStmtModalOpen(false);
+    } catch (err) {
+      addToast(`Error logging statement: ${err.message}`, 'error');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleUpdateStatementStatus = async (id, status) => {
+    try {
+      await api.finance.updateStatementStatus(id, status);
+      updateStatementStatus(id, status);
+      addToast('Statement status updated', 'success');
+    } catch (err) {
+      addToast(`Error updating statement status: ${err.message}`, 'error');
+    }
   };
 
   const handleSendInvoice = async (invoiceId) => {
@@ -565,7 +683,8 @@ export default function FinanceModule() {
                   <th className="px-4 py-2.5">Category</th>
                   <th className="px-4 py-2.5">Amount</th>
                   <th className="px-4 py-2.5">Date</th>
-                  <th className="px-4 py-2.5">Receipt</th>
+                  <th className="px-4 py-2.5">Paid By</th>
+                  <th className="px-4 py-2.5">Receipt Status</th>
                   <th className="px-4 py-2.5">Status</th>
                   <th className="px-4 py-2.5">Actions</th>
                 </tr>
@@ -577,7 +696,14 @@ export default function FinanceModule() {
                     <td className="px-4 py-2.5 text-xs text-muted">{expense.category}</td>
                     <td className="px-4 py-2.5 text-sm font-data font-semibold text-main">₹{expense.amount.toLocaleString('en-IN')}</td>
                     <td className="px-4 py-2.5 text-xs text-muted">{expense.date}</td>
-                    <td className="px-4 py-2.5 text-xs text-muted">{expense.receipt ? '✓' : '—'}</td>
+                    <td className="px-4 py-2.5 text-xs text-muted">{expense.paidBy || '—'}</td>
+                    <td className="px-4 py-2.5 text-xs text-muted">
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-medium ${
+                        expense.receiptStatus === 'Attached' ? 'bg-emerald-500/15 text-emerald-400' :
+                        expense.receiptStatus === 'Missing' ? 'bg-rose-500/15 text-rose-400' :
+                        'bg-amber-500/15 text-amber-400'
+                      }`}>{expense.receiptStatus || 'Pending'}</span>
+                    </td>
                     <td className="px-4 py-2.5">
                       <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
                         expense.status === 'APPROVED' ? 'bg-emerald-500/10 text-emerald-400' :
@@ -604,15 +730,20 @@ export default function FinanceModule() {
         <div className="theme-card overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3 border-b border-main">
             <h3 className="text-sm font-semibold text-main">Approval Workflows ({approvalWorkflows.length})</h3>
+            <button onClick={() => setApprovalModalOpen(true)} className="btn-primary text-xs flex items-center gap-1.5">
+              <Plus className="w-3.5 h-3.5" /> New Request
+            </button>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
                 <tr className="text-left text-xs text-muted border-b border-main bg-surface">
+                  <th className="px-4 py-2.5">Request No</th>
                   <th className="px-4 py-2.5">Type</th>
+                  <th className="px-4 py-2.5">Requested By</th>
                   <th className="px-4 py-2.5">Amount</th>
-                  <th className="px-4 py-2.5">Requester</th>
-                  <th className="px-4 py-2.5">Current Level</th>
+                  <th className="px-4 py-2.5">Date</th>
+                  <th className="px-4 py-2.5">Reason</th>
                   <th className="px-4 py-2.5">Status</th>
                   <th className="px-4 py-2.5">Actions</th>
                 </tr>
@@ -620,10 +751,12 @@ export default function FinanceModule() {
               <tbody>
                 {approvalWorkflows.map((workflow) => (
                   <tr key={workflow.id} className="border-b border-main/50 hover:bg-surface/50 transition-colors">
+                    <td className="px-4 py-2.5 text-xs font-mono text-indigo-400">{workflow.requestNo || '—'}</td>
                     <td className="px-4 py-2.5 text-sm text-main">{workflow.type}</td>
-                    <td className="px-4 py-2.5 text-sm font-data font-semibold text-main">₹{workflow.amount.toLocaleString('en-IN')}</td>
                     <td className="px-4 py-2.5 text-xs text-muted">{workflow.requester}</td>
-                    <td className="px-4 py-2.5 text-xs text-muted">Level {workflow.currentLevel} of {workflow.levels.length}</td>
+                    <td className="px-4 py-2.5 text-sm font-data font-semibold text-main">₹{workflow.amount.toLocaleString('en-IN')}</td>
+                    <td className="px-4 py-2.5 text-xs text-muted">{workflow.date || '—'}</td>
+                    <td className="px-4 py-2.5 text-xs text-muted max-w-xs truncate">{workflow.reason || '—'}</td>
                     <td className="px-4 py-2.5">
                       <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
                         workflow.status === 'APPROVED' ? 'bg-emerald-500/10 text-emerald-400' :
@@ -632,9 +765,14 @@ export default function FinanceModule() {
                       }`}>{workflow.status}</span>
                     </td>
                     <td className="px-4 py-2.5">
-                      {workflow.status === 'IN_PROGRESS' && (
+                      {workflow.status === 'IN_PROGRESS' && workflow.levels && workflow.levels.length > 0 && (
                         <button onClick={() => handleApproveWorkflow(workflow.id, workflow.currentLevel)} className="text-xs text-emerald-400 hover:underline">
-                          Approve Level
+                          Approve Level {workflow.currentLevel}
+                        </button>
+                      )}
+                      {workflow.status === 'PENDING' && (
+                        <button onClick={() => handleApproveWorkflow(workflow.id, 1)} className="text-xs text-emerald-400 hover:underline">
+                          Approve
                         </button>
                       )}
                     </td>
@@ -647,36 +785,67 @@ export default function FinanceModule() {
       )}
 
       {activeTab === 'tax' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="theme-card p-5">
-            <h3 className="text-sm font-semibold text-main mb-4">Tax Rates</h3>
-            <div className="space-y-3">
-              <div className="flex justify-between text-sm"><span className="text-muted">GST Rate</span><span className="text-emerald-400 font-data">{taxCompliance.gstRate}%</span></div>
-              <div className="flex justify-between text-sm"><span className="text-muted">VAT Rate</span><span className="text-emerald-400 font-data">{taxCompliance.vatRate}%</span></div>
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="theme-card p-5 md:col-span-1">
+              <h3 className="text-sm font-semibold text-main mb-4">Tax Rates</h3>
+              <div className="space-y-3">
+                <div className="flex justify-between text-sm"><span className="text-muted">GST Rate</span><span className="text-emerald-400 font-data">{taxCompliance.gstRate}%</span></div>
+                <div className="flex justify-between text-sm"><span className="text-muted">VAT Rate</span><span className="text-emerald-400 font-data">{taxCompliance.vatRate}%</span></div>
+              </div>
+            </div>
+            <div className="theme-card p-5 md:col-span-2">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-semibold text-main">Filing Deadlines ({taxCompliance.filingDeadlines.length})</h3>
+                <button onClick={() => setTaxModalOpen(true)} className="btn-primary text-xs flex items-center gap-1.5">
+                  <Plus className="w-3.5 h-3.5" /> New Record
+                </button>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="text-left text-xs text-muted border-b border-main bg-surface">
+                      <th className="px-3 py-2">Tax Name</th>
+                      <th className="px-3 py-2">Tax Type</th>
+                      <th className="px-3 py-2">Rate</th>
+                      <th className="px-3 py-2">Applicable On</th>
+                      <th className="px-3 py-2">Effective Date</th>
+                      <th className="px-3 py-2">Due Date</th>
+                      <th className="px-3 py-2">Status</th>
+                      <th className="px-3 py-2">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {taxCompliance.filingDeadlines.map((deadline) => (
+                      <tr key={deadline.id} className="border-b border-main/50 hover:bg-surface/50 transition-colors">
+                        <td className="px-3 py-2 text-xs text-main">{deadline.taxName || '—'}</td>
+                        <td className="px-3 py-2 text-xs text-muted">{deadline.taxType}</td>
+                        <td className="px-3 py-2 text-xs font-data text-emerald-400">{deadline.rate}%</td>
+                        <td className="px-3 py-2 text-xs text-muted">{deadline.applicableOn || '—'}</td>
+                        <td className="px-3 py-2 text-xs text-muted">{deadline.effectiveDate || '—'}</td>
+                        <td className="px-3 py-2 text-xs text-muted">{deadline.dueDate}</td>
+                        <td className="px-3 py-2">
+                          <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
+                            deadline.status === 'COMPLETED' ? 'bg-emerald-500/10 text-emerald-400' :
+                            deadline.status === 'PENDING' ? 'bg-amber-500/10 text-amber-400' :
+                            'bg-rose-500/10 text-rose-400'
+                          }`}>{deadline.status}</span>
+                        </td>
+                        <td className="px-3 py-2">
+                          {deadline.status === 'PENDING' && (
+                            <button onClick={() => handleUpdateTaxDeadline(deadline.id, 'COMPLETED')} className="text-xs text-emerald-400 hover:underline">
+                              Mark Completed
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
           <div className="theme-card p-5">
-            <h3 className="text-sm font-semibold text-main mb-4">Filing Deadlines</h3>
-            <div className="space-y-2">
-              {taxCompliance.filingDeadlines.map((deadline) => (
-                <div key={deadline.id} className="flex items-center justify-between text-sm p-2 rounded bg-surface">
-                  <div>
-                    <span className="text-main font-medium">{deadline.taxType}</span>
-                    <span className="text-muted text-xs ml-2">({deadline.period})</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-muted">{deadline.dueDate}</span>
-                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                      deadline.status === 'COMPLETED' ? 'bg-emerald-500/10 text-emerald-400' :
-                      deadline.status === 'PENDING' ? 'bg-amber-500/10 text-amber-400' :
-                      'bg-rose-500/10 text-rose-400'
-                    }`}>{deadline.status}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-          <div className="theme-card p-5 md:col-span-2">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-sm font-semibold text-main">Audit Trail</h3>
               <button onClick={exportAuditTrail} className="btn-secondary text-xs">Export CSV</button>
@@ -713,37 +882,53 @@ export default function FinanceModule() {
 
       {activeTab === 'statements' && (
         <div className="space-y-4">
-          <div className="flex items-center gap-4 theme-card p-4">
-            <div className="flex items-center gap-2">
-              <label className="text-xs text-muted">Period:</label>
-              <select className="form-input text-xs py-1" value={plPeriod} onChange={e => setPlPeriod(e.target.value)}>
-                <option value="month">Monthly</option>
-                <option value="quarter">Quarterly</option>
-                <option value="year">Yearly</option>
-              </select>
-            </div>
-            <div className="flex items-center gap-2">
-              <label className="text-xs text-muted">Year:</label>
-              <select className="form-input text-xs py-1" value={plYear} onChange={e => setPlYear(parseInt(e.target.value))}>
-                {[2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}
-              </select>
-            </div>
-            {plPeriod === 'quarter' && (
+          <div className="flex items-center justify-between theme-card p-4">
+            <div className="flex items-center gap-4">
               <div className="flex items-center gap-2">
-                <label className="text-xs text-muted">Quarter:</label>
-                <select className="form-input text-xs py-1" value={plQuarter} onChange={e => setPlQuarter(parseInt(e.target.value))}>
-                  {[1, 2, 3, 4].map(q => <option key={q} value={q}>Q{q}</option>)}
+                <label className="text-xs text-muted">Period:</label>
+                <select className="form-input text-xs py-1" value={plPeriod} onChange={e => setPlPeriod(e.target.value)}>
+                  <option value="month">Monthly</option>
+                  <option value="quarter">Quarterly</option>
+                  <option value="year">Yearly</option>
                 </select>
               </div>
-            )}
-            {plPeriod === 'month' && (
               <div className="flex items-center gap-2">
-                <label className="text-xs text-muted">Month:</label>
-                <select className="form-input text-xs py-1" value={plMonth} onChange={e => setPlMonth(parseInt(e.target.value))}>
-                  {[1,2,3,4,5,6,7,8,9,10,11,12].map(m => <option key={m} value={m}>{new Date(2026, m-1).toLocaleString('default', { month: 'long' })}</option>)}
+                <label className="text-xs text-muted">Year:</label>
+                <select className="form-input text-xs py-1" value={plYear} onChange={e => setPlYear(parseInt(e.target.value))}>
+                  {[2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}
                 </select>
               </div>
-            )}
+              {plPeriod === 'quarter' && (
+                <div className="flex items-center gap-2">
+                  <label className="text-xs text-muted">Quarter:</label>
+                  <select className="form-input text-xs py-1" value={plQuarter} onChange={e => setPlQuarter(parseInt(e.target.value))}>
+                    {[1, 2, 3, 4].map(q => <option key={q} value={q}>Q{q}</option>)}
+                  </select>
+                </div>
+              )}
+              {plPeriod === 'month' && (
+                <div className="flex items-center gap-2">
+                  <label className="text-xs text-muted">Month:</label>
+                  <select className="form-input text-xs py-1" value={plMonth} onChange={e => setPlMonth(parseInt(e.target.value))}>
+                    {[1,2,3,4,5,6,7,8,9,10,11,12].map(m => <option key={m} value={m}>{new Date(2026, m-1).toLocaleString('default', { month: 'long' })}</option>)}
+                  </select>
+                </div>
+              )}
+            </div>
+            <button onClick={() => {
+              const periodStr = plPeriod === 'month' ? new Date(plYear, plMonth-1).toLocaleString('default', { month: 'long', year: 'numeric' }) : plPeriod === 'quarter' ? `Q${plQuarter} ${plYear}` : `${plYear}`;
+              setNewStmt({
+                statementType: 'Profit & Loss',
+                period: periodStr,
+                totalIncome: totalRev,
+                totalExpense: totalExp,
+                netAmount: netIncome,
+                status: 'Generated'
+              });
+              setStmtModalOpen(true);
+            }} className="btn-primary text-xs flex items-center gap-1.5">
+              <Plus className="w-3.5 h-3.5" /> Generate & Log Statement
+            </button>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="theme-card p-5">
@@ -770,6 +955,62 @@ export default function FinanceModule() {
                   </span>
                 </div>
               </div>
+            </div>
+          </div>
+          <div className="theme-card overflow-hidden">
+            <div className="px-4 py-3 border-b border-main">
+              <h3 className="text-sm font-semibold text-main">Saved Financial Statements ({statements.length})</h3>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="text-left text-xs text-muted border-b border-main bg-surface">
+                    <th className="px-4 py-2.5">Statement Type</th>
+                    <th className="px-4 py-2.5">Period</th>
+                    <th className="px-4 py-2.5 text-right">Total Income</th>
+                    <th className="px-4 py-2.5 text-right">Total Expense</th>
+                    <th className="px-4 py-2.5 text-right">Net Profit / Loss</th>
+                    <th className="px-4 py-2.5">Status</th>
+                    <th className="px-4 py-2.5">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {statements.map((stmt) => (
+                    <tr key={stmt.id} className="border-b border-main/50 hover:bg-surface/50 transition-colors">
+                      <td className="px-4 py-2.5 text-sm font-semibold text-main">{stmt.statementType}</td>
+                      <td className="px-4 py-2.5 text-xs text-muted">{stmt.period}</td>
+                      <td className="px-4 py-2.5 text-right text-sm font-data text-emerald-400">₹{(stmt.totalIncome || 0).toLocaleString('en-IN')}</td>
+                      <td className="px-4 py-2.5 text-right text-sm font-data text-rose-400">₹{(stmt.totalExpense || 0).toLocaleString('en-IN')}</td>
+                      <td className="px-4 py-2.5 text-right text-sm font-data font-bold text-main">
+                        <span className={stmt.netAmount >= 0 ? 'text-emerald-400' : 'text-rose-400'}>
+                          ₹{(stmt.netAmount || 0).toLocaleString('en-IN')}
+                        </span>
+                      </td>
+                      <td className="px-4 py-2.5">
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                          stmt.status === 'Approved' ? 'bg-emerald-500/10 text-emerald-400' :
+                          stmt.status === 'Audited' ? 'bg-indigo-500/10 text-indigo-400' :
+                          'bg-amber-500/10 text-amber-400'
+                        }`}>{stmt.status}</span>
+                      </td>
+                      <td className="px-4 py-2.5">
+                        <div className="flex gap-2">
+                          {stmt.status === 'Generated' && (
+                            <button onClick={() => handleUpdateStatementStatus(stmt.id, 'Audited')} className="text-xs text-indigo-400 hover:underline">
+                              Audit
+                            </button>
+                          )}
+                          {stmt.status === 'Audited' && (
+                            <button onClick={() => handleUpdateStatementStatus(stmt.id, 'Approved')} className="text-xs text-emerald-400 hover:underline">
+                              Approve
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
         </div>
@@ -949,13 +1190,198 @@ export default function FinanceModule() {
               <option value="Utilities">Utilities</option>
             </select>
           </div>
-          <div><label className="form-label">Amount (₹)</label><input type="number" className="form-input" value={newExpense.amount} onChange={e => setNewExpense({...newExpense, amount: e.target.value})} /></div>
-          <div><label className="form-label">Date</label><input type="date" className="form-input" value={newExpense.date} onChange={e => setNewExpense({...newExpense, date: e.target.value})} /></div>
-          <div><label className="form-label">Receipt Upload</label><input type="file" className="form-input" accept=".pdf,.jpg,.png" /></div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="form-label">Amount (₹)</label>
+              <input type="number" className="form-input" value={newExpense.amount} onChange={e => setNewExpense({...newExpense, amount: e.target.value})} />
+            </div>
+            <div>
+              <label className="form-label">Date</label>
+              <input type="date" className="form-input" value={newExpense.date} onChange={e => setNewExpense({...newExpense, date: e.target.value})} />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="form-label">Paid By</label>
+              <input type="text" className="form-input" placeholder="e.g. Employee name" value={newExpense.paidBy} onChange={e => setNewExpense({...newExpense, paidBy: e.target.value})} />
+            </div>
+            <div>
+              <label className="form-label">Receipt Status</label>
+              <select className="form-input" value={newExpense.receiptStatus} onChange={e => setNewExpense({...newExpense, receiptStatus: e.target.value})}>
+                <option value="Pending">Pending</option>
+                <option value="Attached">Attached</option>
+                <option value="Missing">Missing</option>
+              </select>
+            </div>
+          </div>
           <div className="flex gap-2 justify-end pt-2">
             <button onClick={() => setExpenseModalOpen(false)} disabled={isSubmitting} className="btn-secondary text-sm">Cancel</button>
             <button onClick={handleAddExpense} disabled={isSubmitting} className="btn-primary text-sm">
               {isSubmitting ? 'Logging...' : 'Log Expense'}
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Add Approval Modal */}
+      <Modal isOpen={approvalModalOpen} onClose={() => setApprovalModalOpen(false)} title="New Approval Request">
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="form-label">Request No</label>
+              <input type="text" className="form-input" placeholder="e.g. REQ-1001" value={newApproval.requestNo} onChange={e => setNewApproval({...newApproval, requestNo: e.target.value})} />
+            </div>
+            <div>
+              <label className="form-label">Request Type</label>
+              <select className="form-input" value={newApproval.type} onChange={e => setNewApproval({...newApproval, type: e.target.value})}>
+                <option value="PAYMENT">Payment</option>
+                <option value="EXPENSE">Expense Approval</option>
+                <option value="PURCHASE">Purchase Approval</option>
+                <option value="TRAVEL">Travel Request</option>
+              </select>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="form-label">Requested By</label>
+              <input type="text" className="form-input" placeholder="Requester name/email" value={newApproval.requester} onChange={e => setNewApproval({...newApproval, requester: e.target.value})} />
+            </div>
+            <div>
+              <label className="form-label">Amount (₹)</label>
+              <input type="number" className="form-input" value={newApproval.amount} onChange={e => setNewApproval({...newApproval, amount: e.target.value})} />
+            </div>
+          </div>
+          <div>
+            <label className="form-label">Date</label>
+            <input type="date" className="form-input" value={newApproval.date} onChange={e => setNewApproval({...newApproval, date: e.target.value})} />
+          </div>
+          <div>
+            <label className="form-label">Reason / Justification</label>
+            <textarea className="form-input" rows={3} placeholder="Please provide details..." value={newApproval.reason} onChange={e => setNewApproval({...newApproval, reason: e.target.value})} />
+          </div>
+          <div className="flex gap-2 justify-end pt-2">
+            <button onClick={() => setApprovalModalOpen(false)} disabled={isSubmitting} className="btn-secondary text-sm">Cancel</button>
+            <button onClick={handleAddApproval} disabled={isSubmitting} className="btn-primary text-sm">
+              {isSubmitting ? 'Creating...' : 'Create Request'}
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Add Tax Modal */}
+      <Modal isOpen={taxModalOpen} onClose={() => setTaxModalOpen(false)} title="New Tax Deadline">
+        <div className="space-y-4">
+          <div>
+            <label className="form-label">Tax Name</label>
+            <input type="text" className="form-input" placeholder="e.g. Q2 GST Return Filing" value={newTax.taxName} onChange={e => setNewTax({...newTax, taxName: e.target.value})} />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="form-label">Tax Type</label>
+              <select className="form-input" value={newTax.taxType} onChange={e => setNewTax({...newTax, taxType: e.target.value})}>
+                <option value="GST">GST</option>
+                <option value="VAT">VAT</option>
+                <option value="TDS">TDS</option>
+                <option value="INCOME_TAX">Income Tax</option>
+                <option value="CORPORATE_TAX">Corporate Tax</option>
+              </select>
+            </div>
+            <div>
+              <label className="form-label">Rate (%)</label>
+              <input type="number" className="form-input" value={newTax.rate} onChange={e => setNewTax({...newTax, rate: e.target.value})} />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="form-label">Applicable On</label>
+              <input type="text" className="form-input" placeholder="e.g. Sales, Services" value={newTax.applicableOn} onChange={e => setNewTax({...newTax, applicableOn: e.target.value})} />
+            </div>
+            <div>
+              <label className="form-label">Period</label>
+              <select className="form-input" value={newTax.period} onChange={e => setNewTax({...newTax, period: e.target.value})}>
+                <option value="monthly">Monthly</option>
+                <option value="quarterly">Quarterly</option>
+                <option value="yearly">Yearly</option>
+              </select>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="form-label">Effective Date</label>
+              <input type="date" className="form-input" value={newTax.effectiveDate} onChange={e => setNewTax({...newTax, effectiveDate: e.target.value})} />
+            </div>
+            <div>
+              <label className="form-label">Due Date</label>
+              <input type="date" className="form-input" value={newTax.dueDate} onChange={e => setNewTax({...newTax, dueDate: e.target.value})} />
+            </div>
+          </div>
+          <div>
+            <label className="form-label">Status</label>
+            <select className="form-input" value={newTax.status} onChange={e => setNewTax({...newTax, status: e.target.value})}>
+              <option value="PENDING">Pending</option>
+              <option value="COMPLETED">Completed</option>
+              <option value="OVERDUE">Overdue</option>
+            </select>
+          </div>
+          <div className="flex gap-2 justify-end pt-2">
+            <button onClick={() => setTaxModalOpen(false)} disabled={isSubmitting} className="btn-secondary text-sm">Cancel</button>
+            <button onClick={handleAddTax} disabled={isSubmitting} className="btn-primary text-sm">
+              {isSubmitting ? 'Creating...' : 'Create Tax Deadline'}
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Add Statement Modal */}
+      <Modal isOpen={stmtModalOpen} onClose={() => setStmtModalOpen(false)} title="Log Statement Record">
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="form-label">Statement Type</label>
+              <select className="form-input" value={newStmt.statementType} onChange={e => setNewStmt({...newStmt, statementType: e.target.value})}>
+                <option value="Profit & Loss">Profit & Loss</option>
+                <option value="Balance Sheet">Balance Sheet</option>
+                <option value="Cash Flow">Cash Flow</option>
+                <option value="Trial Balance">Trial Balance</option>
+              </select>
+            </div>
+            <div>
+              <label className="form-label">Period</label>
+              <input type="text" className="form-input" placeholder="e.g. June 2026" value={newStmt.period} onChange={e => setNewStmt({...newStmt, period: e.target.value})} />
+            </div>
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            <div>
+              <label className="form-label">Total Income (₹)</label>
+              <input type="number" className="form-input" value={newStmt.totalIncome} onChange={e => {
+                const inc = parseFloat(e.target.value) || 0;
+                setNewStmt({...newStmt, totalIncome: inc, netAmount: inc - newStmt.totalExpense});
+              }} />
+            </div>
+            <div>
+              <label className="form-label">Total Expense (₹)</label>
+              <input type="number" className="form-input" value={newStmt.totalExpense} onChange={e => {
+                const exp = parseFloat(e.target.value) || 0;
+                setNewStmt({...newStmt, totalExpense: exp, netAmount: newStmt.totalIncome - exp});
+              }} />
+            </div>
+            <div>
+              <label className="form-label">Net Profit/Loss</label>
+              <input type="number" className="form-input bg-surface border-none" value={newStmt.netAmount} readOnly />
+            </div>
+          </div>
+          <div>
+            <label className="form-label">Status</label>
+            <select className="form-input" value={newStmt.status} onChange={e => setNewStmt({...newStmt, status: e.target.value})}>
+              <option value="Generated">Generated</option>
+              <option value="Audited">Audited</option>
+              <option value="Approved">Approved</option>
+            </select>
+          </div>
+          <div className="flex gap-2 justify-end pt-2">
+            <button onClick={() => setStmtModalOpen(false)} disabled={isSubmitting} className="btn-secondary text-sm">Cancel</button>
+            <button onClick={handleAddStatement} disabled={isSubmitting} className="btn-primary text-sm">
+              {isSubmitting ? 'Logging...' : 'Log Statement'}
             </button>
           </div>
         </div>

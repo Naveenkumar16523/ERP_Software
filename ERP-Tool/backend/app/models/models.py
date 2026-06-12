@@ -741,6 +741,8 @@ class Expense(Base):
     amount = Column(Float, nullable=False)
     date = Column(String(191), nullable=False)
     receipt = Column(String(191), nullable=True)
+    paidBy = Column(String(191), nullable=True)
+    receiptStatus = Column(String(191), default="Pending", nullable=True)
     approvedBy = Column(String(191), nullable=True)
     status = Column(String(191), default="PENDING", nullable=False)  # PENDING, APPROVED, REJECTED
     createdAt = Column(DateTime, default=datetime.utcnow, nullable=False)
@@ -749,9 +751,12 @@ class Expense(Base):
 class ApprovalWorkflow(Base):
     __tablename__ = "ApprovalWorkflow"
     id = Column(String(36), primary_key=True, default=generate_uuid)
+    requestNo = Column(String(191), nullable=True)
     type = Column(String(191), nullable=False)  # e.g., PAYMENT, EXPENSE
     amount = Column(Float, nullable=False)
     requester = Column(String(191), nullable=False)
+    date = Column(String(191), nullable=True)
+    reason = Column(String(191), nullable=True)
     currentLevel = Column(Integer, default=1, nullable=False)
     status = Column(String(191), default="PENDING", nullable=False)  # PENDING, APPROVED, REJECTED, IN_PROGRESS
     createdAt = Column(DateTime, default=datetime.utcnow, nullable=False)
@@ -773,10 +778,26 @@ class ApprovalLevel(Base):
 class TaxDeadline(Base):
     __tablename__ = "TaxDeadline"
     id = Column(String(36), primary_key=True, default=generate_uuid)
+    taxName = Column(String(191), nullable=True)
     taxType = Column(String(191), nullable=False)  # GST, VAT, TDS, etc.
+    rate = Column(Float, default=0.0, nullable=True)
+    applicableOn = Column(String(191), nullable=True)
+    effectiveDate = Column(String(191), nullable=True)
     dueDate = Column(String(191), nullable=False)
     status = Column(String(191), default="PENDING", nullable=False)  # PENDING, COMPLETED, OVERDUE
     period = Column(String(191), nullable=False)
+    createdAt = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updatedAt = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+class Statement(Base):
+    __tablename__ = "Statement"
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    statementType = Column(String(191), nullable=False)  # e.g., Profit & Loss, Balance Sheet, Cash Flow, Trial Balance
+    period = Column(String(191), nullable=False)
+    totalIncome = Column(Float, default=0.0, nullable=True)
+    totalExpense = Column(Float, default=0.0, nullable=True)
+    netAmount = Column(Float, default=0.0, nullable=True)
+    status = Column(String(191), default="Generated", nullable=False)  # Generated, Audited, Approved
     createdAt = Column(DateTime, default=datetime.utcnow, nullable=False)
     updatedAt = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 

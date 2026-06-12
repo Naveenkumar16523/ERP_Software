@@ -205,6 +205,35 @@ class ExpenseCreate(BaseModel):
     category: str
     amount: float
     date: str
+    paidBy: Optional[str] = None
+    receiptStatus: Optional[str] = "Pending"
+
+class ApprovalWorkflowCreate(BaseModel):
+    type: str
+    amount: float
+    requester: str
+    requestNo: Optional[str] = None
+    date: Optional[str] = None
+    reason: Optional[str] = None
+    status: Optional[str] = "PENDING"
+
+class TaxDeadlineCreate(BaseModel):
+    taxName: Optional[str] = None
+    taxType: str
+    rate: Optional[float] = 0.0
+    applicableOn: Optional[str] = None
+    effectiveDate: Optional[str] = None
+    dueDate: str
+    period: str
+    status: Optional[str] = "PENDING"
+
+class StatementCreate(BaseModel):
+    statementType: str
+    period: str
+    totalIncome: Optional[float] = 0.0
+    totalExpense: Optional[float] = 0.0
+    netAmount: Optional[float] = 0.0
+    status: Optional[str] = "Generated"
 
 class ProjectCreate(BaseModel):
     name: str
