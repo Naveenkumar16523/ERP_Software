@@ -29,15 +29,20 @@ def clean_database_url(url):
 DATABASE_URL = clean_database_url(os.getenv("DATABASE_URL"))
 IS_DEV = os.getenv("NODE_ENV", "development") == "development"
 
-# Configure connection arguments, enabling SSL for TiDB Cloud and PostgreSQL
+# Configure connection arguments, enabling SSL for TiDB Cloud and PostgreSQL/Supabase
 connect_args = {}
-if DATABASE_URL and "tidbcloud.com" in DATABASE_URL:
-    connect_args = {
-        "ssl": {
-            # TiDB Cloud requires SSL/TLS. PyMySQL ssl options can be set to an empty dict to activate SSL.
-            # "strict" or cert dict can also be passed depending on needs.
+if DATABASE_URL:
+    if "tidbcloud.com" in DATABASE_URL:
+        connect_args = {
+            "ssl": {
+                # TiDB Cloud requires SSL/TLS. PyMySQL ssl options can be set to an empty dict to activate SSL.
+                # "strict" or cert dict can also be passed depending on needs.
+            }
         }
-    }
+    elif "supabase.com" in DATABASE_URL or "supabase.co" in DATABASE_URL:
+        connect_args = {
+            "sslmode": "require"
+        }
 
 # Use SQLite as fallback if DATABASE_URL is not set or connection fails
 if not DATABASE_URL:
