@@ -52,8 +52,8 @@ export default function Dashboard() {
 
   const fetchDashboardData = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const API_URL = import.meta.env.VITE_API_URL || '';
+      const token = localStorage.getItem('erp_token');
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
       const response = await fetch(`${API_URL}/api/v1/dashboard/metrics`, {
         headers: {
           'Authorization': `Bearer ${token}`,
