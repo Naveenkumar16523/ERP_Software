@@ -36,15 +36,92 @@ async def get_current_user(
             detail="Invalid or expired token"
         )
         
-    user_id = payload.get("userId")
-    email = payload.get("email")
-    if not user_id or not email:
+    user_id = payload.get("sub") or payload.get("userId")
+    email = payload.get("email") or payload.get("username")
+    if not user_id:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired token"
         )
 
-    # 1. Session check: check Redis or DB fallback
+    # 1. Check if user is in the new ERPUser table (RBAC system)
+    from app.models.models import ERPUser, ModuleAccess
+    user = db.query(ERPUser).filter(ERPUser.id == user_id).first()
+    
+    if user:
+        # ERPUser session is stateless JWT, skip DB Session validation
+        if not user.isActive:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="User account is inactive"
+            )
+            
+        # Build permissions list from ModuleAccess
+        permissions_list = []
+        if user.isCEO:
+            permissions_list = ["*"]
+        else:
+            role_id = user.roleId
+            if role_id:
+                module_accesses = db.query(ModuleAccess).filter(ModuleAccess.roleId == role_id).all()
+                
+                # Map db module keys to route keys
+                MODULE_MAPPING = {
+                    "finance": "finance",
+                    "support": "support",
+                    "supply_chain": "supply_chain",
+                    "projects": "projects",
+                    "procurement": "procurement",
+                    "human_resources": "hr",
+                    "manufacturing": "manufacturing",
+                    "inventory": "inventory",
+                    "crm_pipeline": "crm",
+                    "ecommerce": "ecommerce",
+                    "fixed_assets": "assets",
+                    "analytics_hub": "analytics",
+                    "banking": "banking",
+                    "healthcare": "healthcare",
+                    "education": "education",
+                    "sustainability": "sustainability",
+                    "marketing": "marketing",
+                    "security": "security",
+                    "migration_hub": "migration",
+                    "rpa_automation": "automation"
+                }
+                
+                for access in module_accesses:
+                    db_key = access.moduleKey
+                    keys_to_add = [db_key]
+                    
+                    mapped_key = MODULE_MAPPING.get(db_key)
+                    if mapped_key:
+                        keys_to_add.append(mapped_key)
+                        
+                    for k in set(keys_to_add):
+                        if access.canRead:
+                            permissions_list.append(f"{k}:read")
+                        if access.canWrite:
+                            permissions_list.append(f"{k}:write")
+                        if access.canExport:
+                            permissions_list.append(f"{k}:export")
+                            
+        return AuthenticatedUser(
+            id=user.id,
+            email=user.email or email,
+            permissions=permissions_list,
+            token=token,
+            is_ceo=user.isCEO
+        )
+
+    # 2. Fallback to old User (stateful) session verification
+    from app.models.models import User, Session as UserSession
+    old_user = db.query(User).filter(User.id == user_id, User.isActive == True).first()
+    if not old_user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User account is inactive or deleted"
+        )
+        
     session_cache_key = f"session:{token}"
     cached_session = cache_get(session_cache_key)
     
@@ -56,7 +133,6 @@ async def get_current_user(
         except Exception:
             is_session_valid = False
     else:
-        # Fallback to Database
         db_session = db.query(UserSession).filter(
             UserSession.token == token,
             UserSession.isValid == True
@@ -69,8 +145,8 @@ async def get_current_user(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Session has expired or been revoked"
         )
-
-    # 2. Check cached permissions
+        
+    # Check cached permissions
     permissions_cache_key = f"user:perms:{user_id}"
     cached_perms = cache_get(permissions_cache_key)
     
@@ -80,48 +156,33 @@ async def get_current_user(
             permissions_list = json.loads(cached_perms)
         except Exception:
             permissions_list = []
-    
-    # Retrieve user
-    user = db.query(User).filter(User.id == user_id, User.isActive == True).first()
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User account is inactive or deleted"
-        )
-
+            
     if not permissions_list:
-        # Check if user is CEO/admin directly from roles
-        from app.models.models import UserRole, Role
+        from app.models.models import UserRole, Role, RolePermission, Permission
         is_ceo = db.query(UserRole).join(Role).filter(
-            UserRole.userId == user.id,
+            UserRole.userId == old_user.id,
             Role.name.in_(["CEO", "admin", "ADMIN", "superadmin"])
         ).first() is not None
         
-        # We need to compute permissions by joining UserRole -> Role -> RolePermission -> Permission
-        from app.models.models import RolePermission, Permission
         permissions = db.query(Permission.name).join(
             RolePermission, Permission.id == RolePermission.permissionId
         ).join(
             UserRole, RolePermission.roleId == UserRole.roleId
         ).filter(
-            UserRole.userId == user.id
+            UserRole.userId == old_user.id
         ).all()
         
         permissions_list = [p[0] for p in permissions]
-        
-        # Cache for 5 minutes (300 seconds)
         cache_set(permissions_cache_key, json.dumps(permissions_list), 300)
     else:
-        # If we used cached permissions, we also need to know if they're a CEO.
-        # It's faster to check if '*' or 'admin:all' is in permissions, but if not, query.
         is_ceo = "*" in permissions_list or "admin:all" in permissions_list
         if not is_ceo:
             from app.models.models import UserRole, Role
             is_ceo = db.query(UserRole).join(Role).filter(
-                UserRole.userId == user.id,
+                UserRole.userId == old_user.id,
                 Role.name.in_(["CEO", "admin", "ADMIN", "superadmin"])
             ).first() is not None
-
+            
     return AuthenticatedUser(id=user_id, email=email, permissions=permissions_list, token=token, is_ceo=is_ceo)
 
 def require_permission(required_permission: str):
