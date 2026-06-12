@@ -41,6 +41,8 @@ class VoucherCreate(BaseModel):
     debitAcc: str = Field(..., min_length=1, max_length=100)
     creditAcc: str = Field(..., min_length=1, max_length=100)
     narration: Optional[str] = Field(default="")
+    date: Optional[datetime] = None
+    voucherNo: Optional[str] = None
 
     @field_validator('debitAcc', 'creditAcc')
     @classmethod

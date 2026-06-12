@@ -149,7 +149,9 @@ export const api = {
         amount: entry.amount,
         debitAcc: entry.debitAcc,
         creditAcc: entry.creditAcc,
-        narration: entry.narration || ''
+        narration: entry.narration || '',
+        date: entry.date ? new Date(entry.date).toISOString() : null,
+        voucherNo: entry.voucherNo || null
       };
       try { 
         const res = await request('/finance/voucher', { method: 'POST', body: JSON.stringify(payload) }); 

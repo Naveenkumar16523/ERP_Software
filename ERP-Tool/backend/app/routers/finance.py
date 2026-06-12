@@ -98,15 +98,22 @@ async def create_voucher(body: VoucherCreate, req: Request, current_user: Authen
 
         # Run inside single atomic database transaction
         # Voucher number generation
-        count = db.query(func.count(JournalEntry.id)).scalar()
-        timestamp_ms = int(time.time() * 1000)
-        voucher_no = f"VCHR-{timestamp_ms}-{count + 1}"
+        if body.voucherNo:
+            # Check if this voucher number already exists
+            existing_vchr = db.query(JournalEntry).filter(JournalEntry.voucherNo == body.voucherNo).first()
+            if existing_vchr:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Voucher/Reference number already exists")
+            voucher_no = body.voucherNo
+        else:
+            count = db.query(func.count(JournalEntry.id)).scalar()
+            timestamp_ms = int(time.time() * 1000)
+            voucher_no = f"VCHR-{timestamp_ms}-{count + 1}"
 
         # Get last entry to link hash
         last_entry = db.query(JournalEntry).order_by(JournalEntry.blockIndex.desc()).first()
         prev_hash = last_entry.blockHash if last_entry else "0"
         next_index = (last_entry.blockIndex + 1) if last_entry else 1
-        date = datetime.utcnow()
+        date = body.date if body.date else datetime.utcnow()
 
         # Compute hash
         block_hash = calculate_block_hash(

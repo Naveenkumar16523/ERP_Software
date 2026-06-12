@@ -84,12 +84,20 @@ export default function FinanceModule() {
   const [expenseModalOpen, setExpenseModalOpen] = useState(false);
 
   const [newAcct, setNewAcct] = useState({ code: '', name: '', type: 'ASSET', balance: 0 });
-  const [newJournal, setNewJournal] = useState({ debitAcc: '', creditAcc: '', amount: 0, narration: '' });
+  const [newJournal, setNewJournal] = useState({
+    debitAcc: '',
+    creditAcc: '',
+    amount: 0,
+    narration: '',
+    date: new Date().toISOString().split('T')[0],
+    voucherNo: ''
+  });
   const [newInv, setNewInv] = useState({ customerName: '', totalAmount: 0 });
   const [newBudget, setNewBudget] = useState({ costCenter: '', period: 'monthly', amount: 0, year: 2026, month: 6 });
   const [newExpense, setNewExpense] = useState({ description: '', category: '', amount: 0, date: '' });
   const [ledgerStatus, setLedgerStatus] = useState(null);
   const [isValidating, setIsValidating] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [plPeriod, setPlPeriod] = useState('month');
   const [plYear, setPlYear] = useState(2026);
   const [plQuarter, setPlQuarter] = useState(2);
@@ -110,6 +118,8 @@ export default function FinanceModule() {
 
   const handleAddAccount = async () => {
     if (!newAcct.code || !newAcct.name) return addToast('Account code and name are required', 'error');
+    if (isSubmitting) return;
+    setIsSubmitting(true);
     const payload = { ...newAcct, balance: parseFloat(newAcct.balance) || 0 };
     try {
       const savedAcc = await api.finance.createAccount(payload);
@@ -119,17 +129,21 @@ export default function FinanceModule() {
       }
       addToast('Account created successfully', 'success');
       addNotification(`New account "${newAcct.name}" added to ledger`);
+      setNewAcct({ code: '', name: '', type: 'ASSET', balance: 0 });
+      setAcctModalOpen(false);
     } catch (err) {
       addToast(`Error creating account: ${err.message}`, 'error');
+    } finally {
+      setIsSubmitting(false);
     }
-    setNewAcct({ code: '', name: '', type: 'ASSET', balance: 0 });
-    setAcctModalOpen(false);
   };
 
   const handleAddJournal = async () => {
     if (!newJournal.debitAcc || !newJournal.creditAcc || !newJournal.amount) {
       return addToast('All journal fields are required', 'error');
     }
+    if (isSubmitting) return;
+    setIsSubmitting(true);
     const payload = { ...newJournal, amount: parseFloat(newJournal.amount) };
     try {
       const savedJE = await api.finance.createJournalEntry(payload);
@@ -141,15 +155,26 @@ export default function FinanceModule() {
       const accts = await api.finance.getAccounts();
       if (Array.isArray(accts)) setAccounts(accts);
       addToast('Journal entry recorded', 'success');
+      setNewJournal({
+        debitAcc: '',
+        creditAcc: '',
+        amount: 0,
+        narration: '',
+        date: new Date().toISOString().split('T')[0],
+        voucherNo: ''
+      });
+      setJournalModalOpen(false);
     } catch (err) {
       addToast(`Error recording journal: ${err.message}`, 'error');
+    } finally {
+      setIsSubmitting(false);
     }
-    setNewJournal({ debitAcc: '', creditAcc: '', amount: 0, narration: '' });
-    setJournalModalOpen(false);
   };
 
   const handleAddInvoice = async () => {
     if (!newInv.customerName || !newInv.totalAmount) return addToast('Customer name and amount required', 'error');
+    if (isSubmitting) return;
+    setIsSubmitting(true);
     const payload = { ...newInv, totalAmount: parseFloat(newInv.totalAmount) };
     try {
       const savedInv = await api.finance.createInvoice(payload);
@@ -158,15 +183,19 @@ export default function FinanceModule() {
         addInvoice(savedInv);
       }
       addToast('Invoice created', 'success');
+      setNewInv({ customerName: '', totalAmount: 0 });
+      setInvoiceModalOpen(false);
     } catch (err) {
       addToast(`Error creating invoice: ${err.message}`, 'error');
+    } finally {
+      setIsSubmitting(false);
     }
-    setNewInv({ customerName: '', totalAmount: 0 });
-    setInvoiceModalOpen(false);
   };
 
   const handleAddBudget = async () => {
     if (!newBudget.costCenter || !newBudget.amount) return addToast('Cost center and amount are required', 'error');
+    if (isSubmitting) return;
+    setIsSubmitting(true);
     const payload = { ...newBudget, amount: parseFloat(newBudget.amount) };
     try {
       const savedBgt = await api.finance.createBudget(payload);
@@ -176,15 +205,19 @@ export default function FinanceModule() {
       }
       addToast('Budget created successfully', 'success');
       addNotification(`New budget for ${newBudget.costCenter} created`);
+      setNewBudget({ costCenter: '', period: 'monthly', amount: 0, year: 2026, month: 6 });
+      setBudgetModalOpen(false);
     } catch (err) {
       addToast(`Error creating budget: ${err.message}`, 'error');
+    } finally {
+      setIsSubmitting(false);
     }
-    setNewBudget({ costCenter: '', period: 'monthly', amount: 0, year: 2026, month: 6 });
-    setBudgetModalOpen(false);
   };
 
   const handleAddExpense = async () => {
     if (!newExpense.description || !newExpense.category || !newExpense.amount) return addToast('Description, category, and amount are required', 'error');
+    if (isSubmitting) return;
+    setIsSubmitting(true);
     const payload = { ...newExpense, amount: parseFloat(newExpense.amount), date: newExpense.date || new Date().toISOString().split('T')[0] };
     try {
       const savedExp = await api.finance.createExpense(payload);
@@ -193,11 +226,13 @@ export default function FinanceModule() {
         addExpense(savedExp);
       }
       addToast('Expense logged successfully', 'success');
+      setNewExpense({ description: '', category: '', amount: 0, date: '' });
+      setExpenseModalOpen(false);
     } catch (err) {
       addToast(`Error logging expense: ${err.message}`, 'error');
+    } finally {
+      setIsSubmitting(false);
     }
-    setNewExpense({ description: '', category: '', amount: 0, date: '' });
-    setExpenseModalOpen(false);
   };
 
   const handleApproveExpense = async (expenseId) => {
@@ -740,8 +775,10 @@ export default function FinanceModule() {
           </div>
           <div><label className="form-label">Opening Balance (₹)</label><input type="number" className="form-input" value={newAcct.balance} onChange={e => setNewAcct({...newAcct, balance: e.target.value})} /></div>
           <div className="flex gap-2 justify-end pt-2">
-            <button onClick={() => setAcctModalOpen(false)} className="btn-secondary text-sm">Cancel</button>
-            <button onClick={handleAddAccount} className="btn-primary text-sm">Create Account</button>
+            <button onClick={() => setAcctModalOpen(false)} disabled={isSubmitting} className="btn-secondary text-sm">Cancel</button>
+            <button onClick={handleAddAccount} disabled={isSubmitting} className="btn-primary text-sm">
+              {isSubmitting ? 'Creating...' : 'Create Account'}
+            </button>
           </div>
         </div>
       </Modal>
@@ -749,6 +786,8 @@ export default function FinanceModule() {
       {/* Add Journal Modal */}
       <Modal isOpen={journalModalOpen} onClose={() => setJournalModalOpen(false)} title="New Journal Entry">
         <div className="space-y-4">
+          <div><label className="form-label">Reference Number (Optional)</label><input className="form-input" value={newJournal.voucherNo} onChange={e => setNewJournal({...newJournal, voucherNo: e.target.value})} placeholder="e.g. VCHR-1001 (auto-generated if empty)" /></div>
+          <div><label className="form-label">Date (Optional)</label><input type="date" className="form-input" value={newJournal.date} onChange={e => setNewJournal({...newJournal, date: e.target.value})} /></div>
           <div><label className="form-label">Debit Account</label>
             <select className="form-input" value={newJournal.debitAcc} onChange={e => setNewJournal({...newJournal, debitAcc: e.target.value})}>
               <option value="">Select account...</option>
@@ -762,10 +801,12 @@ export default function FinanceModule() {
             </select>
           </div>
           <div><label className="form-label">Amount (₹)</label><input type="number" className="form-input" value={newJournal.amount} onChange={e => setNewJournal({...newJournal, amount: e.target.value})} /></div>
-          <div><label className="form-label">Narration</label><textarea className="form-input" rows={2} value={newJournal.narration} onChange={e => setNewJournal({...newJournal, narration: e.target.value})} /></div>
+          <div><label className="form-label">Description</label><textarea className="form-input" rows={2} value={newJournal.narration} onChange={e => setNewJournal({...newJournal, narration: e.target.value})} placeholder="Narration or entry description" /></div>
           <div className="flex gap-2 justify-end pt-2">
-            <button onClick={() => setJournalModalOpen(false)} className="btn-secondary text-sm">Cancel</button>
-            <button onClick={handleAddJournal} className="btn-primary text-sm">Record Entry</button>
+            <button onClick={() => setJournalModalOpen(false)} disabled={isSubmitting} className="btn-secondary text-sm">Cancel</button>
+            <button onClick={handleAddJournal} disabled={isSubmitting} className="btn-primary text-sm">
+              {isSubmitting ? 'Recording...' : 'Record Entry'}
+            </button>
           </div>
         </div>
       </Modal>
@@ -777,8 +818,10 @@ export default function FinanceModule() {
           <div><label className="form-label">Total Amount (₹)</label><input type="number" className="form-input" value={newInv.totalAmount} onChange={e => setNewInv({...newInv, totalAmount: e.target.value})} /></div>
           <div><label className="form-label">Due Date</label><input type="date" className="form-input" value={newInv.dueDate || ''} onChange={e => setNewInv({...newInv, dueDate: e.target.value})} /></div>
           <div className="flex gap-2 justify-end pt-2">
-            <button onClick={() => setInvoiceModalOpen(false)} className="btn-secondary text-sm">Cancel</button>
-            <button onClick={handleAddInvoice} className="btn-primary text-sm">Create Invoice</button>
+            <button onClick={() => setInvoiceModalOpen(false)} disabled={isSubmitting} className="btn-secondary text-sm">Cancel</button>
+            <button onClick={handleAddInvoice} disabled={isSubmitting} className="btn-primary text-sm">
+              {isSubmitting ? 'Creating...' : 'Create Invoice'}
+            </button>
           </div>
         </div>
       </Modal>
@@ -814,8 +857,10 @@ export default function FinanceModule() {
             </div>
           )}
           <div className="flex gap-2 justify-end pt-2">
-            <button onClick={() => setBudgetModalOpen(false)} className="btn-secondary text-sm">Cancel</button>
-            <button onClick={handleAddBudget} className="btn-primary text-sm">Create Budget</button>
+            <button onClick={() => setBudgetModalOpen(false)} disabled={isSubmitting} className="btn-secondary text-sm">Cancel</button>
+            <button onClick={handleAddBudget} disabled={isSubmitting} className="btn-primary text-sm">
+              {isSubmitting ? 'Creating...' : 'Create Budget'}
+            </button>
           </div>
         </div>
       </Modal>
@@ -839,8 +884,10 @@ export default function FinanceModule() {
           <div><label className="form-label">Date</label><input type="date" className="form-input" value={newExpense.date} onChange={e => setNewExpense({...newExpense, date: e.target.value})} /></div>
           <div><label className="form-label">Receipt Upload</label><input type="file" className="form-input" accept=".pdf,.jpg,.png" /></div>
           <div className="flex gap-2 justify-end pt-2">
-            <button onClick={() => setExpenseModalOpen(false)} className="btn-secondary text-sm">Cancel</button>
-            <button onClick={handleAddExpense} className="btn-primary text-sm">Log Expense</button>
+            <button onClick={() => setExpenseModalOpen(false)} disabled={isSubmitting} className="btn-secondary text-sm">Cancel</button>
+            <button onClick={handleAddExpense} disabled={isSubmitting} className="btn-primary text-sm">
+              {isSubmitting ? 'Logging...' : 'Log Expense'}
+            </button>
           </div>
         </div>
       </Modal>
