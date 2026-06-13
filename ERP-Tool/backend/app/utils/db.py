@@ -1,109 +1,57 @@
 import os
-from urllib.parse import urlparse, urlunparse
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import declarative_base, sessionmaker
 from dotenv import load_dotenv
 
-# Load env variables
 load_dotenv()
 
-def clean_database_url(url):
-    """Remove all query parameters from DATABASE_URL"""
-    if not url:
-        return url
-    
-    parsed = urlparse(url)
-    
-    # Rebuild URL without query parameters
-    cleaned_url = urlunparse((
-        parsed.scheme,
-        parsed.netloc,
-        parsed.path,
-        parsed.params,
-        '',  # Empty query string
-        parsed.fragment
-    ))
-    
-    return cleaned_url
+DATABASE_URL = os.getenv("DATABASE_URL")
 
-DATABASE_URL = clean_database_url(os.getenv("DATABASE_URL"))
-IS_DEV = os.getenv("NODE_ENV", "development") == "development"
-
-# Configure connection arguments, enabling SSL for TiDB Cloud and PostgreSQL/Supabase
-connect_args = {}
-if DATABASE_URL:
-    if "tidbcloud.com" in DATABASE_URL:
-        connect_args = {
-            "ssl": {
-                # TiDB Cloud requires SSL/TLS. PyMySQL ssl options can be set to an empty dict to activate SSL.
-                # "strict" or cert dict can also be passed depending on needs.
-            }
-        }
-    elif "supabase.com" in DATABASE_URL or "supabase.co" in DATABASE_URL:
-        connect_args = {
-            "sslmode": "require",
-            "connect_timeout": 3
-        }
-
-# Use SQLite as fallback if DATABASE_URL is not set
 if not DATABASE_URL:
-    print("DATABASE_URL not set. Using SQLite as fallback database.")
-    DATABASE_URL = "sqlite:///./erp.db"
-    connect_args = {}
+    raise RuntimeError(
+        "FATAL: DATABASE_URL environment variable is not set. "
+        "Set it to your Supabase direct connection URL: "
+        "postgresql://postgres.<project>:<password>@db.<project>.supabase.co:5432/postgres"
+    )
+
+if "supabase" not in DATABASE_URL and "supabase.co" not in DATABASE_URL:
+    print(f"[WARNING] DATABASE_URL does not appear to point to Supabase: {DATABASE_URL[:50]}...")
+
+# Use SSL for Supabase, plain for local dev
+connect_args = {}
+if "supabase.co" in DATABASE_URL or "supabase.com" in DATABASE_URL:
+    connect_args = {
+        "sslmode": "require",
+        "connect_timeout": 15,  # Render cold starts can take 5-15s
+    }
 
 try:
     engine = create_engine(
         DATABASE_URL,
-        echo=False,  # Set to True if database query logging is needed in terminal
+        echo=False,
         connect_args=connect_args,
-        pool_pre_ping=True,  # Test connections before handing them to handlers to avoid stale connection errors
-        pool_recycle=3600    # Recycle connections after an hour
+        pool_pre_ping=True,
+        pool_recycle=1800,
+        pool_size=5,
+        max_overflow=10,
     )
-    # Test connection
+    # Verify connection on startup
     with engine.connect() as conn:
         conn.execute(text("SELECT 1"))
-    print(f"Connected to database successfully: {DATABASE_URL}")
+    print(f"[DB] Connected to Supabase successfully.")
 except Exception as e:
-    print(f"Failed to connect to {DATABASE_URL} directly: {e}")
-    supabase_url = os.getenv("SUPABASE_URL")
-    supabase_key = os.getenv("SUPABASE_SERVICE_KEY")
-    if supabase_url and supabase_key:
-        print("Attempting fallback connection to Supabase via HTTP PostgREST API...")
-        try:
-            from app.utils.supabase_dbapi import get_supabase_http_connection
-            engine = create_engine(
-                'postgresql+psycopg2://',
-                creator=lambda: get_supabase_http_connection(supabase_url, supabase_key),
-                pool_pre_ping=True
-            )
-            # Test connection
-            with engine.connect() as conn:
-                conn.execute(text("SELECT 1"))
-            print("Connected to Supabase via HTTP PostgREST successfully!")
-        except Exception as http_e:
-            print(f"Failed to connect via Supabase HTTP: {http_e}. Falling back to SQLite.")
-            DATABASE_URL = "sqlite:///./erp.db"
-            engine = create_engine(
-                DATABASE_URL,
-                echo=False,
-                connect_args={"check_same_thread": False},
-                pool_pre_ping=True,
-                pool_recycle=3600
-            )
-    else:
-        print("Supabase credentials not found in .env. Falling back to SQLite.")
-        DATABASE_URL = "sqlite:///./erp.db"
-        engine = create_engine(
-            DATABASE_URL,
-            echo=False,
-            connect_args={"check_same_thread": False},
-            pool_pre_ping=True,
-            pool_recycle=3600
-        )
-
+    raise RuntimeError(
+        f"FATAL: Cannot connect to Supabase database.\n"
+        f"URL: {DATABASE_URL[:60]}...\n"
+        f"Error: {e}\n\n"
+        f"Troubleshooting:\n"
+        f"  1. Ensure DATABASE_URL uses port 5432 (direct), not 6543 (pooler)\n"
+        f"  2. URL format: postgresql://postgres.<ref>:<password>@db.<ref>.supabase.co:5432/postgres\n"
+        f"  3. Check Supabase project is not paused (free tier pauses after 1 week inactive)\n"
+        f"  4. Verify password is URL-encoded (@ → %40, # → %23, $ → %24)\n"
+    ) from e
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
 Base = declarative_base()
 
 def get_db():
