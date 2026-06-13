@@ -14,7 +14,7 @@ if not DATABASE_URL:
         "postgresql://postgres.<project>:<password>@db.<project>.supabase.co:5432/postgres"
     )
 
-if "supabase" not in DATABASE_URL and "supabase.co" not in DATABASE_URL:
+if "supabase" not in DATABASE_URL and "supabase.co" not in DATABASE_URL and "supabase.com" not in DATABASE_URL:
     print(f"[WARNING] DATABASE_URL does not appear to point to Supabase: {DATABASE_URL[:50]}...")
 
 # Use SSL for Supabase, plain for local dev
@@ -45,9 +45,9 @@ except Exception as e:
         f"URL: {DATABASE_URL[:60]}...\n"
         f"Error: {e}\n\n"
         f"Troubleshooting:\n"
-        f"  1. Ensure DATABASE_URL uses port 5432 (direct), not 6543 (pooler)\n"
-        f"  2. URL format: postgresql://postgres.<ref>:<password>@db.<ref>.supabase.co:5432/postgres\n"
-        f"  3. Check Supabase project is not paused (free tier pauses after 1 week inactive)\n"
+        f"  1. Ensure DATABASE_URL uses port 5432 (Session pooler or Direct)\n"
+        f"  2. URL format: postgresql://postgres.<ref>:<password>@aws-0-...pooler.supabase.com:5432/postgres\n"
+        f"  3. Check Supabase project is not paused\n"
         f"  4. Verify password is URL-encoded (@ → %40, # → %23, $ → %24)\n"
     ) from e
 
