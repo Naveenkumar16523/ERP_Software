@@ -43,7 +43,7 @@ export default function SignIn() {
     setAuthLoading(true);
 
     try {
-      const data = await api.auth.login({ username: email.trim(), password });
+      const data = await api.auth.login({ email: email.trim(), password });
 
       setToken(data.access_token || data.token);
       if (data.refreshToken) {
