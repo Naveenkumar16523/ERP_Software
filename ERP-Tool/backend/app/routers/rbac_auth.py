@@ -24,7 +24,8 @@ JWT_EXPIRATION_MINUTES = 60 * 24  # 24 hours
 
 # Schemas
 class Login(BaseModel):
-    username: str
+    username: Optional[str] = None
+    email: Optional[str] = None
     password: str
 
 class TokenResponse(BaseModel):
@@ -330,9 +331,13 @@ async def login(credentials: Login, db = Depends(get_mongo_db)):
         raise HTTPException(status_code=500, detail="Database connection failed")
     
     # Try matching by username first, then fall back to email lookup
-    user = await db.erp_users.find_one({"username": credentials.username})
+    login_id = credentials.username or credentials.email
+    if not login_id:
+        raise HTTPException(status_code=400, detail="Must provide username or email")
+    
+    user = await db.erp_users.find_one({"username": login_id})
     if not user:
-        user = await db.erp_users.find_one({"email": credentials.username})
+        user = await db.erp_users.find_one({"email": login_id})
     
     if not user:
         raise HTTPException(
