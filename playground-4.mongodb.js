@@ -20,7 +20,7 @@ const collections = [
   "analyticsreports", "bankaccounts", "banktransactions", "loans",
   "campaigns", "marketingleads", "marketinganalytics", "socialmediaposts",
   "securityalerts", "accesslogs", "useractivities", "compliances",
-  "migrationhubs", "rpaautomations"
+  "migrationhubs", "rpaautomations", "usermanagements"
 ];
 
 // Iterate and explicitly create the collections
