@@ -1,16 +1,15 @@
 """
-RBAC Authentication Router - Unified login for CEO and employees with JWT tokens
+RBAC Authentication Router - Unified login for CEO and employees with JWT tokens (MongoDB Version)
 """
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from datetime import datetime, timedelta
 from typing import List, Optional
 import os
 
-from app.utils.db import get_db
-from app.models.models import ERPUser, ERPRole, ModuleAccess, ERPDepartment
+from app.utils.mongodb import get_mongo_db
+from app.models.mongo_models import ERPUserModel, ERPRoleModel, ModuleAccessModel, ERPDepartmentModel
 from passlib.context import CryptContext
 from jose import JWTError, jwt
 
@@ -60,44 +59,46 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(plain_password, hashed_password)
 
-def get_user_permissions(user_id: str, db: Session) -> List[dict]:
+async def get_user_permissions(user_id: str, db) -> List[dict]:
     """Get module permissions for a user based on their role"""
-    user = db.query(ERPUser).filter(ERPUser.id == user_id).first()
+    user = await db.erp_users.find_one({"id": user_id})
     if not user:
         return []
     
-    module_access = db.query(ModuleAccess).filter(ModuleAccess.roleId == user.roleId).all()
+    module_access = await db.module_access.find({"roleId": user["roleId"]}).to_list(length=None)
     
     return [
         {
-            "moduleKey": access.moduleKey,
-            "canRead": access.canRead,
-            "canWrite": access.canWrite,
-            "canExport": access.canExport
+            "moduleKey": access["moduleKey"],
+            "canRead": access.get("canRead", True),
+            "canWrite": access.get("canWrite", False),
+            "canExport": access.get("canExport", False)
         }
         for access in module_access
     ]
 
-def get_allowed_modules(user_id: str, db: Session) -> List[str]:
+async def get_allowed_modules(user_id: str, db) -> List[str]:
     """Get list of module keys the user has access to"""
-    user = db.query(ERPUser).filter(ERPUser.id == user_id).first()
+    user = await db.erp_users.find_one({"id": user_id})
     if not user:
         return []
     
     # CEO has access to all modules
-    if user.isCEO:
+    if user.get("isCEO", False):
         return ["all"]
     
     # Get modules where canRead is True
-    module_access = db.query(ModuleAccess).filter(
-        ModuleAccess.roleId == user.roleId,
-        ModuleAccess.canRead == True
-    ).all()
+    module_access = await db.module_access.find({
+        "roleId": user["roleId"],
+        "canRead": True
+    }).to_list(length=None)
     
-    return [access.moduleKey for access in module_access]
+    return [access["moduleKey"] for access in module_access]
 
-def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security), db: Session = Depends(get_db)):
+async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security), db = Depends(get_mongo_db)):
     """Dependency to get current user from JWT token"""
+    if db is None:
+        raise HTTPException(status_code=500, detail="Database connection failed")
     try:
         payload = jwt.decode(credentials.credentials, JWT_SECRET, algorithms=[JWT_ALGORITHM])
         user_id: str = payload.get("sub")
@@ -112,14 +113,14 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(securit
             detail="Invalid authentication credentials"
         )
     
-    user = db.query(ERPUser).filter(ERPUser.id == user_id).first()
+    user = await db.erp_users.find_one({"id": user_id})
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="User not found"
         )
     
-    if not user.isActive:
+    if not user.get("isActive", True):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="User account is inactive"
@@ -127,9 +128,9 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(securit
     
     return user
 
-def require_ceo(current_user: ERPUser = Depends(get_current_user)):
+async def require_ceo(current_user: dict = Depends(get_current_user)):
     """Dependency to require CEO role"""
-    if not current_user.isCEO:
+    if not current_user.get("isCEO", False):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="CEO access required"
@@ -138,19 +139,21 @@ def require_ceo(current_user: ERPUser = Depends(get_current_user)):
 
 def require_module_access(module_key: str, permission: str = "canRead"):
     """Dependency factory to require specific module access"""
-    def check_access(
-        current_user: ERPUser = Depends(get_current_user),
-        db: Session = Depends(get_db)
+    async def check_access(
+        current_user: dict = Depends(get_current_user),
+        db = Depends(get_mongo_db)
     ):
+        if db is None:
+            raise HTTPException(status_code=500, detail="Database connection failed")
         # CEO has access to everything
-        if current_user.isCEO:
+        if current_user.get("isCEO", False):
             return current_user
         
         # Check module access
-        module_access = db.query(ModuleAccess).filter(
-            ModuleAccess.roleId == current_user.roleId,
-            ModuleAccess.moduleKey == module_key
-        ).first()
+        module_access = await db.module_access.find_one({
+            "roleId": current_user["roleId"],
+            "moduleKey": module_key
+        })
         
         if not module_access:
             raise HTTPException(
@@ -159,17 +162,17 @@ def require_module_access(module_key: str, permission: str = "canRead"):
             )
         
         # Check specific permission
-        if permission == "canRead" and not module_access.canRead:
+        if permission == "canRead" and not module_access.get("canRead", False):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Read permission required"
             )
-        elif permission == "canWrite" and not module_access.canWrite:
+        elif permission == "canWrite" and not module_access.get("canWrite", False):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Write permission required"
             )
-        elif permission == "canExport" and not module_access.canExport:
+        elif permission == "canExport" and not module_access.get("canExport", False):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Export permission required"
@@ -181,19 +184,21 @@ def require_module_access(module_key: str, permission: str = "canRead"):
 
 def require_read_only_or_full(module_key: str, method: str = "GET"):
     """Dependency factory to enforce read-only access for modules with read-only permissions"""
-    def check_access(
-        current_user: ERPUser = Depends(get_current_user),
-        db: Session = Depends(get_db)
+    async def check_access(
+        current_user: dict = Depends(get_current_user),
+        db = Depends(get_mongo_db)
     ):
+        if db is None:
+            raise HTTPException(status_code=500, detail="Database connection failed")
         # CEO has access to everything
-        if current_user.isCEO:
+        if current_user.get("isCEO", False):
             return current_user
         
         # Check module access
-        module_access = db.query(ModuleAccess).filter(
-            ModuleAccess.roleId == current_user.roleId,
-            ModuleAccess.moduleKey == module_key
-        ).first()
+        module_access = await db.module_access.find_one({
+            "roleId": current_user["roleId"],
+            "moduleKey": module_key
+        })
         
         if not module_access:
             raise HTTPException(
@@ -202,7 +207,7 @@ def require_read_only_or_full(module_key: str, method: str = "GET"):
             )
         
         # For read-only modules, only allow GET requests
-        if not module_access.canWrite and method not in ["GET", "HEAD", "OPTIONS"]:
+        if not module_access.get("canWrite", False) and method not in ["GET", "HEAD", "OPTIONS"]:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Read-only access: write operations not permitted"
@@ -215,38 +220,35 @@ def require_read_only_or_full(module_key: str, method: str = "GET"):
 # Endpoints
 
 @router.post("/reset-ceo")
-def reset_ceo_password(secret: str, db: Session = Depends(get_db)):
+async def reset_ceo_password(secret: str, db = Depends(get_mongo_db)):
     """
     Emergency CEO password reset endpoint.
     Protected by RESET_SECRET environment variable.
     Call: POST /api/v1/auth/reset-ceo?secret=<RESET_SECRET>
     """
+    if db is None:
+        raise HTTPException(status_code=500, detail="Database connection failed")
+    
     RESET_SECRET = os.getenv("RESET_SECRET", "clarix-reset-2024")
     if secret != RESET_SECRET:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid reset secret")
 
     try:
-        from app.models.models import Base
-        from app.utils.db import engine
-        Base.metadata.create_all(bind=engine)
-
         # Ensure departments exist
-        finance_dept = db.query(ERPDepartment).filter(ERPDepartment.code == "FIN").first()
+        finance_dept = await db.erp_departments.find_one({"code": "FIN"})
         if not finance_dept:
-            finance_dept = ERPDepartment(name="Finance", code="FIN")
-            db.add(finance_dept)
-            db.flush()
+            finance_dept = ERPDepartmentModel(name="Finance", code="FIN").model_dump()
+            await db.erp_departments.insert_one(finance_dept)
 
         # Ensure CEO/superadmin role exists
-        ceo_role = db.query(ERPRole).filter(ERPRole.name.in_(["superadmin", "ceo"])).first()
+        ceo_role = await db.erp_roles.find_one({"name": {"$in": ["superadmin", "ceo"]}})
         if not ceo_role:
-            ceo_role = ERPRole(
+            ceo_role = ERPRoleModel(
                 name="superadmin",
                 description="CEO / Superadmin with full access",
-                departmentId=finance_dept.id
-            )
-            db.add(ceo_role)
-            db.flush()
+                departmentId=finance_dept["id"]
+            ).model_dump()
+            await db.erp_roles.insert_one(ceo_role)
 
             # Add all module access
             all_modules = [
@@ -255,34 +257,48 @@ def reset_ceo_password(secret: str, db: Session = Depends(get_db)):
                 "supply_chain", "ecommerce", "analytics_hub", "banking", "healthcare",
                 "education", "sustainability", "marketing", "security", "migration_hub", "rpa_automation"
             ]
-            for m in all_modules:
-                db.add(ModuleAccess(roleId=ceo_role.id, moduleKey=m, canRead=True, canWrite=True, canExport=True))
+            
+            module_access_docs = [
+                ModuleAccessModel(
+                    roleId=ceo_role["id"], 
+                    moduleKey=m, 
+                    canRead=True, 
+                    canWrite=True, 
+                    canExport=True
+                ).model_dump()
+                for m in all_modules
+            ]
+            await db.module_access.insert_many(module_access_docs)
 
         # Create or reset CEO user
-        ceo_user = db.query(ERPUser).filter(ERPUser.username == "ceo").first()
+        ceo_user = await db.erp_users.find_one({"username": "ceo"})
         new_hash = pwd_context.hash("admin123")
 
         if ceo_user:
-            ceo_user.passwordHash = new_hash
-            ceo_user.isActive = True
-            ceo_user.isCEO = True
-            ceo_user.roleId = ceo_role.id
+            await db.erp_users.update_one(
+                {"id": ceo_user["id"]},
+                {"$set": {
+                    "passwordHash": new_hash,
+                    "isActive": True,
+                    "isCEO": True,
+                    "roleId": ceo_role["id"]
+                }}
+            )
             action = "reset"
         else:
-            ceo_user = ERPUser(
+            ceo_user = ERPUserModel(
                 username="ceo",
                 passwordHash=new_hash,
                 fullName="CEO",
                 email="ceo@company.com",
-                roleId=ceo_role.id,
-                departmentId=finance_dept.id,
+                roleId=ceo_role["id"],
+                departmentId=finance_dept["id"],
                 isActive=True,
                 isCEO=True
-            )
-            db.add(ceo_user)
+            ).model_dump()
+            await db.erp_users.insert_one(ceo_user)
             action = "created"
 
-        db.commit()
         return {
             "status": "success",
             "action": action,
@@ -291,15 +307,15 @@ def reset_ceo_password(secret: str, db: Session = Depends(get_db)):
             "message": f"CEO user {action} successfully. Login with username: ceo, password: admin123"
         }
     except Exception as e:
-        db.rollback()
         raise HTTPException(status_code=500, detail=f"Reset failed: {str(e)}")
 
 @router.get("/registration-status")
-def get_registration_status(db: Session = Depends(get_db)):
+async def get_registration_status(db = Depends(get_mongo_db)):
     """Check if registration is enabled (no users exist)"""
-    from sqlalchemy import func
+    if db is None:
+        raise HTTPException(status_code=500, detail="Database connection failed")
     try:
-        count = db.query(func.count(ERPUser.id)).scalar()
+        count = await db.erp_users.count_documents({})
         return {"registrationEnabled": count == 0}
     except Exception as e:
         raise HTTPException(
@@ -308,12 +324,15 @@ def get_registration_status(db: Session = Depends(get_db)):
         )
 
 @router.post("/login", response_model=TokenResponse)
-def login(credentials: Login, db: Session = Depends(get_db)):
+async def login(credentials: Login, db = Depends(get_mongo_db)):
     """Unified login - accepts both CEO and regular employees (by username OR email)"""
+    if db is None:
+        raise HTTPException(status_code=500, detail="Database connection failed")
+    
     # Try matching by username first, then fall back to email lookup
-    user = db.query(ERPUser).filter(ERPUser.username == credentials.username).first()
+    user = await db.erp_users.find_one({"username": credentials.username})
     if not user:
-        user = db.query(ERPUser).filter(ERPUser.email == credentials.username).first()
+        user = await db.erp_users.find_one({"email": credentials.username})
     
     if not user:
         raise HTTPException(
@@ -321,36 +340,36 @@ def login(credentials: Login, db: Session = Depends(get_db)):
             detail="Invalid credentials"
         )
     
-    if not verify_password(credentials.password, user.passwordHash):
+    if not verify_password(credentials.password, user["passwordHash"]):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid credentials"
         )
     
-    if not user.isActive:
+    if not user.get("isActive", True):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Account is inactive"
         )
     
     # Get user details
-    role = db.query(ERPRole).filter(ERPRole.id == user.roleId).first()
-    department = db.query(ERPDepartment).filter(ERPDepartment.id == user.departmentId).first()
+    role = await db.erp_roles.find_one({"id": user["roleId"]})
+    department = await db.erp_departments.find_one({"id": user["departmentId"]})
     
     # Get permissions
-    permissions = get_user_permissions(user.id, db)
+    permissions = await get_user_permissions(user["id"], db)
     
     # Get allowed modules list
-    allowed_modules = get_allowed_modules(user.id, db)
+    allowed_modules = await get_allowed_modules(user["id"], db)
     
     # Create JWT token with actual isCEO status and allowed_modules
     access_token = create_access_token(
         data={
-            "sub": user.id,
-            "username": user.username,
-            "isCEO": user.isCEO,
-            "roleId": user.roleId,
-            "departmentId": user.departmentId,
+            "sub": user["id"],
+            "username": user["username"],
+            "isCEO": user.get("isCEO", False),
+            "roleId": user["roleId"],
+            "departmentId": user["departmentId"],
             "allowed_modules": allowed_modules
         }
     )
@@ -358,46 +377,49 @@ def login(credentials: Login, db: Session = Depends(get_db)):
     return TokenResponse(
         access_token=access_token,
         user={
-            "id": user.id,
-            "username": user.username,
-            "fullName": user.fullName,
-            "email": user.email,
-            "roleId": user.roleId,
-            "roleName": role.name if role else "",
-            "departmentId": user.departmentId,
-            "departmentName": department.name if department else "",
-            "isActive": user.isActive,
-            "isCEO": user.isCEO,
+            "id": user["id"],
+            "username": user["username"],
+            "fullName": user["fullName"],
+            "email": user["email"],
+            "roleId": user["roleId"],
+            "roleName": role["name"] if role else "",
+            "departmentId": user["departmentId"],
+            "departmentName": department["name"] if department else "",
+            "isActive": user.get("isActive", True),
+            "isCEO": user.get("isCEO", False),
             "allowed_modules": allowed_modules
         },
         permissions=permissions
     )
 
 @router.get("/me", response_model=dict)
-def get_current_user_info(current_user: ERPUser = Depends(get_current_user), db: Session = Depends(get_db)):
+async def get_current_user_info(current_user: dict = Depends(get_current_user), db = Depends(get_mongo_db)):
     """Get current user information"""
-    role = db.query(ERPRole).filter(ERPRole.id == current_user.roleId).first()
-    department = db.query(ERPDepartment).filter(ERPDepartment.id == current_user.departmentId).first()
-    permissions = get_user_permissions(current_user.id, db)
-    allowed_modules = get_allowed_modules(current_user.id, db)
+    if db is None:
+        raise HTTPException(status_code=500, detail="Database connection failed")
+    
+    role = await db.erp_roles.find_one({"id": current_user["roleId"]})
+    department = await db.erp_departments.find_one({"id": current_user["departmentId"]})
+    permissions = await get_user_permissions(current_user["id"], db)
+    allowed_modules = await get_allowed_modules(current_user["id"], db)
     
     return {
-        "id": current_user.id,
-        "username": current_user.username,
-        "fullName": current_user.fullName,
-        "email": current_user.email,
-        "roleId": current_user.roleId,
-        "roleName": role.name if role else "",
-        "departmentId": current_user.departmentId,
-        "departmentName": department.name if department else "",
-        "isActive": current_user.isActive,
-        "isCEO": current_user.isCEO,
+        "id": current_user["id"],
+        "username": current_user["username"],
+        "fullName": current_user["fullName"],
+        "email": current_user["email"],
+        "roleId": current_user["roleId"],
+        "roleName": role["name"] if role else "",
+        "departmentId": current_user["departmentId"],
+        "departmentName": department["name"] if department else "",
+        "isActive": current_user.get("isActive", True),
+        "isCEO": current_user.get("isCEO", False),
         "allowed_modules": allowed_modules,
         "permissions": permissions
     }
 
 @router.post("/logout")
-def logout():
+async def logout():
     """Logout endpoint (client-side token deletion)"""
     return {"message": "Logged out successfully"}
 
@@ -406,12 +428,14 @@ class ChangePasswordRequest(BaseModel):
     new_password: str
 
 @router.post("/change-password")
-def change_password(
+async def change_password(
     password_data: ChangePasswordRequest,
     credentials: HTTPAuthorizationCredentials = Depends(security),
-    db: Session = Depends(get_db)
+    db = Depends(get_mongo_db)
 ):
     """Allow users to change their own password - accessible to all authenticated users"""
+    if db is None:
+        raise HTTPException(status_code=500, detail="Database connection failed")
     try:
         # Decode JWT to get user ID
         payload = jwt.decode(credentials.credentials, JWT_SECRET, algorithms=[JWT_ALGORITHM])
@@ -428,21 +452,21 @@ def change_password(
         )
     
     # Get user from database
-    user = db.query(ERPUser).filter(ERPUser.id == user_id).first()
+    user = await db.erp_users.find_one({"id": user_id})
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="User not found"
         )
     
-    if not user.isActive:
+    if not user.get("isActive", True):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="User account is inactive"
         )
     
     # Verify current password
-    if not verify_password(password_data.current_password, user.passwordHash):
+    if not verify_password(password_data.current_password, user["passwordHash"]):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Current password is incorrect"
@@ -452,8 +476,12 @@ def change_password(
     new_password_hash = pwd_context.hash(password_data.new_password)
     
     # Update password
-    user.passwordHash = new_password_hash
-    user.updatedAt = datetime.utcnow()
-    db.commit()
+    await db.erp_users.update_one(
+        {"id": user["id"]},
+        {"$set": {
+            "passwordHash": new_password_hash,
+            "updatedAt": datetime.utcnow()
+        }}
+    )
     
     return {"message": "Password changed successfully"}

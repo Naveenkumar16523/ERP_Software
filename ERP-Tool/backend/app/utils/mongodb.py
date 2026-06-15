@@ -1,50 +1,55 @@
+"""
+mongodb.py — MongoDB connection using Motor
+"""
 import os
 from motor.motor_asyncio import AsyncIOMotorClient
-from dotenv import load_dotenv
+import logging
 
-load_dotenv()
+logger = logging.getLogger(__name__)
 
-MONGODB_URI = os.getenv("MONGODB_URI", "mongodb://localhost:27017/erp_logs")
-client = None
-db = None
-is_connected = False
+class MongoDBClient:
+    client: AsyncIOMotorClient = None
+    db = None
+    is_connected = False
+
+mongo = MongoDBClient()
 
 async def connect_mongodb():
-    global client, db, is_connected
-    if is_connected:
+    """Initialize MongoDB connection."""
+    mongodb_url = os.getenv("MONGODB_URL")
+    if not mongodb_url:
+        logger.warning("MONGODB_URL is not set in environment. MongoDB will not connect.")
         return
+
     try:
-        # Validate MongoDB URI is not localhost (which won't work on Render)
-        if "localhost" in MONGODB_URI or "127.0.0.1" in MONGODB_URI:
-            print(f"MongoDB connection skipped: MONGODB_URI contains localhost: {MONGODB_URI}")
-            print("Set MONGODB_URI environment variable to your MongoDB Atlas connection string")
-            print("Format: mongodb+srv://<user>:<password>@cluster0.xxxxx.mongodb.net/<dbname>?retryWrites=true&w=majority")
-            client = None
-            db = None
-            is_connected = False
-            return
-
-        # Connect using the MongoDB URI
-        print(f"Attempting to connect to MongoDB at: {MONGODB_URI.split('@')[1] if '@' in MONGODB_URI else MONGODB_URI}")
-        client = AsyncIOMotorClient(MONGODB_URI, serverSelectionTimeoutMS=2000)
-        # Attempt to get server details to check connection
-        await client.server_info()
-
-        # Get the database name from the end of the URI
-        db_name = MONGODB_URI.split("/")[-1].split("?")[0] or "erp_logs"
-        db = client[db_name]
-        is_connected = True
-        print("Connected to MongoDB log repository successfully.")
+        import certifi
+        mongo.client = AsyncIOMotorClient(
+            mongodb_url, 
+            serverSelectionTimeoutMS=5000, 
+            tlsAllowInvalidCertificates=True
+        )
+        # Verify connection by pinging
+        await mongo.client.admin.command('ping')
+        mongo.is_connected = True
+        
+        db_name = os.getenv("MONGODB_DB_NAME", "erp_database")
+        mongo.db = mongo.client[db_name]
+        logger.info(f"Successfully connected to MongoDB Atlas (Database: {db_name})")
     except Exception as e:
-        print(f"MongoDB connection failed. Compliance logs will write to database only.")
-        print(f"MongoDB URI used: {MONGODB_URI.split('@')[1] if '@' in MONGODB_URI else MONGODB_URI}")
-        print(f"Error: {e}")
-        client = None
-        db = None
-        is_connected = False
+        logger.error(f"Failed to connect to MongoDB: {e}")
+        mongo.is_connected = False
+        mongo.client = None
+        mongo.db = None
+
+async def close_mongodb():
+    """Close MongoDB connection."""
+    if mongo.client:
+        mongo.client.close()
+        mongo.is_connected = False
+        logger.info("MongoDB connection closed.")
 
 def get_mongo_connection_status() -> bool:
-    return is_connected
+    return mongo.is_connected
 
 def get_mongo_db():
-    return db
+    return mongo.db
