@@ -20,13 +20,16 @@ async def connect_mongodb():
     if not mongodb_url:
         logger.warning("MONGODB_URL is not set in environment. MongoDB will not connect.")
         return
+        
+    mongodb_url = mongodb_url.strip('"').strip("'")
 
     try:
         import certifi
         mongo.client = AsyncIOMotorClient(
             mongodb_url, 
             serverSelectionTimeoutMS=5000, 
-            tlsAllowInvalidCertificates=True
+            tls=True,
+            tlsCAFile=certifi.where()
         )
         # Verify connection by pinging
         await mongo.client.admin.command('ping')
@@ -35,6 +38,7 @@ async def connect_mongodb():
         db_name = os.getenv("MONGODB_DB_NAME", "erp_database")
         mongo.db = mongo.client[db_name]
         logger.info(f"Successfully connected to MongoDB Atlas (Database: {db_name})")
+        await create_indexes()
     except Exception as e:
         logger.error(f"Failed to connect to MongoDB: {e}")
         mongo.is_connected = False
@@ -53,3 +57,13 @@ def get_mongo_connection_status() -> bool:
 
 def get_mongo_db():
     return mongo.db
+
+async def create_indexes():
+    if mongo.db is not None:
+        await mongo.db.erp_users.create_index("email", unique=True)
+        await mongo.db.erp_users.create_index("username", unique=True)
+        await mongo.db.audit_logs.create_index("timestamp")
+        await mongo.db.audit_logs.create_index("userId")
+        await mongo.db.accounts.create_index("code", unique=True)
+        await mongo.db.refresh_tokens.create_index("token", unique=True)
+        await mongo.db.refresh_tokens.create_index("expiresAt", expireAfterSeconds=0)

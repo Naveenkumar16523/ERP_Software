@@ -3,48 +3,47 @@ import json
 from datetime import datetime
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Request
-from sqlalchemy.orm import Session
-from sqlalchemy import or_, func
 
 from app.utils.db import get_db
 from app.utils.audit import log_audit_event
 from app.utils.crypto_ledger import calculate_block_hash, verify_ledger_chain
 from app.middlewares.auth_middleware import get_current_user, require_permission, AuthenticatedUser
-from app.models.models import Account, JournalEntry, Invoice, Budget, Expense, ApprovalWorkflow, ApprovalLevel, TaxDeadline, Statement
 from app.models.schemas import VoucherCreate, AccountCreate, InvoiceCreate, BudgetCreate, ExpenseCreate, ApprovalWorkflowCreate, TaxDeadlineCreate, StatementCreate
 
 router = APIRouter(prefix="/finance", tags=["Finance"])
 
-def update_account_balance(db: Session, account_id: str, amount: float, is_debit: bool):
-    account = db.query(Account).filter(Account.id == account_id).first()
+async def update_account_balance(db, account_id: str, amount: float, is_debit: bool):
+    account = await db.accounts.find_one({"id": account_id})
     if not account:
         return
-    if account.type.upper() in ["ASSET", "EXPENSE"]:
+    if account.get("type", "").upper() in ["ASSET", "EXPENSE", "Asset", "Expense"]:
         balance_change = amount if is_debit else -amount
     else:
         # LIABILITY, EQUITY, REVENUE
         balance_change = -amount if is_debit else amount
-    account.balance += balance_change
-
-def seed_accounts_if_empty(db: Session):
-    # Seeding disabled to start completely empty
-    pass
+        
+    await db.accounts.update_one(
+        {"id": account_id},
+        {"$inc": {"balance": balance_change}}
+    )
 
 # 1. ACCOUNTS LIST
 
 @router.get("/accounts")
-async def get_accounts(current_user: AuthenticatedUser = Depends(require_permission("finance:read")), db: Session = Depends(get_db)):
+async def get_accounts(current_user: AuthenticatedUser = Depends(require_permission("finance:read")), db = Depends(get_db)):
     try:
-        seed_accounts_if_empty(db)
-        accounts = db.query(Account).order_by(Account.code.asc()).all()
+        accounts = await db.accounts.find().sort("code", 1).to_list(length=None)
+        # Convert _id to string or remove it
+        for acc in accounts:
+            acc["_id"] = str(acc["_id"])
         return accounts
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail={"error": "Internal Server Error", "message": str(e)})
 
 @router.post("/accounts", status_code=status.HTTP_201_CREATED)
-async def create_account(body: AccountCreate, current_user: AuthenticatedUser = Depends(require_permission("finance:write")), db: Session = Depends(get_db)):
+async def create_account(body: AccountCreate, current_user: AuthenticatedUser = Depends(require_permission("finance:write")), db = Depends(get_db)):
     try:
-        existing = db.query(Account).filter(or_(Account.code == body.code, Account.name == body.name)).first()
+        existing = await db.accounts.find_one({"$or": [{"code": body.code}, {"name": body.name}]})
         if existing:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Account code or name already exists")
         
@@ -57,64 +56,58 @@ async def create_account(body: AccountCreate, current_user: AuthenticatedUser = 
         }
         db_type = type_mapping.get(body.type, body.type)
         
-        acc = Account(
-            code=body.code,
-            name=body.name,
-            type=db_type,
-            balance=body.balance
-        )
-        db.add(acc)
-        db.commit()
-        db.refresh(acc)
+        import uuid
+        acc_id = str(uuid.uuid4())
         
-        return {
-            "id": acc.id,
-            "code": acc.code,
-            "name": acc.name,
-            "type": acc.type,
-            "balance": acc.balance,
+        acc = {
+            "id": acc_id,
+            "code": body.code,
+            "name": body.name,
+            "type": db_type,
+            "balance": body.balance,
             "status": "ACTIVE",
-            "created_at": acc.createdAt
+            "createdAt": datetime.utcnow()
         }
+        
+        await db.accounts.insert_one(acc)
+        acc["_id"] = str(acc["_id"])
+        
+        return acc
     except HTTPException:
         raise
     except Exception as e:
-        db.rollback()
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail={"error": "Internal Server Error", "message": str(e)})
 
 # 2. CREATE VOUCHER & LEDGER ENTRY
 
 @router.post("/voucher", status_code=status.HTTP_201_CREATED)
-async def create_voucher(body: VoucherCreate, req: Request, current_user: AuthenticatedUser = Depends(require_permission("finance:write")), db: Session = Depends(get_db)):
+async def create_voucher(body: VoucherCreate, req: Request, current_user: AuthenticatedUser = Depends(require_permission("finance:write")), db = Depends(get_db)):
     try:
-        seed_accounts_if_empty(db)
-        
         # Verify both accounts exist
-        debit_acc = db.query(Account).filter(or_(Account.code == body.debitAcc, Account.name == body.debitAcc)).first()
-        credit_acc = db.query(Account).filter(or_(Account.code == body.creditAcc, Account.name == body.creditAcc)).first()
+        debit_acc = await db.accounts.find_one({"$or": [{"code": body.debitAcc}, {"name": body.debitAcc}]})
+        credit_acc = await db.accounts.find_one({"$or": [{"code": body.creditAcc}, {"name": body.creditAcc}]})
         
         if not debit_acc or not credit_acc:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail={"error": "Not Found", "message": "Debit or Credit account not found in Chart of Accounts."})
 
-        # Run inside single atomic database transaction
         # Voucher number generation
         if body.referenceNo:
             voucher_no = body.referenceNo.strip()
-            existing_voucher = db.query(JournalEntry).filter(JournalEntry.voucherNo == voucher_no).first()
+            existing_voucher = await db.journal_entries.find_one({"voucherNo": voucher_no})
             if existing_voucher:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Voucher/Reference number already exists."
                 )
         else:
-            count = db.query(func.count(JournalEntry.id)).scalar()
+            count = await db.journal_entries.count_documents({})
             timestamp_ms = int(time.time() * 1000)
             voucher_no = f"VCHR-{timestamp_ms}-{count + 1}"
 
         # Get last entry to link hash
-        last_entry = db.query(JournalEntry).order_by(JournalEntry.blockIndex.desc()).first()
-        prev_hash = last_entry.blockHash if last_entry else "0"
-        next_index = (last_entry.blockIndex + 1) if last_entry else 1
+        last_entry = await db.journal_entries.find_one(sort=[("blockIndex", -1)])
+        prev_hash = last_entry["blockHash"] if last_entry else "0"
+        next_index = (last_entry["blockIndex"] + 1) if last_entry else 1
 
         # Date parsing
         date = datetime.utcnow()
@@ -135,43 +128,47 @@ async def create_voucher(body: VoucherCreate, req: Request, current_user: Authen
             block_index=next_index,
             voucher_no=voucher_no,
             amount=body.amount,
-            debit_acc=debit_acc.name,
-            credit_acc=credit_acc.name,
+            debit_acc=debit_acc["name"],
+            credit_acc=credit_acc["name"],
             prev_hash=prev_hash,
             date=date
         )
 
-        entry = JournalEntry(
-            blockIndex=next_index,
-            voucherType=body.voucherType.value,
-            voucherNo=voucher_no,
-            date=date,
-            amount=body.amount,
-            debitAcc=debit_acc.name,
-            creditAcc=credit_acc.name,
-            narration=body.narration or "",
-            prevHash=prev_hash,
-            blockHash=block_hash
-        )
-        db.add(entry)
-
-        # Update account balances atomically
-        update_account_balance(db, debit_acc.id, body.amount, True)
-        update_account_balance(db, credit_acc.id, body.amount, False)
+        import uuid
+        entry_id = str(uuid.uuid4())
         
-        db.commit()
-        db.refresh(entry)
+        entry = {
+            "id": entry_id,
+            "blockIndex": next_index,
+            "voucherType": body.voucherType.value if hasattr(body.voucherType, 'value') else body.voucherType,
+            "voucherNo": voucher_no,
+            "date": date,
+            "amount": body.amount,
+            "debitAcc": debit_acc["name"],
+            "creditAcc": credit_acc["name"],
+            "narration": body.narration or "",
+            "prevHash": prev_hash,
+            "blockHash": block_hash,
+            "createdAt": datetime.utcnow()
+        }
+        
+        await db.journal_entries.insert_one(entry)
+        entry["_id"] = str(entry["_id"])
+
+        # Update account balances
+        await update_account_balance(db, debit_acc["id"], body.amount, True)
+        await update_account_balance(db, credit_acc["id"], body.amount, False)
 
         await log_audit_event(
-            user_id=current_user.id,
+            user_id=current_user.id if hasattr(current_user, 'id') else current_user.get("id"),
             action="CREATE_VOUCHER",
             resource="JournalEntry",
             details={
-                "id": entry.id,
-                "voucherNo": entry.voucherNo,
-                "amount": entry.amount,
-                "debitAcc": entry.debitAcc,
-                "creditAcc": entry.creditAcc
+                "id": entry["id"],
+                "voucherNo": entry["voucherNo"],
+                "amount": entry["amount"],
+                "debitAcc": entry["debitAcc"],
+                "creditAcc": entry["creditAcc"]
             },
             req=req
         )
@@ -180,15 +177,16 @@ async def create_voucher(body: VoucherCreate, req: Request, current_user: Authen
     except HTTPException:
         raise
     except Exception as e:
-        db.rollback()
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail={"error": "Internal Server Error", "message": str(e)})
 
 # 2.5 GET JOURNAL ENTRIES
 
 @router.get("/journal-entries")
-async def get_journal_entries(current_user: AuthenticatedUser = Depends(require_permission("finance:read")), db: Session = Depends(get_db)):
+async def get_journal_entries(current_user: AuthenticatedUser = Depends(require_permission("finance:read")), db = Depends(get_db)):
     try:
-        entries = db.query(JournalEntry).order_by(JournalEntry.blockIndex.desc()).all()
+        entries = await db.journal_entries.find().sort("blockIndex", -1).to_list(length=None)
+        for entry in entries:
+            entry["_id"] = str(entry["_id"])
         return entries
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail={"error": "Internal Server Error", "message": str(e)})
@@ -196,20 +194,28 @@ async def get_journal_entries(current_user: AuthenticatedUser = Depends(require_
 # 3. VERIFY LEDGER CHAIN INTEGRITY
 
 @router.get("/verify-ledger")
-async def verify_ledger(current_user: AuthenticatedUser = Depends(require_permission("finance:read")), db: Session = Depends(get_db)):
+async def verify_ledger(current_user: AuthenticatedUser = Depends(require_permission("finance:read")), db = Depends(get_db)):
     try:
-        audit_result = verify_ledger_chain(db)
-        return audit_result
+        # We need to adapt verify_ledger_chain for Motor
+        entries = await db.journal_entries.find().sort("blockIndex", 1).to_list(length=None)
+        valid = True
+        issues = []
+        for i in range(1, len(entries)):
+            prev = entries[i-1]
+            curr = entries[i]
+            if curr["prevHash"] != prev["blockHash"]:
+                valid = False
+                issues.append(f"Hash mismatch at Block {curr['blockIndex']} (Voucher: {curr['voucherNo']})")
+        return {"valid": valid, "issues": issues}
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail={"error": "Internal Server Error", "message": str(e)})
 
 # 4. REPORT: TRIAL BALANCE
 
 @router.get("/reports/trial-balance")
-async def get_trial_balance_report(current_user: AuthenticatedUser = Depends(require_permission("finance:read")), db: Session = Depends(get_db)):
+async def get_trial_balance_report(current_user: AuthenticatedUser = Depends(require_permission("finance:read")), db = Depends(get_db)):
     try:
-        seed_accounts_if_empty(db)
-        accounts = db.query(Account).all()
+        accounts = await db.accounts.find().to_list(length=None)
         
         total_debit = 0.0
         total_credit = 0.0
@@ -218,18 +224,18 @@ async def get_trial_balance_report(current_user: AuthenticatedUser = Depends(req
         for acc in accounts:
             debit = 0.0
             credit = 0.0
-            if acc.type.upper() in ["ASSET", "EXPENSE"]:
-                debit = acc.balance
+            if acc.get("type", "").upper() in ["ASSET", "EXPENSE", "Asset", "Expense"]:
+                debit = acc.get("balance", 0.0)
                 total_debit += debit
             else:
-                credit = acc.balance
+                credit = acc.get("balance", 0.0)
                 total_credit += credit
 
             trial_balance.append({
-                "id": acc.id,
-                "code": acc.code,
-                "name": acc.name,
-                "type": acc.type,
+                "id": acc.get("id"),
+                "code": acc.get("code"),
+                "name": acc.get("name"),
+                "type": acc.get("type"),
                 "debit": debit,
                 "credit": credit
             })
@@ -246,14 +252,16 @@ async def get_trial_balance_report(current_user: AuthenticatedUser = Depends(req
 # 5. REPORT: PROFIT AND LOSS
 
 @router.get("/reports/profit-loss")
-async def get_profit_loss_report(current_user: AuthenticatedUser = Depends(require_permission("finance:read")), db: Session = Depends(get_db)):
+async def get_profit_loss_report(current_user: AuthenticatedUser = Depends(require_permission("finance:read")), db = Depends(get_db)):
     try:
-        seed_accounts_if_empty(db)
-        revenues = db.query(Account).filter(Account.type.in_(["REVENUE", "Income"])).all()
-        expenses = db.query(Account).filter(Account.type.in_(["EXPENSE", "Expense"])).all()
+        revenues = await db.accounts.find({"type": {"$in": ["REVENUE", "Income"]}}).to_list(length=None)
+        expenses = await db.accounts.find({"type": {"$in": ["EXPENSE", "Expense"]}}).to_list(length=None)
         
-        total_revenue = sum(r.balance for r in revenues)
-        total_expenses = sum(e.balance for e in expenses)
+        for r in revenues: r["_id"] = str(r["_id"])
+        for e in expenses: e["_id"] = str(e["_id"])
+        
+        total_revenue = sum(r.get("balance", 0.0) for r in revenues)
+        total_expenses = sum(e.get("balance", 0.0) for e in expenses)
         
         return {
             "revenues": revenues,
@@ -268,16 +276,19 @@ async def get_profit_loss_report(current_user: AuthenticatedUser = Depends(requi
 # 6. REPORT: BALANCE SHEET
 
 @router.get("/reports/balance-sheet")
-async def get_balance_sheet_report(current_user: AuthenticatedUser = Depends(require_permission("finance:read")), db: Session = Depends(get_db)):
+async def get_balance_sheet_report(current_user: AuthenticatedUser = Depends(require_permission("finance:read")), db = Depends(get_db)):
     try:
-        seed_accounts_if_empty(db)
-        assets = db.query(Account).filter(Account.type.in_(["ASSET", "Asset"])).all()
-        liabilities = db.query(Account).filter(Account.type.in_(["LIABILITY", "Liability"])).all()
-        equities = db.query(Account).filter(Account.type.in_(["EQUITY", "Equity"])).all()
+        assets = await db.accounts.find({"type": {"$in": ["ASSET", "Asset"]}}).to_list(length=None)
+        liabilities = await db.accounts.find({"type": {"$in": ["LIABILITY", "Liability"]}}).to_list(length=None)
+        equities = await db.accounts.find({"type": {"$in": ["EQUITY", "Equity"]}}).to_list(length=None)
         
-        total_assets = sum(a.balance for a in assets)
-        total_liabilities = sum(l.balance for l in liabilities)
-        total_equities = sum(eq.balance for eq in equities)
+        for a in assets: a["_id"] = str(a["_id"])
+        for l in liabilities: l["_id"] = str(l["_id"])
+        for eq in equities: eq["_id"] = str(eq["_id"])
+        
+        total_assets = sum(a.get("balance", 0.0) for a in assets)
+        total_liabilities = sum(l.get("balance", 0.0) for l in liabilities)
+        total_equities = sum(eq.get("balance", 0.0) for eq in equities)
         
         return {
             "assets": assets,
@@ -294,14 +305,12 @@ async def get_balance_sheet_report(current_user: AuthenticatedUser = Depends(req
 # 7. BANK STATEMENT RECONCILIATION MATCHING ENGINE
 
 @router.post("/reconcile")
-async def reconcile_bank_statement(body: dict, current_user: AuthenticatedUser = Depends(require_permission("finance:write")), db: Session = Depends(get_db)):
+async def reconcile_bank_statement(body: dict, current_user: AuthenticatedUser = Depends(require_permission("finance:write")), db = Depends(get_db)):
     statement_lines = body.get("statementLines")
     if not statement_lines or not isinstance(statement_lines, list):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail={"error": "Bad Request", "message": "Please provide statementLines list."})
 
     try:
-        # Note: This function needs to be updated to work with the new schema
-        # For now, return empty results as the debit/credit accounts are now UUIDs
         return {"reconciled": [], "unmatched": statement_lines, "message": "Bank reconciliation needs to be updated for new schema"}
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail={"error": "Internal Server Error", "message": str(e)})
@@ -309,15 +318,14 @@ async def reconcile_bank_statement(body: dict, current_user: AuthenticatedUser =
 # 8. TAX SUMMARY
 
 @router.get("/tax/summary")
-async def get_tax_summary(current_user: AuthenticatedUser = Depends(require_permission("finance:read")), db: Session = Depends(get_db)):
+async def get_tax_summary(current_user: AuthenticatedUser = Depends(require_permission("finance:read")), db = Depends(get_db)):
     try:
-        seed_accounts_if_empty(db)
-        gst_acc = db.query(Account).filter(Account.name == "GST Payable").first()
-        tds_acc = db.query(Account).filter(Account.name == "TDS Payable").first()
+        gst_acc = await db.accounts.find_one({"name": "GST Payable"})
+        tds_acc = await db.accounts.find_one({"name": "TDS Payable"})
         
         return {
-            "gstPayable": gst_acc.balance if gst_acc else 0.0,
-            "tdsPayable": tds_acc.balance if tds_acc else 0.0,
+            "gstPayable": gst_acc.get("balance", 0.0) if gst_acc else 0.0,
+            "tdsPayable": tds_acc.get("balance", 0.0) if tds_acc else 0.0,
             "gstStatus": "Filing Ready",
             "tdsStatus": "Deductions Verified"
         }
@@ -327,19 +335,21 @@ async def get_tax_summary(current_user: AuthenticatedUser = Depends(require_perm
 # 9. INVOICES
 
 @router.get("/invoices")
-async def get_invoices(current_user: AuthenticatedUser = Depends(require_permission("finance:read")), db: Session = Depends(get_db)):
+async def get_invoices(current_user: AuthenticatedUser = Depends(require_permission("finance:read")), db = Depends(get_db)):
     try:
-        invoices = db.query(Invoice).order_by(Invoice.createdAt.desc()).all()
+        invoices = await db.invoices.find().sort("createdAt", -1).to_list(length=None)
+        for invoice in invoices:
+            invoice["_id"] = str(invoice["_id"])
         return invoices
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail={"error": "Internal Server Error", "message": str(e)})
 
 @router.post("/invoices", status_code=status.HTTP_201_CREATED)
-async def create_invoice(body: InvoiceCreate, current_user: AuthenticatedUser = Depends(require_permission("finance:write")), db: Session = Depends(get_db)):
+async def create_invoice(body: InvoiceCreate, current_user: AuthenticatedUser = Depends(require_permission("finance:write")), db = Depends(get_db)):
     try:
         if body.invoiceNo:
             invoice_no = body.invoiceNo.strip()
-            existing = db.query(Invoice).filter(Invoice.invoiceNo == invoice_no).first()
+            existing = await db.invoices.find_one({"invoiceNo": invoice_no})
             if existing:
                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invoice number already exists.")
         else:
@@ -351,311 +361,340 @@ async def create_invoice(body: InvoiceCreate, current_user: AuthenticatedUser = 
         tax_amount = subtotal * (tax_rate / 100)
         total_amount = subtotal + tax_amount
 
-        invoice = Invoice(
-            invoiceNo=invoice_no,
-            customerName=body.customerName,
-            subtotal=subtotal,
-            taxRate=tax_rate,
-            taxAmount=tax_amount,
-            totalAmount=total_amount,
-            status=body.status or "PENDING",
-            invoiceDate=body.invoiceDate or datetime.utcnow().strftime("%Y-%m-%d"),
-            dueDate=body.dueDate,
-            sent=False
-        )
-        db.add(invoice)
-        db.commit()
-        db.refresh(invoice)
+        import uuid
+        invoice = {
+            "id": str(uuid.uuid4()),
+            "invoiceNo": invoice_no,
+            "customerName": body.customerName,
+            "subtotal": subtotal,
+            "taxRate": tax_rate,
+            "taxAmount": tax_amount,
+            "totalAmount": total_amount,
+            "status": body.status or "PENDING",
+            "invoiceDate": body.invoiceDate or datetime.utcnow().strftime("%Y-%m-%d"),
+            "dueDate": body.dueDate,
+            "sent": False,
+            "createdAt": datetime.utcnow()
+        }
+        await db.invoices.insert_one(invoice)
+        invoice["_id"] = str(invoice["_id"])
         return invoice
     except Exception as e:
-        db.rollback()
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail={"error": "Internal Server Error", "message": str(e)})
 
 @router.patch("/invoices/{id}/status")
-async def update_invoice_status(id: str, body: dict, current_user: AuthenticatedUser = Depends(require_permission("finance:write")), db: Session = Depends(get_db)):
+async def update_invoice_status(id: str, body: dict, current_user: AuthenticatedUser = Depends(require_permission("finance:write")), db = Depends(get_db)):
     try:
-        invoice = db.query(Invoice).filter(Invoice.id == id).first()
+        invoice = await db.invoices.find_one({"id": id})
         if not invoice:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invoice not found")
-        status_val = body.get("status")
-        if status_val:
-            invoice.status = status_val
-        if body.get("sent") is not None:
-            invoice.sent = body.get("sent")
-        db.commit()
-        db.refresh(invoice)
+        updates = {}
+        if "status" in body:
+            updates["status"] = body["status"]
+        if "sent" in body:
+            updates["sent"] = body["sent"]
+            
+        if updates:
+            await db.invoices.update_one({"id": id}, {"$set": updates})
+            invoice.update(updates)
+            
+        invoice["_id"] = str(invoice["_id"])
         return invoice
     except HTTPException:
         raise
     except Exception as e:
-        db.rollback()
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail={"error": "Internal Server Error", "message": str(e)})
 
 # 10. BUDGETS
 
 @router.get("/budgets")
-async def get_budgets(current_user: AuthenticatedUser = Depends(require_permission("finance:read")), db: Session = Depends(get_db)):
+async def get_budgets(current_user: AuthenticatedUser = Depends(require_permission("finance:read")), db = Depends(get_db)):
     try:
-        budgets = db.query(Budget).order_by(Budget.createdAt.desc()).all()
+        budgets = await db.budgets.find().sort("createdAt", -1).to_list(length=None)
+        for budget in budgets:
+            budget["_id"] = str(budget["_id"])
         return budgets
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail={"error": "Internal Server Error", "message": str(e)})
 
 @router.post("/budgets", status_code=status.HTTP_201_CREATED)
-async def create_budget(body: BudgetCreate, current_user: AuthenticatedUser = Depends(require_permission("finance:write")), db: Session = Depends(get_db)):
+async def create_budget(body: BudgetCreate, current_user: AuthenticatedUser = Depends(require_permission("finance:write")), db = Depends(get_db)):
     try:
-        budget = Budget(
-            budgetName=body.budgetName,
-            category=body.category,
-            costCenter=body.costCenter or body.category,
-            period=body.period,
-            amount=body.amount,
-            spent=body.spent or 0.0,
-            year=body.year,
-            month=body.month
-        )
-        db.add(budget)
-        db.commit()
-        db.refresh(budget)
+        import uuid
+        budget = {
+            "id": str(uuid.uuid4()),
+            "budgetName": body.budgetName,
+            "category": body.category,
+            "costCenter": body.costCenter or body.category,
+            "period": body.period,
+            "amount": body.amount,
+            "spent": body.spent or 0.0,
+            "year": body.year,
+            "month": body.month,
+            "createdAt": datetime.utcnow()
+        }
+        await db.budgets.insert_one(budget)
+        budget["_id"] = str(budget["_id"])
         return budget
     except Exception as e:
-        db.rollback()
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail={"error": "Internal Server Error", "message": str(e)})
 
 # 11. EXPENSES
 
 @router.get("/expenses")
-async def get_expenses(current_user: AuthenticatedUser = Depends(require_permission("finance:read")), db: Session = Depends(get_db)):
+async def get_expenses(current_user: AuthenticatedUser = Depends(require_permission("finance:read")), db = Depends(get_db)):
     try:
-        expenses = db.query(Expense).order_by(Expense.createdAt.desc()).all()
+        expenses = await db.expenses.find().sort("createdAt", -1).to_list(length=None)
+        for exp in expenses:
+            exp["_id"] = str(exp["_id"])
         return expenses
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail={"error": "Internal Server Error", "message": str(e)})
 
 @router.post("/expenses", status_code=status.HTTP_201_CREATED)
-async def create_expense(body: ExpenseCreate, current_user: AuthenticatedUser = Depends(require_permission("finance:write")), db: Session = Depends(get_db)):
+async def create_expense(body: ExpenseCreate, current_user: AuthenticatedUser = Depends(require_permission("finance:write")), db = Depends(get_db)):
     try:
-        expense = Expense(
-            description=body.description,
-            category=body.category,
-            amount=body.amount,
-            date=body.date,
-            paidBy=body.paidBy,
-            receiptStatus=body.receiptStatus or "Pending",
-            status="PENDING"
-        )
-        db.add(expense)
-        db.commit()
-        db.refresh(expense)
+        import uuid
+        expense = {
+            "id": str(uuid.uuid4()),
+            "description": body.description,
+            "category": body.category,
+            "amount": body.amount,
+            "date": body.date,
+            "paidBy": body.paidBy,
+            "receiptStatus": body.receiptStatus or "Pending",
+            "status": "PENDING",
+            "createdAt": datetime.utcnow()
+        }
+        await db.expenses.insert_one(expense)
+        expense["_id"] = str(expense["_id"])
         return expense
     except Exception as e:
-        db.rollback()
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail={"error": "Internal Server Error", "message": str(e)})
 
 @router.patch("/expenses/{id}/status")
-async def update_expense_status(id: str, body: dict, current_user: AuthenticatedUser = Depends(require_permission("finance:write")), db: Session = Depends(get_db)):
+async def update_expense_status(id: str, body: dict, current_user: AuthenticatedUser = Depends(require_permission("finance:write")), db = Depends(get_db)):
     try:
-        expense = db.query(Expense).filter(Expense.id == id).first()
+        expense = await db.expenses.find_one({"id": id})
         if not expense:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Expense not found")
-        status_val = body.get("status")
-        if status_val:
-            expense.status = status_val
-        expense.approvedBy = current_user.email
-        db.commit()
-        db.refresh(expense)
+        updates = {"approvedBy": current_user.email if hasattr(current_user, 'email') else current_user.get("email")}
+        if "status" in body:
+            updates["status"] = body["status"]
+            
+        await db.expenses.update_one({"id": id}, {"$set": updates})
+        expense.update(updates)
+        expense["_id"] = str(expense["_id"])
         return expense
     except HTTPException:
         raise
     except Exception as e:
-        db.rollback()
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail={"error": "Internal Server Error", "message": str(e)})
 
 # 12. APPROVAL WORKFLOWS
 
 @router.get("/approvals")
-async def get_approvals(current_user: AuthenticatedUser = Depends(require_permission("finance:read")), db: Session = Depends(get_db)):
+async def get_approvals(current_user: AuthenticatedUser = Depends(require_permission("finance:read")), db = Depends(get_db)):
     try:
-        workflows = db.query(ApprovalWorkflow).order_by(ApprovalWorkflow.createdAt.desc()).all()
+        workflows = await db.approval_workflows.find().sort("createdAt", -1).to_list(length=None)
+        for w in workflows:
+            w["_id"] = str(w["_id"])
         return workflows
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail={"error": "Internal Server Error", "message": str(e)})
 
 @router.post("/approvals", status_code=status.HTTP_201_CREATED)
-async def create_approval_workflow(body: ApprovalWorkflowCreate, current_user: AuthenticatedUser = Depends(require_permission("finance:write")), db: Session = Depends(get_db)):
+async def create_approval_workflow(body: ApprovalWorkflowCreate, current_user: AuthenticatedUser = Depends(require_permission("finance:write")), db = Depends(get_db)):
     try:
         if body.requestNo:
             req_no = body.requestNo.strip()
-            existing = db.query(ApprovalWorkflow).filter(ApprovalWorkflow.requestNo == req_no).first()
+            existing = await db.approval_workflows.find_one({"requestNo": req_no})
             if existing:
                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Request number already exists.")
         else:
             timestamp_ms = int(time.time() * 1000)
             req_no = f"REQ-{timestamp_ms}"
 
-        workflow = ApprovalWorkflow(
-            requestNo=req_no,
-            type=body.type,
-            amount=body.amount,
-            requester=body.requester or current_user.email,
-            date=body.date or datetime.utcnow().strftime("%Y-%m-%d"),
-            reason=body.reason or "",
-            status="PENDING",
-            currentLevel=1
-        )
-        db.add(workflow)
-        db.flush()  # to get workflow.id
+        import uuid
+        workflow_id = str(uuid.uuid4())
+        user_email = current_user.email if hasattr(current_user, 'email') else current_user.get("email")
+        
+        workflow = {
+            "id": workflow_id,
+            "requestNo": req_no,
+            "type": body.type,
+            "amount": body.amount,
+            "requester": body.requester or user_email,
+            "date": body.date or datetime.utcnow().strftime("%Y-%m-%d"),
+            "reason": body.reason or "",
+            "status": "PENDING",
+            "currentLevel": 1,
+            "createdAt": datetime.utcnow()
+        }
+        await db.approval_workflows.insert_one(workflow)
 
-        # Add default level 1 approval
-        level = ApprovalLevel(
-            workflowId=workflow.id,
-            level=1,
-            approver="Finance Manager",
-            status="PENDING"
-        )
-        db.add(level)
-        db.commit()
-        db.refresh(workflow)
+        level = {
+            "id": str(uuid.uuid4()),
+            "workflowId": workflow_id,
+            "level": 1,
+            "approver": "Finance Manager",
+            "status": "PENDING",
+            "createdAt": datetime.utcnow()
+        }
+        await db.approval_levels.insert_one(level)
+        
+        workflow["_id"] = str(workflow["_id"])
         return workflow
     except HTTPException:
         raise
     except Exception as e:
-        db.rollback()
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail={"error": "Internal Server Error", "message": str(e)})
 
 @router.patch("/approvals/{id}/approve")
-async def approve_workflow(id: str, body: dict, current_user: AuthenticatedUser = Depends(require_permission("finance:write")), db: Session = Depends(get_db)):
+async def approve_workflow(id: str, body: dict, current_user: AuthenticatedUser = Depends(require_permission("finance:write")), db = Depends(get_db)):
     try:
-        workflow = db.query(ApprovalWorkflow).filter(ApprovalWorkflow.id == id).first()
+        workflow = await db.approval_workflows.find_one({"id": id})
         if not workflow:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Approval workflow not found")
         
         level_num = body.get("level", 1)
-        level = db.query(ApprovalLevel).filter(
-            ApprovalLevel.workflowId == id, 
-            ApprovalLevel.level == level_num
-        ).first()
+        level = await db.approval_levels.find_one({
+            "workflowId": id, 
+            "level": level_num
+        })
 
         if level:
-            level.status = "APPROVED"
-            level.timestamp = datetime.utcnow().isoformat()
+            await db.approval_levels.update_one(
+                {"id": level["id"]},
+                {"$set": {
+                    "status": "APPROVED",
+                    "timestamp": datetime.utcnow().isoformat()
+                }}
+            )
             
-            # Check if there's a next level, otherwise approve the whole workflow
-            next_level = db.query(ApprovalLevel).filter(
-                ApprovalLevel.workflowId == id,
-                ApprovalLevel.level > level_num,
-                ApprovalLevel.status == "PENDING"
-            ).order_by(ApprovalLevel.level.asc()).first()
+            # Check next level
+            next_level = await db.approval_levels.find_one({
+                "workflowId": id,
+                "level": {"$gt": level_num},
+                "status": "PENDING"
+            }, sort=[("level", 1)])
             
+            updates = {}
             if next_level:
-                workflow.currentLevel = next_level.level
-                workflow.status = "IN_PROGRESS"
+                updates["currentLevel"] = next_level["level"]
+                updates["status"] = "IN_PROGRESS"
             else:
-                workflow.status = "APPROVED"
+                updates["status"] = "APPROVED"
                 
-            db.commit()
-            db.refresh(workflow)
+            await db.approval_workflows.update_one({"id": id}, {"$set": updates})
+            workflow.update(updates)
+            workflow["_id"] = str(workflow["_id"])
             return workflow
         else:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Approval level not found")
     except HTTPException:
         raise
     except Exception as e:
-        db.rollback()
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail={"error": "Internal Server Error", "message": str(e)})
 
 # 13. TAX & COMPLIANCE
 
 @router.get("/tax/deadlines")
-async def get_tax_deadlines(current_user: AuthenticatedUser = Depends(require_permission("finance:read")), db: Session = Depends(get_db)):
+async def get_tax_deadlines(current_user: AuthenticatedUser = Depends(require_permission("finance:read")), db = Depends(get_db)):
     try:
-        deadlines = db.query(TaxDeadline).order_by(TaxDeadline.dueDate.asc()).all()
+        deadlines = await db.tax_deadlines.find().sort("dueDate", 1).to_list(length=None)
+        for d in deadlines:
+            d["_id"] = str(d["_id"])
         return deadlines
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail={"error": "Internal Server Error", "message": str(e)})
 
 @router.post("/tax/deadlines", status_code=status.HTTP_201_CREATED)
-async def create_tax_deadline(body: TaxDeadlineCreate, current_user: AuthenticatedUser = Depends(require_permission("finance:write")), db: Session = Depends(get_db)):
+async def create_tax_deadline(body: TaxDeadlineCreate, current_user: AuthenticatedUser = Depends(require_permission("finance:write")), db = Depends(get_db)):
     try:
-        deadline = TaxDeadline(
-            taxName=body.taxName,
-            taxType=body.taxType,
-            rate=body.rate,
-            applicableOn=body.applicableOn,
-            effectiveDate=body.effectiveDate,
-            dueDate=body.dueDate,
-            period=body.period,
-            status=body.status or "PENDING"
-        )
-        db.add(deadline)
-        db.commit()
-        db.refresh(deadline)
+        import uuid
+        deadline = {
+            "id": str(uuid.uuid4()),
+            "taxName": body.taxName,
+            "taxType": body.taxType,
+            "rate": body.rate,
+            "applicableOn": body.applicableOn,
+            "effectiveDate": body.effectiveDate,
+            "dueDate": body.dueDate,
+            "period": body.period,
+            "status": body.status or "PENDING",
+            "createdAt": datetime.utcnow()
+        }
+        await db.tax_deadlines.insert_one(deadline)
+        deadline["_id"] = str(deadline["_id"])
         return deadline
     except Exception as e:
-        db.rollback()
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail={"error": "Internal Server Error", "message": str(e)})
 
 @router.patch("/tax/deadlines/{id}/status")
-async def update_tax_deadline_status(id: str, body: dict, current_user: AuthenticatedUser = Depends(require_permission("finance:write")), db: Session = Depends(get_db)):
+async def update_tax_deadline_status(id: str, body: dict, current_user: AuthenticatedUser = Depends(require_permission("finance:write")), db = Depends(get_db)):
     try:
-        deadline = db.query(TaxDeadline).filter(TaxDeadline.id == id).first()
+        deadline = await db.tax_deadlines.find_one({"id": id})
         if not deadline:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tax deadline not found")
         status_val = body.get("status")
         if status_val:
-            deadline.status = status_val
-        db.commit()
-        db.refresh(deadline)
+            await db.tax_deadlines.update_one({"id": id}, {"$set": {"status": status_val}})
+            deadline["status"] = status_val
+            
+        deadline["_id"] = str(deadline["_id"])
         return deadline
     except HTTPException:
         raise
     except Exception as e:
-        db.rollback()
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail={"error": "Internal Server Error", "message": str(e)})
 
 # 14. STATEMENTS
 
 @router.get("/statements")
-async def get_statements(current_user: AuthenticatedUser = Depends(require_permission("finance:read")), db: Session = Depends(get_db)):
+async def get_statements(current_user: AuthenticatedUser = Depends(require_permission("finance:read")), db = Depends(get_db)):
     try:
-        statements = db.query(Statement).order_by(Statement.createdAt.desc()).all()
+        statements = await db.statements.find().sort("createdAt", -1).to_list(length=None)
+        for s in statements:
+            s["_id"] = str(s["_id"])
         return statements
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail={"error": "Internal Server Error", "message": str(e)})
 
 @router.post("/statements", status_code=status.HTTP_201_CREATED)
-async def create_statement(body: StatementCreate, current_user: AuthenticatedUser = Depends(require_permission("finance:write")), db: Session = Depends(get_db)):
+async def create_statement(body: StatementCreate, current_user: AuthenticatedUser = Depends(require_permission("finance:write")), db = Depends(get_db)):
     try:
-        statement = Statement(
-            statementType=body.statementType,
-            period=body.period,
-            totalIncome=body.totalIncome,
-            totalExpense=body.totalExpense,
-            netAmount=body.netAmount,
-            status=body.status or "Generated"
-        )
-        db.add(statement)
-        db.commit()
-        db.refresh(statement)
+        import uuid
+        statement = {
+            "id": str(uuid.uuid4()),
+            "statementType": body.statementType,
+            "period": body.period,
+            "totalIncome": body.totalIncome,
+            "totalExpense": body.totalExpense,
+            "netAmount": body.netAmount,
+            "status": body.status or "Generated",
+            "createdAt": datetime.utcnow()
+        }
+        await db.statements.insert_one(statement)
+        statement["_id"] = str(statement["_id"])
         return statement
     except Exception as e:
-        db.rollback()
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail={"error": "Internal Server Error", "message": str(e)})
 
 @router.patch("/statements/{id}/status")
-async def update_statement_status(id: str, body: dict, current_user: AuthenticatedUser = Depends(require_permission("finance:write")), db: Session = Depends(get_db)):
+async def update_statement_status(id: str, body: dict, current_user: AuthenticatedUser = Depends(require_permission("finance:write")), db = Depends(get_db)):
     try:
-        statement = db.query(Statement).filter(Statement.id == id).first()
+        statement = await db.statements.find_one({"id": id})
         if not statement:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Statement not found")
         status_val = body.get("status")
         if status_val:
-            statement.status = status_val
-        db.commit()
-        db.refresh(statement)
+            await db.statements.update_one({"id": id}, {"$set": {"status": status_val}})
+            statement["status"] = status_val
+            
+        statement["_id"] = str(statement["_id"])
         return statement
     except HTTPException:
         raise
     except Exception as e:
-        db.rollback()
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail={"error": "Internal Server Error", "message": str(e)})

@@ -72,44 +72,12 @@ export default function SignIn() {
         setActiveModule('dashboard');
       }
     } catch (err) {
-      console.warn('Backend login failed, checking fallback:', err.message);
-
-      const lowerEmail = email.trim().toLowerCase();
-      const isFallbackUser = (
-        lowerEmail === 'admin@example.com' ||
-        lowerEmail === 'admin@clarix.com' ||
-        lowerEmail === 'ceo' ||
-        lowerEmail === 'ceo@company.com'
+      console.warn('Backend login failed:', err.message);
+      setAuthError(
+        err.message === 'Invalid credentials'
+          ? 'Invalid username or password. Try: username · ceo · password · admin123'
+          : (err.message || 'Login failed. Please check your credentials.')
       );
-
-      if (isFallbackUser) {
-        const mockUser = {
-          id: 'ceo-fallback',
-          username: 'ceo',
-          name: 'CEO (Demo Mode)',
-          fullName: 'CEO (Demo Mode)',
-          firstName: 'CEO',
-          lastName: '',
-          email: 'ceo@company.com',
-          role: 'Superadmin',
-          roleId: 'role_superadmin',
-          avatar: null,
-          isCEO: true,
-          allowed_modules: ['all']
-        };
-        setToken('demo-fallback-token');
-        setCurrentUser(mockUser);
-        setAllowedModules(['all']);
-        setDemoMode(true);
-        addToast('Signed in via Local Demo Mode (backend unavailable).', 'info');
-        setActiveModule('admin');
-      } else {
-        setAuthError(
-          err.message === 'Invalid credentials'
-            ? 'Invalid username or password. Try: username · ceo · password · admin123'
-            : (err.message || 'Login failed. Please check your credentials.')
-        );
-      }
     } finally {
       setAuthLoading(false);
       // Release the guard after a short delay to prevent instant re-trigger
@@ -150,22 +118,7 @@ export default function SignIn() {
     }
   };
 
-  const handleBypassAuth = () => {
-    const mockUser = {
-      id: 'emp-1',
-      name: 'John Doe',
-      firstName: 'John',
-      lastName: 'Doe',
-      email: 'john.doe@clarix.com',
-      role: 'Admin',
-      avatar: null
-    };
-    // Seed demo credentials
-    setToken('mock-demo-token');
-    setCurrentUser(mockUser);
-    setDemoMode(true);
-    addToast("Entered Demo Sandbox session", "info");
-  };
+
 
   return (
     <div className="min-h-screen w-full flex items-center justify-center text-slate-100 bg-[#020617] overflow-hidden relative font-sans">
@@ -331,48 +284,29 @@ export default function SignIn() {
               <span>{authLoading ? 'Verifying Session...' : (authView === 'login' ? 'Initialize Session' : 'Register Operator')}</span>
               {!authLoading && <ArrowRight className="w-4 h-4" />}
             </button>
+            {authView === 'login' && (
+              <button 
+                className="w-full bg-transparent hover:bg-white/5 text-slate-300 border border-white/10 font-semibold py-2 rounded-lg transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer text-xs mt-2" 
+                type="button"
+                onClick={() => {
+                  setToken('demo-fallback-token');
+                  setCurrentUser({
+                    id: 'ceo-fallback', username: 'ceo', name: 'CEO (Demo Mode)', fullName: 'CEO (Demo Mode)',
+                    firstName: 'CEO', lastName: '', email: 'ceo@company.com', role: 'Superadmin',
+                    roleId: 'role_superadmin', avatar: null, isCEO: true, allowed_modules: ['all']
+                  });
+                  setAllowedModules(['all']);
+                  setDemoMode(true);
+                  addToast('Signed in via Local Demo Mode.', 'info');
+                  setActiveModule('admin');
+                }}
+              >
+                <span>Local Demo Mode (Sandbox Bypass)</span>
+              </button>
+            )}
           </form>
 
-          {/* Divider */}
-          <div className="relative my-6 flex items-center justify-center">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-white/5"></div>
-            </div>
-            <span className="relative px-3 bg-[#0d1527] text-[10px] text-slate-500 uppercase tracking-widest font-semibold">
-              Advanced Bypass
-            </span>
-          </div>
 
-          {/* Sandbox & Biometric Mock Actions */}
-          <div className="grid grid-cols-3 gap-2.5">
-            <button 
-              type="button"
-              onClick={handleBypassAuth}
-              className="flex flex-col items-center justify-center py-2.5 rounded-lg border border-white/5 bg-white/[0.02] hover:bg-white/[0.07] transition-all cursor-pointer group"
-              title="Enter Sandbox mode directly"
-            >
-              <Sparkles className="w-4 h-4 text-slate-400 group-hover:text-indigo-400 mb-1 transition-colors" />
-              <span className="text-[9px] uppercase font-bold tracking-tight text-slate-500 group-hover:text-slate-300 transition-colors">Sandbox</span>
-            </button>
-            <button 
-              type="button"
-              onClick={handleBypassAuth}
-              className="flex flex-col items-center justify-center py-2.5 rounded-lg border border-white/5 bg-white/[0.02] hover:bg-white/[0.07] transition-all cursor-pointer group"
-              title="Bypass using passkey"
-            >
-              <Key className="w-4 h-4 text-slate-400 group-hover:text-indigo-400 mb-1 transition-colors" />
-              <span className="text-[9px] uppercase font-bold tracking-tight text-slate-500 group-hover:text-slate-300 transition-colors">Passkey</span>
-            </button>
-            <button 
-              type="button"
-              onClick={handleBypassAuth}
-              className="flex flex-col items-center justify-center py-2.5 rounded-lg border border-white/5 bg-white/[0.02] hover:bg-white/[0.07] transition-all cursor-pointer group"
-              title="Access SSO"
-            >
-              <Shield className="w-4 h-4 text-slate-400 group-hover:text-indigo-400 mb-1 transition-colors" />
-              <span className="text-[9px] uppercase font-bold tracking-tight text-slate-500 group-hover:text-slate-300 transition-colors">SSO Vault</span>
-            </button>
-          </div>
         </div>
 
         {/* Footer Info */}

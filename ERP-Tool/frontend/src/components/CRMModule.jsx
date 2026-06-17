@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Handshake, TrendingUp, Target, Activity } from 'lucide-react';
+import { useLeads, useAddLead, useUpdateLead, useCustomers, useForecast, useOpportunities, useActivities } from '../hooks/useCRM';
 import { useERPStore } from '../store/useERPStore';
 import Modal from './ui/Modal';
-import api from '../utils/api';
 
 const STAGES = ['NEW', 'CONTACTED', 'QUALIFIED', 'PROPOSAL', 'WON', 'LOST'];
 const STAGE_COLORS = {
@@ -15,40 +15,19 @@ const STAGE_COLORS = {
 };
 
 export default function CRMModule() {
-  const {
-    leads, addLead, updateLeadStage,
-    customers, addCustomer,
-    salesForecast, addSalesForecast,
-    opportunities, addOpportunity, updateOpportunityStage,
-    activities, addActivity,
-    addToast,
-    setLeads,
-    setCustomers
-  } = useERPStore();
+  const { addToast } = useERPStore();
+
+  const { data: leads = [] } = useLeads();
+  const { mutateAsync: mutateAddLead } = useAddLead();
+  const { mutateAsync: mutateUpdateLead } = useUpdateLead();
+  const { data: customers = [] } = useCustomers();
+  const { data: salesForecast = [] } = useForecast();
+  const { data: opportunities = [] } = useOpportunities();
+  const { data: activities = [] } = useActivities();
 
   const [activeTab, setActiveTab] = useState('pipeline');
   const [leadModal, setLeadModal] = useState(false);
   const [newLead, setNewLead] = useState({ name: '', company: '', email: '', phone: '', source: 'Website', value: 0 });
-
-  useEffect(() => {
-    let active = true;
-    async function loadCRMData() {
-      try {
-        const [leadsData, customersData] = await Promise.all([
-          api.crm.getLeads(),
-          api.crm.getCustomers()
-        ]);
-        if (active) {
-          setLeads(leadsData);
-          setCustomers(customersData);
-        }
-      } catch (err) {
-        console.error("Failed to load CRM data", err);
-      }
-    }
-    loadCRMData();
-    return () => { active = false; };
-  }, [setLeads, setCustomers]);
 
   const handleAddLead = async () => {
     if (!newLead.name || !newLead.email) return addToast('Name and email required', 'error');
@@ -62,10 +41,7 @@ export default function CRMModule() {
         source: newLead.source,
         value: parseFloat(newLead.value) || 0
       };
-      const created = await api.crm.addLead(leadPayload);
-      if (created && created.id) {
-        addLead(created);
-      }
+      await mutateAddLead(leadPayload);
       addToast('Lead added to pipeline', 'success');
       setNewLead({ name: '', company: '', email: '', phone: '', source: 'Website', value: 0 });
       setLeadModal(false);
@@ -76,8 +52,7 @@ export default function CRMModule() {
 
   const handleUpdateLeadStage = async (id, stage) => {
     try {
-      await api.crm.updateLeadStage(id, stage);
-      updateLeadStage(id, stage);
+      await mutateUpdateLead({ id, status: stage });
       addToast('Lead stage updated', 'success');
     } catch (err) {
       addToast(err.message || 'Failed to update lead stage', 'error');

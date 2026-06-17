@@ -1,10 +1,9 @@
 """
-Admin Panel Router for CEO
+Admin Panel Router for CEO (MongoDB Version)
 Routes: /admin/dashboard, /admin/users, /admin/users/create, /admin/permissions
 Only accessible by CEO (isCEO = true)
 """
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from pydantic import BaseModel
 from typing import List, Optional
 from datetime import datetime
@@ -12,8 +11,10 @@ import secrets
 import string
 
 from app.utils.db import get_db
-from app.models.models import ERPUser, ERPRole, ModuleAccess, ERPDepartment, Employee, Department
-from app.middlewares.rbac_middleware import require_ceo, RBACUser
+from app.utils.mongodb import get_mongo_db
+from app.utils.audit import log_audit_event
+from app.models.mongo_models import ERPUserModel, ERPRoleModel, ModuleAccessModel, ERPDepartmentModel
+from app.routers.rbac_auth import require_ceo
 from passlib.context import CryptContext
 
 router = APIRouter(prefix="/admin", tags=["Admin Panel"])
@@ -56,68 +57,63 @@ class AdminDashboardStats(BaseModel):
 # Helper functions
 def generate_username(full_name: str) -> str:
     """Generate username from full name with random 3 digits"""
-    # Remove special characters and spaces, convert to lowercase
     name_parts = full_name.lower().split()
     if len(name_parts) >= 2:
         username = f"{name_parts[0]}.{name_parts[1]}"
     else:
         username = name_parts[0]
-    
-    # Add random 3 digits
     username += f"{secrets.randbelow(1000):03d}"
     return username
 
 def generate_password(length: int = 12) -> str:
     """Generate secure random password"""
     alphabet = string.ascii_letters + string.digits + string.punctuation
-    password = ''.join(secrets.choice(alphabet) for _ in range(length))
-    return password
+    return ''.join(secrets.choice(alphabet) for _ in range(length))
 
 def get_default_password() -> str:
     """Get default password for new users"""
-    return "Welcome123"  # Default password that users can change later
+    return "Welcome123"
 
 # Routes
 
 @router.get("/dashboard", response_model=AdminDashboardStats)
-def get_admin_dashboard(current_user: RBACUser = Depends(require_ceo), db: Session = Depends(get_db)):
+async def get_admin_dashboard(current_user: dict = Depends(require_ceo), mongo_db = Depends(get_mongo_db)):
     """Admin dashboard with statistics"""
-    # Get all users except CEO
-    users = db.query(ERPUser).filter(ERPUser.isCEO == False).all()
-    
-    # Count employees using Employee database table
-    total_employees = db.query(Employee).count()
-    active_employees = db.query(Employee).filter(Employee.isActive == True).count()
+    if mongo_db is None:
+        raise HTTPException(status_code=500, detail="MongoDB not connected")
+        
+    total_employees = await mongo_db.erp_users.count_documents({"isCEO": False})
+    active_employees = await mongo_db.erp_users.count_documents({"isCEO": False, "isActive": True})
     inactive_employees = total_employees - active_employees
     
-    # Count by department using Employee and Department database tables
     employees_by_department = {}
-    departments = db.query(Department).all()
+    departments = await mongo_db.erp_departments.find().to_list(length=None)
     for dept in departments:
-        count = db.query(Employee).filter(Employee.departmentId == dept.id).count()
+        count = await mongo_db.erp_users.count_documents({"departmentId": dept["id"], "isCEO": False})
         if count > 0:
-            employees_by_department[dept.name] = count
+            employees_by_department[dept["name"]] = count
+            
+    recent_users_cursor = mongo_db.erp_users.find({"isCEO": False}).sort("createdAt", -1).limit(5)
+    recent_users = await recent_users_cursor.to_list(length=5)
     
-    # Get recent users (last 5 created)
-    recent_users = db.query(ERPUser).order_by(ERPUser.createdAt.desc()).limit(5).all()
     recent_users_response = []
     for user in recent_users:
-        role = db.query(ERPRole).filter(ERPRole.id == user.roleId).first()
-        dept = db.query(ERPDepartment).filter(ERPDepartment.id == user.departmentId).first()
+        role = await mongo_db.erp_roles.find_one({"id": user.get("roleId")})
+        dept = await mongo_db.erp_departments.find_one({"id": user.get("departmentId")})
         recent_users_response.append(UserResponse(
-            id=user.id,
-            username=user.username,
-            full_name=user.fullName,
-            email=user.email,
-            role_id=user.roleId,
-            role_name=role.name if role else "",
-            department_id=user.departmentId,
-            department_name=dept.name if dept else "",
-            is_active=user.isActive,
-            is_ceo=user.isCEO,
-            created_at=user.createdAt
+            id=user["id"],
+            username=user.get("username", ""),
+            full_name=user.get("fullName", ""),
+            email=user.get("email", ""),
+            role_id=user.get("roleId", ""),
+            role_name=role["name"] if role else "",
+            department_id=user.get("departmentId", ""),
+            department_name=dept["name"] if dept else "",
+            is_active=user.get("isActive", True),
+            is_ceo=user.get("isCEO", False),
+            created_at=user.get("createdAt", datetime.utcnow())
         ))
-    
+        
     return AdminDashboardStats(
         total_employees=total_employees,
         active_employees=active_employees,
@@ -127,54 +123,49 @@ def get_admin_dashboard(current_user: RBACUser = Depends(require_ceo), db: Sessi
     )
 
 @router.get("/users", response_model=List[UserResponse])
-def get_all_users(current_user: RBACUser = Depends(require_ceo), db: Session = Depends(get_db)):
+async def get_all_users(current_user: dict = Depends(require_ceo), mongo_db = Depends(get_mongo_db)):
     """Get all users (excluding CEO)"""
-    users = db.query(ERPUser).filter(ERPUser.isCEO == False).all()
+    if mongo_db is None: raise HTTPException(status_code=500, detail="Database connection failed")
+    users = await mongo_db.erp_users.find({"isCEO": False}).to_list(length=None)
     
     user_responses = []
     for user in users:
-        role = db.query(ERPRole).filter(ERPRole.id == user.roleId).first()
-        dept = db.query(ERPDepartment).filter(ERPDepartment.id == user.departmentId).first()
+        role = await mongo_db.erp_roles.find_one({"id": user.get("roleId")})
+        dept = await mongo_db.erp_departments.find_one({"id": user.get("departmentId")})
         user_responses.append(UserResponse(
-            id=user.id,
-            username=user.username,
-            full_name=user.fullName,
-            email=user.email,
-            role_id=user.roleId,
-            role_name=role.name if role else "",
-            department_id=user.departmentId,
-            department_name=dept.name if dept else "",
-            is_active=user.isActive,
-            is_ceo=user.isCEO,
-            created_at=user.createdAt
+            id=user["id"],
+            username=user.get("username", ""),
+            full_name=user.get("fullName", ""),
+            email=user.get("email", ""),
+            role_id=user.get("roleId", ""),
+            role_name=role["name"] if role else "",
+            department_id=user.get("departmentId", ""),
+            department_name=dept["name"] if dept else "",
+            is_active=user.get("isActive", True),
+            is_ceo=user.get("isCEO", False),
+            created_at=user.get("createdAt", datetime.utcnow())
         ))
-    
     return user_responses
 
 @router.post("/users/create")
-def create_user(user_data: UserCreateRequest, current_user: RBACUser = Depends(require_ceo), db: Session = Depends(get_db)):
+async def create_user(http_req: Request, user_data: UserCreateRequest, current_user: dict = Depends(require_ceo), mongo_db = Depends(get_mongo_db)):
     """Create a new employee account with default password"""
-    # Verify department exists
-    department = db.query(ERPDepartment).filter(ERPDepartment.id == user_data.department_id).first()
-    if not department:
-        raise HTTPException(status_code=404, detail="Department not found")
+    if mongo_db is None: raise HTTPException(status_code=500, detail="Database connection failed")
     
-    # Verify role exists
-    role = db.query(ERPRole).filter(ERPRole.id == user_data.role_id).first()
-    if not role:
-        raise HTTPException(status_code=404, detail="Role not found")
+    department = await mongo_db.erp_departments.find_one({"id": user_data.department_id})
+    if not department: raise HTTPException(status_code=404, detail="Department not found")
     
-    # Generate username and use default password
+    role = await mongo_db.erp_roles.find_one({"id": user_data.role_id})
+    if not role: raise HTTPException(status_code=404, detail="Role not found")
+    
     username = generate_username(user_data.full_name)
     password = get_default_password()
     password_hash = pwd_context.hash(password)
     
-    # Check if username already exists (regenerate if needed)
-    while db.query(ERPUser).filter(ERPUser.username == username).first():
+    while await mongo_db.erp_users.find_one({"username": username}):
         username = generate_username(user_data.full_name)
-    
-    # Create user
-    new_user = ERPUser(
+        
+    new_user = ERPUserModel(
         username=username,
         passwordHash=password_hash,
         fullName=user_data.full_name,
@@ -183,103 +174,90 @@ def create_user(user_data: UserCreateRequest, current_user: RBACUser = Depends(r
         departmentId=user_data.department_id,
         isActive=True,
         isCEO=False
-    )
+    ).model_dump()
     
-    db.add(new_user)
-    db.commit()
-    db.refresh(new_user)
+    await mongo_db.erp_users.insert_one(new_user)
+    
+    await log_audit_event("USER_CREATE", "User", f"Created user {username}", current_user.get("id"), http_req)
     
     return {
         "message": "User created successfully",
         "user": {
-            "id": new_user.id,
+            "id": new_user["id"],
             "username": username,
-            "full_name": new_user.fullName,
-            "email": new_user.email,
-            "password": password  # Return default password for user
+            "full_name": new_user["fullName"],
+            "email": new_user["email"],
+            "password": password
         }
     }
 
 @router.put("/users/{user_id}")
-def update_user(user_id: str, user_data: UserUpdateRequest, current_user: RBACUser = Depends(require_ceo), db: Session = Depends(get_db)):
+async def update_user(http_req: Request, user_id: str, user_data: UserUpdateRequest, current_user: dict = Depends(require_ceo), mongo_db = Depends(get_mongo_db)):
     """Update user details"""
-    user = db.query(ERPUser).filter(ERPUser.id == user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+    if mongo_db is None: raise HTTPException(status_code=500, detail="Database connection failed")
+    user = await mongo_db.erp_users.find_one({"id": user_id})
+    if not user: raise HTTPException(status_code=404, detail="User not found")
+    if user.get("isCEO"): raise HTTPException(status_code=403, detail="Cannot modify CEO account")
     
-    # Prevent modifying CEO
-    if user.isCEO:
-        raise HTTPException(status_code=403, detail="Cannot modify CEO account")
-    
-    # Update fields if provided
-    if user_data.full_name is not None:
-        user.fullName = user_data.full_name
-    if user_data.email is not None:
-        user.email = user_data.email
+    updates = {"updatedAt": datetime.utcnow()}
+    if user_data.full_name is not None: updates["fullName"] = user_data.full_name
+    if user_data.email is not None: updates["email"] = user_data.email
     if user_data.department_id is not None:
-        department = db.query(ERPDepartment).filter(ERPDepartment.id == user_data.department_id).first()
-        if not department:
+        if not await mongo_db.erp_departments.find_one({"id": user_data.department_id}):
             raise HTTPException(status_code=404, detail="Department not found")
-        user.departmentId = user_data.department_id
+        updates["departmentId"] = user_data.department_id
     if user_data.role_id is not None:
-        role = db.query(ERPRole).filter(ERPRole.id == user_data.role_id).first()
-        if not role:
+        if not await mongo_db.erp_roles.find_one({"id": user_data.role_id}):
             raise HTTPException(status_code=404, detail="Role not found")
-        user.roleId = user_data.role_id
-    if user_data.is_active is not None:
-        user.isActive = user_data.is_active
+        updates["roleId"] = user_data.role_id
+    if user_data.is_active is not None: updates["isActive"] = user_data.is_active
+        
+    await mongo_db.erp_users.update_one({"id": user_id}, {"$set": updates})
     
-    user.updatedAt = datetime.utcnow()
-    db.commit()
-    
+    await log_audit_event("USER_UPDATE", "User", f"Updated user {user_id}", current_user.get("id"), http_req)
+    if user_data.role_id is not None:
+        await log_audit_event("ROLE_ASSIGN", "Role", f"Assigned role {user_data.role_id} to user {user_id}", current_user.get("id"), http_req)
+        
     return {"message": "User updated successfully"}
 
 @router.delete("/users/{user_id}")
-def delete_user(user_id: str, current_user: RBACUser = Depends(require_ceo), db: Session = Depends(get_db)):
+async def delete_user(http_req: Request, user_id: str, current_user: dict = Depends(require_ceo), mongo_db = Depends(get_mongo_db)):
     """Delete user permanently"""
-    user = db.query(ERPUser).filter(ERPUser.id == user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+    if mongo_db is None: raise HTTPException(status_code=500, detail="Database connection failed")
+    user = await mongo_db.erp_users.find_one({"id": user_id})
+    if not user: raise HTTPException(status_code=404, detail="User not found")
+    if user.get("isCEO"): raise HTTPException(status_code=403, detail="Cannot delete CEO account")
     
-    # Prevent deleting CEO
-    if user.isCEO:
-        raise HTTPException(status_code=403, detail="Cannot delete CEO account")
-    
-    db.delete(user)
-    db.commit()
-    
+    await mongo_db.erp_users.delete_one({"id": user_id})
+    await log_audit_event("USER_DELETE", "User", f"Deleted user {user_id}", current_user.get("id"), http_req)
     return {"message": "User deleted successfully"}
 
 @router.post("/users/{user_id}/reset-password")
-def reset_user_password(user_id: str, current_user: RBACUser = Depends(require_ceo), db: Session = Depends(get_db)):
+async def reset_user_password(user_id: str, current_user: dict = Depends(require_ceo), mongo_db = Depends(get_mongo_db)):
     """Reset user password and generate new one"""
-    user = db.query(ERPUser).filter(ERPUser.id == user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+    if mongo_db is None: raise HTTPException(status_code=500, detail="Database connection failed")
+    user = await mongo_db.erp_users.find_one({"id": user_id})
+    if not user: raise HTTPException(status_code=404, detail="User not found")
+    if user.get("isCEO"): raise HTTPException(status_code=403, detail="Cannot reset CEO password")
     
-    # Prevent resetting CEO password
-    if user.isCEO:
-        raise HTTPException(status_code=403, detail="Cannot reset CEO password")
-    
-    # Generate new password
     new_password = generate_password()
-    user.passwordHash = pwd_context.hash(new_password)
-    user.updatedAt = datetime.utcnow()
-    db.commit()
+    await mongo_db.erp_users.update_one(
+        {"id": user_id}, 
+        {"$set": {"passwordHash": pwd_context.hash(new_password), "updatedAt": datetime.utcnow()}}
+    )
     
     return {
         "message": "Password reset successfully",
-        "username": user.username,
-        "new_password": new_password  # Return for email sending
+        "username": user.get("username"),
+        "new_password": new_password
     }
 
 @router.get("/permissions")
-def get_permission_matrix(current_user: RBACUser = Depends(require_ceo), db: Session = Depends(get_db)):
+async def get_permission_matrix(current_user: dict = Depends(require_ceo), mongo_db = Depends(get_mongo_db)):
     """Get full permission matrix (read-only)"""
-    # Get all roles
-    roles = db.query(ERPRole).all()
+    if mongo_db is None: raise HTTPException(status_code=500, detail="Database connection failed")
+    roles = await mongo_db.erp_roles.find().to_list(length=None)
     
-    # Get all modules
     modules = [
         "dashboard", "finance", "human_resources", "inventory", "manufacturing",
         "procurement", "crm_pipeline", "payroll", "fixed_assets", "projects",
@@ -288,27 +266,23 @@ def get_permission_matrix(current_user: RBACUser = Depends(require_ceo), db: Ses
         "rpa_automation"
     ]
     
-    # Build permission matrix
     permission_matrix = {}
     for role in roles:
-        module_access = db.query(ModuleAccess).filter(ModuleAccess.roleId == role.id).all()
+        module_access = await mongo_db.module_access.find({"roleId": role["id"]}).to_list(length=None)
         role_permissions = {}
         for access in module_access:
-            role_permissions[access.moduleKey] = {
-                "can_read": access.canRead,
-                "can_write": access.canWrite,
-                "can_export": access.canExport
+            role_permissions[access["moduleKey"]] = {
+                "can_read": access.get("canRead", True),
+                "can_write": access.get("canWrite", False),
+                "can_export": access.get("canExport", False)
             }
-        permission_matrix[role.name] = {
-            "role_id": role.id,
-            "department_id": role.departmentId,
+        permission_matrix[role["name"]] = {
+            "role_id": role["id"],
+            "department_id": role.get("departmentId"),
             "modules": role_permissions
         }
-    
-    return {
-        "modules": modules,
-        "roles": permission_matrix
-    }
+        
+    return {"modules": modules, "roles": permission_matrix}
 
 class PermissionToggleRequest(BaseModel):
     role_id: str
@@ -316,76 +290,56 @@ class PermissionToggleRequest(BaseModel):
     can_access: bool
 
 @router.patch("/permissions")
-def toggle_permission(
-    request: PermissionToggleRequest,
-    current_user: RBACUser = Depends(require_ceo),
-    db: Session = Depends(get_db)
-):
-    """
-    Toggle module access for a role (CEO only).
-    Body: { role_id: "finance_staff", module_key: "inventory", can_access: true }
-    """
-    # Prevent modifying superadmin (CEO) permissions
+async def toggle_permission(http_req: Request, request: PermissionToggleRequest, current_user: dict = Depends(require_ceo), mongo_db = Depends(get_mongo_db)):
+    """Toggle module access for a role (CEO only)."""
+    if mongo_db is None: raise HTTPException(status_code=500, detail="Database connection failed")
+    
     if request.role_id == "role_superadmin":
         raise HTTPException(status_code=403, detail="Cannot modify CEO permissions")
-    
-    # Dashboard is always ON for all roles
     if request.module_key == "dashboard":
         raise HTTPException(status_code=403, detail="Dashboard is always ON for all roles")
+        
+    role = await mongo_db.erp_roles.find_one({"id": request.role_id})
+    if not role: raise HTTPException(status_code=404, detail="Role not found")
     
-    # Check if role exists
-    role = db.query(ERPRole).filter(ERPRole.id == request.role_id).first()
-    if not role:
-        raise HTTPException(status_code=404, detail="Role not found")
-    
-    # Update or create module access
-    module_access = db.query(ModuleAccess).filter(
-        ModuleAccess.roleId == request.role_id,
-        ModuleAccess.moduleKey == request.module_key
-    ).first()
+    module_access = await mongo_db.module_access.find_one({
+        "roleId": request.role_id,
+        "moduleKey": request.module_key
+    })
     
     if module_access:
-        module_access.canRead = request.can_access
-        module_access.canWrite = request.can_access
-        module_access.canExport = request.can_access
+        await mongo_db.module_access.update_one(
+            {"id": module_access["id"]},
+            {"$set": {
+                "canRead": request.can_access,
+                "canWrite": request.can_access,
+                "canExport": request.can_access
+            }}
+        )
     else:
-        module_access = ModuleAccess(
+        new_access = ModuleAccessModel(
             roleId=request.role_id,
             moduleKey=request.module_key,
             canRead=request.can_access,
             canWrite=request.can_access,
             canExport=request.can_access
-        )
-        db.add(module_access)
-    
-    db.commit()
-    
-    # Return updated permission matrix
-    return get_permission_matrix(current_user, db)
+        ).model_dump()
+        await mongo_db.module_access.insert_one(new_access)
+        
+    await log_audit_event("MODULE_ACCESS_UPDATE", "ModuleAccess", f"Updated module {request.module_key} access for role {request.role_id}", current_user.get("id"), http_req)
+        
+    return await get_permission_matrix(current_user, mongo_db)
 
 @router.get("/departments")
-def get_departments(current_user: RBACUser = Depends(require_ceo), db: Session = Depends(get_db)):
+async def get_departments(current_user: dict = Depends(require_ceo), mongo_db = Depends(get_mongo_db)):
     """Get all departments for user creation form"""
-    departments = db.query(ERPDepartment).all()
-    return [
-        {
-            "id": dept.id,
-            "name": dept.name,
-            "code": dept.code
-        }
-        for dept in departments
-    ]
+    if mongo_db is None: raise HTTPException(status_code=500, detail="Database connection failed")
+    departments = await mongo_db.erp_departments.find().to_list(length=None)
+    return [{"id": d["id"], "name": d["name"], "code": d["code"]} for d in departments]
 
 @router.get("/roles")
-def get_roles(current_user: RBACUser = Depends(require_ceo), db: Session = Depends(get_db)):
+async def get_roles(current_user: dict = Depends(require_ceo), mongo_db = Depends(get_mongo_db)):
     """Get all roles for user creation form"""
-    roles = db.query(ERPRole).all()
-    return [
-        {
-            "id": role.id,
-            "name": role.name,
-            "description": role.description,
-            "department_id": role.departmentId
-        }
-        for role in roles
-    ]
+    if mongo_db is None: raise HTTPException(status_code=500, detail="Database connection failed")
+    roles = await mongo_db.erp_roles.find().to_list(length=None)
+    return [{"id": r["id"], "name": r["name"], "description": r.get("description"), "department_id": r.get("departmentId")} for r in roles]

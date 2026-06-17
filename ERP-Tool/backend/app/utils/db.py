@@ -1,25 +1,29 @@
-"""
-db.py — Database stub (all database connections removed)
-SQLAlchemy models and get_db() are preserved as no-ops so routers compile without changes.
-"""
-from sqlalchemy import create_engine
-from sqlalchemy.orm import declarative_base, sessionmaker
-from sqlalchemy.pool import StaticPool
+import logging
+from app.utils.mongodb import get_mongo_db
 
-# In-memory SQLite — purely so SQLAlchemy Base/engine/SessionLocal exist as valid objects.
-# No data is persisted. All routes will work without any external database.
-engine = create_engine(
-    "sqlite:///:memory:",
-    connect_args={"check_same_thread": False},
-    poolclass=StaticPool,
-)
+logger = logging.getLogger(__name__)
 
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-Base = declarative_base()
+# Mock class so any legacy imports of Base don't instantly crash
+class DummyBase:
+    metadata = type('DummyMetadata', (), {'create_all': lambda *args, **kwargs: None})()
+
+Base = DummyBase()
+engine = None
+SessionLocal = None
 
 def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+    """
+    Returns the MongoDB database instance instead of a SQLAlchemy session.
+    All routers using Depends(get_db) will receive a MongoDB db.
+    """
+    db = get_mongo_db()
+    if db is None:
+        logger.error("MongoDB is not connected. get_db() returned None.")
+    yield db
+
+def test_connection():
+    """
+    Dummy test connection function to replace SQLAlchemy connection test.
+    """
+    from app.utils.mongodb import get_mongo_connection_status
+    return get_mongo_connection_status()

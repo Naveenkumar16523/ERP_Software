@@ -1,56 +1,30 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { AlertTriangle, Package, Warehouse, Scan, BarChart3, Layers } from 'lucide-react';
+import { useProducts, useWarehouses, useBatches, useTransactions } from '../hooks/useInventory';
 import { useERPStore } from '../store/useERPStore';
-import { api } from '../utils/api';
 
-export default function InventoryModule() {
-  const {
-    products, setProducts, addProduct, updateProductStock,
-    inventoryBatches, setInventoryBatches, addInventoryBatch,
-    warehouses, setWarehouses, addWarehouse,
-    stockMovements, setStockMovements, addStockMovement,
-    addToast
-  } = useERPStore();
+const InventoryModule = React.memo(function InventoryModule() {
+  const { addToast } = useERPStore();
 
-  useEffect(() => {
-    let active = true;
-    const fetchInventoryData = async () => {
-      try {
-        const [prods, whs, bts, mvts] = await Promise.all([
-          api.inventory.getProducts(),
-          api.inventory.getWarehouses(),
-          api.inventory.getBatches(),
-          api.inventory.getStockMovements()
-        ]);
-        if (active) {
-          if (Array.isArray(prods)) setProducts(prods);
-          if (Array.isArray(whs)) setWarehouses(whs);
-          if (Array.isArray(bts)) setInventoryBatches(bts);
-          if (Array.isArray(mvts)) setStockMovements(mvts);
-        }
-      } catch (err) {
-        console.error('Error fetching inventory data:', err);
-      }
-    };
-    fetchInventoryData();
-    return () => {
-      active = false;
-    };
-  }, [setProducts, setWarehouses, setInventoryBatches, setStockMovements]);
+  const { data: products = [] } = useProducts();
+  const { data: warehouses = [] } = useWarehouses();
+  const { data: inventoryBatches = [] } = useBatches();
+  const { data: stockMovements = [] } = useTransactions();
 
   const [activeTab, setActiveTab] = useState('products');
   const [search, setSearch] = useState('');
   const [barcodeScan, setBarcodeScan] = useState('');
-  const filtered = products.filter(
+  const filtered = useMemo(() => products.filter(
     p =>
       p.name?.toLowerCase().includes(search.toLowerCase()) ||
       p.sku?.toLowerCase().includes(search.toLowerCase()) ||
       p.barcode?.includes(search.toLowerCase())
-  );
-  const lowStock = products.filter(p => p.currentStock <= p.reorderLevel);
-  const expiringBatches = inventoryBatches.filter(b => b.expiryDate && new Date(b.expiryDate) < new Date(Date.now() + 90 * 24 * 60 * 60 * 1000));
+  ), [products, search]);
+  
+  const lowStock = useMemo(() => products.filter(p => p.currentStock <= p.reorderLevel), [products]);
+  const expiringBatches = useMemo(() => inventoryBatches.filter(b => b.expiryDate && new Date(b.expiryDate) < new Date(Date.now() + 90 * 24 * 60 * 60 * 1000)), [inventoryBatches]);
 
-  const handleBarcodeScan = () => {
+  const handleBarcodeScan = useCallback(() => {
     const product = products.find(p => p.barcode === barcodeScan);
     if (product) {
       addToast(`Found: ${product.name} - Stock: ${product.currentStock}`, 'success');
@@ -58,7 +32,7 @@ export default function InventoryModule() {
       addToast('Product not found with this barcode', 'error');
     }
     setBarcodeScan('');
-  };
+  }, [products, barcodeScan, addToast]);
 
   const TABS = [
     { id: 'products', label: 'Products', icon: Package },
@@ -330,4 +304,6 @@ export default function InventoryModule() {
       )}
     </div>
   );
-}
+});
+
+export default InventoryModule;

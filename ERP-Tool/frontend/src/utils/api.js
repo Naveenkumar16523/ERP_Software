@@ -2,7 +2,7 @@
 // Implements transparent offline-first fallbacks using our Zustand store.
 import { useERPStore } from '../store/useERPStore';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+const API_URL = '';
 const BASE_URL = `${API_URL}/api/v1`;
 
 // Helper to get authorization headers
@@ -48,6 +48,11 @@ async function request(path, options = {}) {
                             (res.status === 401 && !String(errorMessage).includes('Invalid credentials'));
         
         if (isAuthError) {
+          const isDemo = useERPStore.getState().demoMode;
+          if (isDemo) {
+             throw new Error('Offline demo mode: Auth bypassed.');
+          }
+
           const refreshToken = localStorage.getItem('erp_refresh_token');
           if (refreshToken && !options._retry) {
             try {
@@ -94,13 +99,14 @@ export const api = {
   async getHealth() {
     try {
       const res = await fetch(`${API_URL}/api/v1/health`);
+      useERPStore.getState().setDbLive(true); // Network reachable
       if (res.ok) {
         const data = await res.json();
         useERPStore.getState().setDbLive(data.status === 'UP');
         return data;
       }
     } catch {
-      useERPStore.getState().setDbLive(false);
+      useERPStore.getState().setDbLive(false); // Genuine network failure
     }
     return { status: 'DOWN' };
   },

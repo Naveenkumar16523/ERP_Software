@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import {
   TrendingUp,
@@ -36,7 +36,7 @@ const itemVariants = {
 
 const PIE_COLORS = ['#4f46e5', '#f59e0b', '#ef4444', '#10b981'];
 
-export default function Dashboard() {
+const Dashboard = React.memo(function Dashboard() {
   const { employees, products, notifications } = useERPStore();
   const [dashboardData, setDashboardData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -50,10 +50,10 @@ export default function Dashboard() {
     }
   }, [demoMode]);
 
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = useCallback(async () => {
     try {
       const token = localStorage.getItem('erp_token');
-      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+      const API_URL = import.meta.env.VITE_API_URL || '';
       const response = await fetch(`${API_URL}/api/v1/dashboard/metrics`, {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -69,9 +69,9 @@ export default function Dashboard() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const revenueExpensesData = [
+  const revenueExpensesData = useMemo(() => [
     { name: '1', current: 1400, previous: 900 },
     { name: '2', current: 2200, previous: 1200 },
     { name: '3', current: 2800, previous: 1800 },
@@ -81,7 +81,7 @@ export default function Dashboard() {
     { name: '7', current: 2400, previous: 1500 },
     { name: '8', current: 3200, previous: 2100 },
     { name: '9', current: 2800, previous: 1900 },
-  ];
+  ], []);
 
   const inventoryStatusData = dashboardData ? [
     { name: 'In Stock', value: dashboardData.inventory?.totalProducts - dashboardData.inventory?.lowStockProducts || 0 },
@@ -442,4 +442,6 @@ export default function Dashboard() {
 
     </motion.div>
   );
-}
+});
+
+export default Dashboard;

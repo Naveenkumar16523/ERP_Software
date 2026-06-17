@@ -32,7 +32,7 @@ const AdminPanel         = lazy(() => import('./components/AdminPanel'));
 const ChangePassword     = lazy(() => import('./components/ChangePassword'));
 
 
-import SignIn from './components/auth/SignIn';
+const SignIn = lazy(() => import('./components/auth/SignIn'));
 
 const MODULE_MAP = {
   dashboard:      Dashboard,
@@ -152,7 +152,9 @@ export default function App() {
     return (
       <>
         <FollowCursor />
-        <SignIn />
+        <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-background"><SkeletonLoader variant="card" /></div>}>
+          <SignIn />
+        </Suspense>
       </>
     );
   }

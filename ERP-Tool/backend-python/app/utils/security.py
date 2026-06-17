@@ -1,2 +1,63 @@
-"import os\nfrom datetime import datetime, timedelta\nfrom typing import Optional\nfrom jose import jwt, JWTError\nfrom passlib.context import CryptContext\nimport pyotp\nfrom dotenv import load_dotenv\n\nload_dotenv()\n\nJWT_SECRET = os.getenv(\"JWT_SECRET\")\nJWT_REFRESH_SECRET = os.getenv(\"JWT_REFRESH_SECRET\")\n\nif not JWT_SECRET or len(JWT_SECRET) < 32:\n    raise ValueError(\"[FATAL] JWT_SECRET environment variable is missing or under 32 characters.\")\n\nif not JWT_REFRESH_SECRET or len(JWT_REFRESH_SECRET) < 32:\n    raise ValueError(\"[FATAL] JWT_REFRESH_SECRET environment variable is missing or under 32 characters.\")\n\n# Configure bcrypt password hashing\npwd_context = CryptContext(schemes=[\"bcrypt\"], deprecated=\"auto\")\n\ndef hash_password(password: str) -> str:\n    return pwd_context.hash(password)\n\ndef verify_password(plain_password: str, hashed_password: str) -> bool:\n    return pwd_context.verify(plain_password, hashed_password)\n\ndef generate_access_token(payload: dict) -> str:\n    to_encode = payload.copy()\n    expire = datetime.utcnow() + timedelta(minutes=15)\n    to_encode.update({\"exp\": expire})\n    return jwt.encode(to_encode, JWT_SECRET, algorithm=\"HS256\")\n\ndef generate_refresh_token(payload: dict) -> str:\n    to_encode = payload.copy()\n    expire = datetime.utcnow() + timedelta(days=7)\n    to_encode.update({\"exp\": expire})\n    return jwt.encode(to_encode, JWT_REFRESH_SECRET, algorithm=\"HS256\")\n\ndef verify_access_token(token: str) -> Optional[dict]:\n    try:\n        payload = jwt.decode(token, JWT_SECRET, algorithms=[\"HS256\"])\n        return payload\n    except JWTError:\n        return None\n\ndef verify_refresh_token(token: str) -> Optional[dict]:\n    try:\n        payload = jwt.decode(token, JWT_REFRESH_SECRET, algorithms=[\"HS256\"])\n        return payload\n    except JWTError:\n        return None\n\ndef generate_totp_secret() -> str:\n    return pyotp.random_base32()\n\ndef verify_totp_token(secret: str, token: str) -> bool:\n    totp = pyotp.TOTP
-<truncated 58 bytes>
+import os
+from datetime import datetime, timedelta
+from typing import Optional
+from jose import jwt, JWTError
+from passlib.context import CryptContext
+import pyotp
+from dotenv import load_dotenv
+
+load_dotenv()
+
+JWT_SECRET = os.getenv("JWT_SECRET")
+JWT_REFRESH_SECRET = os.getenv("JWT_REFRESH_SECRET")
+
+if not JWT_SECRET or len(JWT_SECRET) < 32:
+    raise ValueError("[FATAL] JWT_SECRET environment variable is missing or under 32 characters.")
+
+if not JWT_REFRESH_SECRET or len(JWT_REFRESH_SECRET) < 32:
+    raise ValueError("[FATAL] JWT_REFRESH_SECRET environment variable is missing or under 32 characters.")
+
+# Configure bcrypt password hashing
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+def hash_password(password: str) -> str:
+    return pwd_context.hash(password)
+
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    return pwd_context.verify(plain_password, hashed_password)
+
+def compare_password(plain_password: str, hashed_password: str) -> bool:
+    return pwd_context.verify(plain_password, hashed_password)
+
+def generate_access_token(payload: dict) -> str:
+    to_encode = payload.copy()
+    expire = datetime.utcnow() + timedelta(minutes=15)
+    to_encode.update({"exp": expire})
+    return jwt.encode(to_encode, JWT_SECRET, algorithm="HS256")
+
+def generate_refresh_token(payload: dict) -> str:
+    to_encode = payload.copy()
+    expire = datetime.utcnow() + timedelta(days=7)
+    to_encode.update({"exp": expire})
+    return jwt.encode(to_encode, JWT_REFRESH_SECRET, algorithm="HS256")
+
+def verify_access_token(token: str) -> Optional[dict]:
+    try:
+        payload = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
+        return payload
+    except JWTError:
+        return None
+
+def verify_refresh_token(token: str) -> Optional[dict]:
+    try:
+        payload = jwt.decode(token, JWT_REFRESH_SECRET, algorithms=["HS256"])
+        return payload
+    except JWTError:
+        return None
+
+def generate_totp_secret() -> str:
+    return pyotp.random_base32()
+
+def verify_totp_token(secret: str, token: str) -> bool:
+    totp = pyotp.TOTP(secret)
+    return totp.verify(token)

@@ -1,190 +1,272 @@
+from pydantic import BaseModel, Field
+from typing import Optional
 from datetime import datetime
 import uuid
-from sqlalchemy import Column, String, Boolean, DateTime, Integer, Float, ForeignKey, Text, UniqueConstraint, Index
-from sqlalchemy.orm import relationship
-from app.utils.db import Base
 
 def generate_uuid():
     return str(uuid.uuid4())
 
-# ─── Auth, RBAC & Session Management ───────────────────────────────────────────
+# ─── Auth, RBAC & Session Management (Pydantic / MongoDB) ──────────────────────
 
-class User(Base):
-    __tablename__ = "User"
-    id = Column(String(36), primary_key=True, default=generate_uuid)
-    email = Column(String(191), unique=True, nullable=False, index=True)
-    password = Column(String(191), nullable=False)
-    firstName = Column(String(191), nullable=False)
-    lastName = Column(String(191), nullable=False)
-    isActive = Column(Boolean, default=True, nullable=False)
-    mfaSecret = Column(String(191), nullable=True)
-    mfaEnabled = Column(Boolean, default=False, nullable=False)
-    createdAt = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updatedAt = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+class User(BaseModel):
+    id: str = Field(default_factory=generate_uuid)
+    email: str
+    password: str
+    firstName: str
+    lastName: str
+    isActive: bool = True
+    mfaSecret: Optional[str] = None
+    mfaEnabled: bool = False
+    createdAt: datetime = Field(default_factory=datetime.utcnow)
+    updatedAt: datetime = Field(default_factory=datetime.utcnow)
 
-    roles = relationship("UserRole", back_populates="user", cascade="all, delete-orphan")
-    sessions = relationship("Session", back_populates="user", cascade="all, delete-orphan")
-    auditLogs = relationship("AuditLog", back_populates="user")
+class Role(BaseModel):
+    id: str = Field(default_factory=generate_uuid)
+    name: str
+    description: Optional[str] = None
+    createdAt: datetime = Field(default_factory=datetime.utcnow)
 
-class Role(Base):
-    __tablename__ = "Role"
-    id = Column(String(36), primary_key=True, default=generate_uuid)
-    name = Column(String(191), unique=True, nullable=False, index=True)
-    description = Column(String(191), nullable=True)
-    createdAt = Column(DateTime, default=datetime.utcnow, nullable=False)
+class Permission(BaseModel):
+    id: str = Field(default_factory=generate_uuid)
+    name: str
+    description: Optional[str] = None
+    createdAt: datetime = Field(default_factory=datetime.utcnow)
 
-    users = relationship("UserRole", back_populates="role", cascade="all, delete-orphan")
-    permissions = relationship("RolePermission", back_populates="role", cascade="all, delete-orphan")
+class UserRole(BaseModel):
+    id: str = Field(default_factory=generate_uuid)
+    userId: str
+    roleId: str
+    createdAt: datetime = Field(default_factory=datetime.utcnow)
 
-class Permission(Base):
-    __tablename__ = "Permission"
-    id = Column(String(36), primary_key=True, default=generate_uuid)
-    name = Column(String(191), unique=True, nullable=False, index=True)
-    description = Column(String(191), nullable=True)
-    createdAt = Column(DateTime, default=datetime.utcnow, nullable=False)
+class RolePermission(BaseModel):
+    id: str = Field(default_factory=generate_uuid)
+    roleId: str
+    permissionId: str
+    createdAt: datetime = Field(default_factory=datetime.utcnow)
 
-    roles = relationship("RolePermission", back_populates="permission", cascade="all, delete-orphan")
+class Session(BaseModel):
+    id: str = Field(default_factory=generate_uuid)
+    userId: str
+    token: str
+    ipAddress: Optional[str] = None
+    userAgent: Optional[str] = None
+    isValid: bool = True
+    expiresAt: datetime
+    createdAt: datetime = Field(default_factory=datetime.utcnow)
 
-class UserRole(Base):
-    __tablename__ = "UserRole"
-    id = Column(String(36), primary_key=True, default=generate_uuid)
-    userId = Column(String(36), ForeignKey("User.id", ondelete="CASCADE"), nullable=False, index=True)
-    roleId = Column(String(36), ForeignKey("Role.id", ondelete="CASCADE"), nullable=False, index=True)
-    createdAt = Column(DateTime, default=datetime.utcnow, nullable=False)
+class AuditLog(BaseModel):
+    id: str = Field(default_factory=generate_uuid)
+    userId: Optional[str] = None
+    action: str
+    resource: str
+    details: str
+    ipAddress: Optional[str] = None
+    userAgent: Optional[str] = None
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
 
-    user = relationship("User", back_populates="roles")
-    role = relationship("Role", back_populates="users")
+# ─── HR Module Models ────────────────────────────────────────────────────────────
 
-    __table_args__ = (
-        UniqueConstraint("userId", "roleId", name="UserRole_userId_roleId_key"),
-    )
+class Employee(BaseModel):
+    id: str = Field(default_factory=generate_uuid)
+    employeeId: str
+    firstName: str
+    lastName: str
+    email: str
+    department: str
+    designation: str
+    salary: float
+    dateOfJoining: datetime
+    isActive: bool = True
+    createdAt: datetime = Field(default_factory=datetime.utcnow)
+    updatedAt: datetime = Field(default_factory=datetime.utcnow)
 
-class RolePermission(Base):
-    __tablename__ = "RolePermission"
-    id = Column(String(36), primary_key=True, default=generate_uuid)
-    roleId = Column(String(36), ForeignKey("Role.id", ondelete="CASCADE"), nullable=False, index=True)
-    permissionId = Column(String(36), ForeignKey("Permission.id", ondelete="CASCADE"), nullable=False, index=True)
-    createdAt = Column(DateTime, default=datetime.utcnow, nullable=False)
+class Leave(BaseModel):
+    id: str = Field(default_factory=generate_uuid)
+    employeeId: str
+    leaveType: str
+    startDate: datetime
+    endDate: datetime
+    reason: Optional[str] = None
+    status: str = "pending" # pending, approved, rejected
+    isActive: bool = True
+    createdAt: datetime = Field(default_factory=datetime.utcnow)
 
-    role = relationship("Role", back_populates="permissions")
-    permission = relationship("Permission", back_populates="roles")
+# ─── Inventory Module Models ─────────────────────────────────────────────────────
 
-    __table_args__ = (
-        UniqueConstraint("roleId", "permissionId", name="RolePermission_roleId_permissionId_key"),
-    )
+class Product(BaseModel):
+    id: str = Field(default_factory=generate_uuid)
+    sku: str
+    name: str
+    category: str
+    quantity: int = 0
+    reorderLevel: int = 10
+    unitPrice: float
+    isActive: bool = True
+    createdAt: datetime = Field(default_factory=datetime.utcnow)
+    updatedAt: datetime = Field(default_factory=datetime.utcnow)
 
-class Session(Base):
-    __tablename__ = "Session"
-    id = Column(String(36), primary_key=True, default=generate_uuid)
-    userId = Column(String(36), ForeignKey("User.id", ondelete="CASCADE"), nullable=False, index=True)
-    token = Column(String(512), unique=True, nullable=False, index=True)
-    ipAddress = Column(String(191), nullable=True)
-    userAgent = Column(Text, nullable=True)
-    isValid = Column(Boolean, default=True, nullable=False)
-    expiresAt = Column(DateTime, nullable=False)
-    createdAt = Column(DateTime, default=datetime.utcnow, nullable=False)
+class StockTransaction(BaseModel):
+    id: str = Field(default_factory=generate_uuid)
+    productId: str
+    transactionType: str # in, out
+    quantity: int
+    notes: Optional[str] = None
+    isActive: bool = True
+    createdAt: datetime = Field(default_factory=datetime.utcnow)
 
-    user = relationship("User", back_populates="sessions")
+# ─── CRM Module Models ───────────────────────────────────────────────────────────
 
-class AuditLog(Base):
-    __tablename__ = "AuditLog"
-    id = Column(String(36), primary_key=True, default=generate_uuid)
-    userId = Column(String(36), ForeignKey("User.id", ondelete="SET NULL"), nullable=True, index=True)
-    action = Column(String(191), nullable=False)
-    resource = Column(String(191), nullable=False)
-    details = Column(Text, nullable=False)
-    ipAddress = Column(String(191), nullable=True)
-    userAgent = Column(Text, nullable=True)
-    timestamp = Column(DateTime, default=datetime.utcnow, nullable=False)
+class Lead(BaseModel):
+    id: str = Field(default_factory=generate_uuid)
+    name: str
+    contact: Optional[str] = None
+    email: Optional[str] = None
+    source: str
+    status: str = "new" # new, contacted, qualified, lost
+    assignedTo: Optional[str] = None
+    expectedValue: float = 0.0
+    isActive: bool = True
+    createdAt: datetime = Field(default_factory=datetime.utcnow)
+    updatedAt: datetime = Field(default_factory=datetime.utcnow)
 
-    user = relationship("User", back_populates="auditLogs")
+class Deal(BaseModel):
+    id: str = Field(default_factory=generate_uuid)
+    leadId: str
+    title: str
+    value: float
+    stage: str = "prospecting" # prospecting, proposal, won, lost
+    isActive: bool = True
+    createdAt: datetime = Field(default_factory=datetime.utcnow)
 
-# ─── RBAC System for Logistics ERP ───────────────────────────────────────────────
+class Contact(BaseModel):
+    id: str = Field(default_factory=generate_uuid)
+    name: str
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    company: Optional[str] = None
+    isActive: bool = True
+    createdAt: datetime = Field(default_factory=datetime.utcnow)
 
-class ERPRole(Base):
-    __tablename__ = "ERPRole"
-    id = Column(String(36), primary_key=True, default=generate_uuid)
-    name = Column(String(191), unique=True, nullable=False, index=True)
-    description = Column(String(191), nullable=True)
-    departmentId = Column(String(36), ForeignKey("ERPDepartment.id", ondelete="CASCADE"), nullable=False, index=True)
-    createdAt = Column(DateTime, default=datetime.utcnow, nullable=False)
+# ─── Finance Module Models ───────────────────────────────────────────────────────
 
-    department = relationship("ERPDepartment", back_populates="roles")
-    moduleAccess = relationship("ModuleAccess", back_populates="role", cascade="all, delete-orphan")
+class Account(BaseModel):
+    id: str = Field(default_factory=generate_uuid)
+    code: str
+    name: str
+    type: str
+    balance: float = 0.0
+    isActive: bool = True
+    createdAt: datetime = Field(default_factory=datetime.utcnow)
 
-class ERPDepartment(Base):
-    __tablename__ = "ERPDepartment"
-    id = Column(String(36), primary_key=True, default=generate_uuid)
-    name = Column(String(191), unique=True, nullable=False, index=True)
-    code = Column(String(191), unique=True, nullable=False, index=True)
-    createdAt = Column(DateTime, default=datetime.utcnow, nullable=False)
+class JournalEntry(BaseModel):
+    id: str = Field(default_factory=generate_uuid)
+    accountId: str
+    amount: float
+    type: str # debit, credit
+    date: datetime
+    description: Optional[str] = None
+    createdAt: datetime = Field(default_factory=datetime.utcnow)
 
-    roles = relationship("ERPRole", back_populates="department")
+class Invoice(BaseModel):
+    id: str = Field(default_factory=generate_uuid)
+    customerId: str
+    amount: float
+    status: str = "draft"
+    dueDate: datetime
+    createdAt: datetime = Field(default_factory=datetime.utcnow)
 
-class ModuleAccess(Base):
-    __tablename__ = "ModuleAccess"
-    id = Column(String(36), primary_key=True, default=generate_uuid)
-    roleId = Column(String(36), ForeignKey("ERPRole.id", ondelete="CASCADE"), nullable=False, index=True)
-    moduleKey = Column(String(191), nullable=False, index=True)
-    canRead = Column(Boolean, default=True, nullable=False)
-    canWrite = Column(Boolean, default=False, nullable=False)
-    canExport = Column(Boolean, default=False, nullable=False)
-    createdAt = Column(DateTime, default=datetime.utcnow, nullable=False)
+class Budget(BaseModel):
+    id: str = Field(default_factory=generate_uuid)
+    departmentId: str
+    amount: float
+    startDate: datetime
+    endDate: datetime
+    createdAt: datetime = Field(default_factory=datetime.utcnow)
 
-    role = relationship("ERPRole", back_populates="moduleAccess")
+class Expense(BaseModel):
+    id: str = Field(default_factory=generate_uuid)
+    amount: float
+    category: str
+    date: datetime
+    description: Optional[str] = None
+    status: str = "pending"
+    createdAt: datetime = Field(default_factory=datetime.utcnow)
 
-    __table_args__ = (
-        UniqueConstraint("roleId", "moduleKey", name="ModuleAccess_roleId_moduleKey_key"),
-    )
+class ApprovalLevel(BaseModel):
+    id: str = Field(default_factory=generate_uuid)
+    roleId: str
+    level: int
 
-class ERPUser(Base):
-    __tablename__ = "ERPUser"
-    id = Column(String(36), primary_key=True, default=generate_uuid)
-    username = Column(String(191), unique=True, nullable=False, index=True)
-    passwordHash = Column(String(191), nullable=False)
-    fullName = Column(String(191), nullable=False)
-    email = Column(String(191), unique=True, nullable=False, index=True)
-    roleId = Column(String(36), ForeignKey("ERPRole.id", ondelete="CASCADE"), nullable=False, index=True)
-    departmentId = Column(String(36), ForeignKey("ERPDepartment.id", ondelete="CASCADE"), nullable=False, index=True)
-    isActive = Column(Boolean, default=True, nullable=False)
-    isCEO = Column(Boolean, default=False, nullable=False)
-    createdAt = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updatedAt = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+class ApprovalWorkflow(BaseModel):
+    id: str = Field(default_factory=generate_uuid)
+    resourceId: str
+    status: str = "pending"
+    levels: list[ApprovalLevel] = []
+    createdAt: datetime = Field(default_factory=datetime.utcnow)
 
-    role = relationship("ERPRole")
-    department = relationship("ERPDepartment")
+class TaxDeadline(BaseModel):
+    id: str = Field(default_factory=generate_uuid)
+    title: str
+    dueDate: datetime
+    status: str = "upcoming"
+    createdAt: datetime = Field(default_factory=datetime.utcnow)
 
-class AccessRequest(Base):
-    __tablename__ = "AccessRequest"
-    id = Column(String(36), primary_key=True, default=generate_uuid)
-    fullName = Column(String(191), nullable=False)
-    email = Column(String(191), nullable=False)
-    department = Column(String(191), nullable=False)
-    reason = Column(Text, nullable=False)
-    status = Column(String(191), default="pending", nullable=False, index=True)  # pending, approved, denied
-    denialReason = Column(Text, nullable=True)
-    reviewedBy = Column(String(36), ForeignKey("ERPUser.id", ondelete="SET NULL"), nullable=True)
-    reviewedAt = Column(DateTime, nullable=True)
-    createdAt = Column(DateTime, default=datetime.utcnow, nullable=False)
+class Statement(BaseModel):
+    id: str = Field(default_factory=generate_uuid)
+    accountId: str
+    startDate: datetime
+    endDate: datetime
+    balance: float
+    createdAt: datetime = Field(default_factory=datetime.utcnow)
 
-    reviewer = relationship("ERPUser", foreign_keys=[reviewedBy])
+# ─── Procurement & E-Commerce Models ─────────────────────────────────────────────
 
-# ─── Dynamic Stubbing for Missing Models ─────────────────────────────────────────
-from sqlalchemy.orm.decl_api import DeclarativeMeta
+class Supplier(BaseModel):
+    id: str = Field(default_factory=generate_uuid)
+    name: str
+    contactInfo: Optional[str] = None
+    isActive: bool = True
+    createdAt: datetime = Field(default_factory=datetime.utcnow)
 
-class DummyMeta(DeclarativeMeta):
-    def __getattr__(cls, name):
-        if name.startswith("_"):
-            raise AttributeError(name)
-        return Column(String)
+class PurchaseOrder(BaseModel):
+    id: str = Field(default_factory=generate_uuid)
+    supplierId: str
+    totalAmount: float
+    status: str = "draft"
+    orderDate: datetime = Field(default_factory=datetime.utcnow)
+    createdAt: datetime = Field(default_factory=datetime.utcnow)
 
-def __getattr__(name):
-    # This catches any missing model import (e.g., from app.models.models import Employee)
-    # and returns a dummy SQLAlchemy class so the app doesn't crash.
-    class DummyModel(Base, metaclass=DummyMeta):
-        __tablename__ = name.lower() + "_stub"
-        id = Column(String(36), primary_key=True, default=generate_uuid)
-    
-    DummyModel.__name__ = name
-    globals()[name] = DummyModel
-    return DummyModel
+class CustomerOrder(BaseModel):
+    id: str = Field(default_factory=generate_uuid)
+    customerId: str
+    totalAmount: float
+    status: str = "pending"
+    orderDate: datetime = Field(default_factory=datetime.utcnow)
+    createdAt: datetime = Field(default_factory=datetime.utcnow)
+
+# ─── Assets & Manufacturing Models ───────────────────────────────────────────────
+
+class FixedAsset(BaseModel):
+    id: str = Field(default_factory=generate_uuid)
+    name: str
+    value: float
+    purchaseDate: datetime
+    status: str = "active"
+    createdAt: datetime = Field(default_factory=datetime.utcnow)
+
+class ProductionOrder(BaseModel):
+    id: str = Field(default_factory=generate_uuid)
+    productId: str
+    quantity: int
+    status: str = "planned"
+    startDate: Optional[datetime] = None
+    endDate: Optional[datetime] = None
+    createdAt: datetime = Field(default_factory=datetime.utcnow)
+
+class Opportunity(BaseModel):
+    id: str = Field(default_factory=generate_uuid)
+    title: str
+    value: float
+    probability: int
+    status: str = "open"
+    createdAt: datetime = Field(default_factory=datetime.utcnow)

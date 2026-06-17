@@ -1,2 +1,62 @@
-"import json\nfrom datetime import datetime\nfrom fastapi import Request\nfrom app.utils.db import SessionLocal\nfrom app.utils.mongodb import get_mongo_connection_status, get_mongo_db\n\nasync def log_audit_event(\n    action: str,\n    resource: str,\n    details: any,\n    user_id: str = None,\n    req: Request = None\n):\n    ip_address = \"Unknown\"\n    user_agent = \"Unknown\"\n    \n    if req is not None:\n        ip_address = req.client.host if req.client else \"Unknown\"\n        forwarded = req.headers.get(\"x-forwarded-for\")\n        if forwarded:\n            ip_address = forwarded.split(\",\")[0].strip()\n        user_agent = req.headers.get(\"user-agent\", \"Unknown\")\n        \n    details_str = details if isinstance(details, str) else json.dumps(details)\n    \n    # 1. Write to MySQL (SQLAlchemy)\n    db = SessionLocal()\n    try:\n        from app.models.models import AuditLog\n        db_log = AuditLog(\n            userId=user_id,\n            action=action,\n            resource=resource,\n            details=details_str,\n            ipAddress=ip_address,\n            userAgent=user_agent,\n            timestamp=datetime.utcnow()\n        )\n        db.add(db_log)\n        db.commit()\n    except Exception as e:\n        print(f\"Failed to log audit event in SQL: {e}\")\n    finally:\n        db.close()\n        \n    # 2. Write to MongoDB (Async)\n    try:\n        if get_mongo_connection_status():\n            mongo_db = get_mongo_db()\n            if mongo_db is not None:\n                mongo_details = {\"raw\": details} if isinstance(details, str) else details\n                await mongo_db[\"AuditLog\"].insert_one({\n                    \"userId\": user_id,\n                    \"action\": action,\n                    \"resource\": resource,\n                    \"details\": mongo_details,\n                    \"ipAddress\": ip_address,\n                    \"userAgent\": user_agent,\n                    \"timestamp\": datetime.utcnow()\n                })\n    except Exception a
-<truncated 70 bytes>
+import json
+from datetime import datetime
+from fastapi import Request
+from app.utils.db import SessionLocal
+from app.utils.mongodb import get_mongo_connection_status, get_mongo_db
+
+async def log_audit_event(
+    action: str,
+    resource: str,
+    details: any,
+    user_id: str = None,
+    req: Request = None
+):
+    ip_address = "Unknown"
+    user_agent = "Unknown"
+    
+    if req is not None:
+        ip_address = req.client.host if req.client else "Unknown"
+        forwarded = req.headers.get("x-forwarded-for")
+        if forwarded:
+            ip_address = forwarded.split(",")[0].strip()
+        user_agent = req.headers.get("user-agent", "Unknown")
+        
+    details_str = details if isinstance(details, str) else json.dumps(details)
+    
+    # 1. Write to MySQL (SQLAlchemy)
+    db = SessionLocal()
+    try:
+        from app.models.models import AuditLog
+        db_log = AuditLog(
+            userId=user_id,
+            action=action,
+            resource=resource,
+            details=details_str,
+            ipAddress=ip_address,
+            userAgent=user_agent,
+            timestamp=datetime.utcnow()
+        )
+        db.add(db_log)
+        db.commit()
+    except Exception as e:
+        print(f"Failed to log audit event in SQL: {e}")
+    finally:
+        db.close()
+        
+    # 2. Write to MongoDB (Async)
+    try:
+        if get_mongo_connection_status():
+            mongo_db = get_mongo_db()
+            if mongo_db is not None:
+                mongo_details = {"raw": details} if isinstance(details, str) else details
+                await mongo_db["AuditLog"].insert_one({
+                    "userId": user_id,
+                    "action": action,
+                    "resource": resource,
+                    "details": mongo_details,
+                    "ipAddress": ip_address,
+                    "userAgent": user_agent,
+                    "timestamp": datetime.utcnow()
+                })
+    except Exception as e:
+        print(f"Failed to log audit event in MongoDB: {e}")

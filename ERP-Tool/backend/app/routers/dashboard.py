@@ -1,68 +1,85 @@
 from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
-from sqlalchemy import func, desc
-
 from app.utils.db import get_db
 from app.middlewares.rbac_middleware import get_current_rbac_user, RBACUser
-from app.models.models import (
-    Employee, Product, Supplier, PurchaseOrder, CustomerOrder, 
-    FixedAsset, ProductionOrder, Lead, Opportunity, StockTransaction
-)
 
 router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
 
 @router.get("/metrics")
 async def get_dashboard_metrics(
     current_user: RBACUser = Depends(get_current_rbac_user),
-    db: Session = Depends(get_db)
+    db = Depends(get_db)
 ):
-    """Get aggregated dashboard metrics for Logistics ERP"""
+    """Get aggregated dashboard metrics for Logistics ERP using MongoDB"""
     
     # HR Metrics
-    total_employees = db.query(func.count(Employee.id)).scalar()
-    active_employees = db.query(func.count(Employee.id)).filter(Employee.isActive == True).scalar()
+    total_employees = await db.employees.count_documents({})
+    active_employees = await db.employees.count_documents({"isActive": True})
     
     # Inventory Metrics
-    total_products = db.query(func.count(Product.id)).scalar()
-    low_stock_products = db.query(func.count(Product.id)).filter(
-        Product.currentStock <= Product.reorderPoint
-    ).scalar()
+    total_products = await db.products.count_documents({})
+    low_stock_products = await db.products.count_documents({
+        "$expr": { "$lte": ["$currentStock", "$reorderPoint"] }
+    })
     
     # Procurement Metrics
-    total_suppliers = db.query(func.count(Supplier.id)).scalar()
-    active_purchase_orders = db.query(func.count(PurchaseOrder.id)).filter(
-        PurchaseOrder.status.in_(["DRAFT", "APPROVED", "SHIPPED"])
-    ).scalar()
+    total_suppliers = await db.suppliers.count_documents({})
+    active_purchase_orders = await db.purchase_orders.count_documents({
+        "status": {"$in": ["DRAFT", "APPROVED", "SHIPPED"]}
+    })
     
     # Sales/CRM Metrics
-    total_leads = db.query(func.count(Lead.id)).scalar()
-    qualified_leads = db.query(func.count(Lead.id)).filter(Lead.status == "QUALIFIED").scalar()
-    total_opportunities = db.query(func.count(Opportunity.id)).scalar()
-    total_pipeline_value = db.query(func.sum(Opportunity.value)).scalar() or 0
+    total_leads = await db.leads.count_documents({})
+    qualified_leads = await db.leads.count_documents({"status": "QUALIFIED"})
+    total_opportunities = await db.opportunities.count_documents({})
+    
+    pipeline_agg = await db.opportunities.aggregate([
+        {"$group": {"_id": None, "total": {"$sum": "$value"}}}
+    ]).to_list(length=1)
+    total_pipeline_value = pipeline_agg[0]["total"] if pipeline_agg else 0
     
     # E-Commerce Metrics
-    total_orders = db.query(func.count(CustomerOrder.id)).scalar()
-    pending_orders = db.query(func.count(CustomerOrder.id)).filter(
-        CustomerOrder.status.in_(["PLACED", "PROCESSING"])
-    ).scalar()
-    total_revenue = db.query(func.sum(CustomerOrder.totalAmount)).scalar() or 0
+    total_orders = await db.customer_orders.count_documents({})
+    pending_orders = await db.customer_orders.count_documents({
+        "status": {"$in": ["PLACED", "PROCESSING"]}
+    })
+    
+    revenue_agg = await db.customer_orders.aggregate([
+        {"$group": {"_id": None, "total": {"$sum": "$totalAmount"}}}
+    ]).to_list(length=1)
+    total_revenue = revenue_agg[0]["total"] if revenue_agg else 0
     
     # Manufacturing Metrics
-    active_production_orders = db.query(func.count(ProductionOrder.id)).filter(
-        ProductionOrder.status == "IN_PROGRESS"
-    ).scalar()
-    completed_production_orders = db.query(func.count(ProductionOrder.id)).filter(
-        ProductionOrder.status == "COMPLETED"
-    ).scalar()
+    active_production_orders = await db.production_orders.count_documents({
+        "status": "IN_PROGRESS"
+    })
+    completed_production_orders = await db.production_orders.count_documents({
+        "status": "COMPLETED"
+    })
     
     # Fixed Assets Metrics
-    total_assets = db.query(func.count(FixedAsset.id)).scalar()
-    active_assets = db.query(func.count(FixedAsset.id)).filter(FixedAsset.status == "ACTIVE").scalar()
+    total_assets = await db.fixed_assets.count_documents({})
+    active_assets = await db.fixed_assets.count_documents({"status": "ACTIVE"})
     
     # Stock Transactions (recent activity)
-    recent_transactions = db.query(StockTransaction).order_by(
-        desc(StockTransaction.transactionDate)
-    ).limit(10).all()
+    recent_transactions = await db.stock_transactions.find().sort("transactionDate", -1).limit(10).to_list(length=10)
+    
+    recent_activity = []
+    for t in recent_transactions:
+        # Resolve product name if we have a productId
+        product_name = "Unknown"
+        if "productId" in t:
+            product = await db.products.find_one({"id": t["productId"]})
+            if product and "name" in product:
+                product_name = product["name"]
+                
+        recent_activity.append({
+            "type": "STOCK_TRANSACTION",
+            "id": t.get("id", str(t.get("_id"))),
+            "product": product_name,
+            "quantity": t.get("quantity", 0),
+            "transactionType": t.get("type", "UNKNOWN"),
+            "date": t.get("transactionDate").isoformat() if t.get("transactionDate") else None
+        })
     
     return {
         "hr": {
@@ -96,42 +113,37 @@ async def get_dashboard_metrics(
             "totalAssets": total_assets,
             "activeAssets": active_assets
         },
-        "recentActivity": [
-            {
-                "type": "STOCK_TRANSACTION",
-                "id": t.id,
-                "product": t.product.name if t.product else "Unknown",
-                "quantity": t.quantity,
-                "transactionType": t.type,
-                "date": t.transactionDate.isoformat() if t.transactionDate else None
-            }
-            for t in recent_transactions
-        ]
+        "recentActivity": recent_activity
     }
 
 @router.get("/kpis")
 async def get_dashboard_kpis(
     current_user: RBACUser = Depends(get_current_rbac_user),
-    db: Session = Depends(get_db)
+    db = Depends(get_db)
 ):
     """Get key performance indicators for dashboard"""
     
-    # Calculate KPIs based on Logistics ERP data
-    total_employees = db.query(func.count(Employee.id)).scalar() or 0
-    total_products = db.query(func.count(Product.id)).scalar() or 0
-    total_suppliers = db.query(func.count(Supplier.id)).scalar() or 0
-    total_orders = db.query(func.count(CustomerOrder.id)).scalar() or 0
-    total_revenue = db.query(func.sum(CustomerOrder.totalAmount)).scalar() or 0
-    total_assets = db.query(func.count(FixedAsset.id)).scalar() or 0
+    total_employees = await db.employees.count_documents({})
+    total_products = await db.products.count_documents({})
+    total_suppliers = await db.suppliers.count_documents({})
+    total_orders = await db.customer_orders.count_documents({})
     
-    # Calculate average supplier score
-    avg_supplier_score = db.query(func.avg(Supplier.overallScore)).scalar() or 0
+    revenue_agg = await db.customer_orders.aggregate([
+        {"$group": {"_id": None, "total": {"$sum": "$totalAmount"}}}
+    ]).to_list(length=1)
+    total_revenue = revenue_agg[0]["total"] if revenue_agg else 0
     
-    # Calculate production efficiency
-    total_production = db.query(func.count(ProductionOrder.id)).scalar() or 0
-    completed_production = db.query(func.count(ProductionOrder.id)).filter(
-        ProductionOrder.status == "COMPLETED"
-    ).scalar() or 0
+    total_assets = await db.fixed_assets.count_documents({})
+    
+    score_agg = await db.suppliers.aggregate([
+        {"$group": {"_id": None, "avg": {"$avg": "$overallScore"}}}
+    ]).to_list(length=1)
+    avg_supplier_score = score_agg[0]["avg"] if score_agg else 0
+    
+    total_production = await db.production_orders.count_documents({})
+    completed_production = await db.production_orders.count_documents({
+        "status": "COMPLETED"
+    })
     production_efficiency = (completed_production / total_production * 100) if total_production > 0 else 0
     
     return {
@@ -148,21 +160,19 @@ async def get_dashboard_kpis(
 @router.get("/recent-orders")
 async def get_recent_orders(
     current_user: RBACUser = Depends(get_current_rbac_user),
-    db: Session = Depends(get_db),
+    db = Depends(get_db),
     limit: int = 5
 ):
     """Get recent customer orders"""
-    orders = db.query(CustomerOrder).order_by(
-        desc(CustomerOrder.createdAt)
-    ).limit(limit).all()
+    orders = await db.customer_orders.find().sort("createdAt", -1).limit(limit).to_list(length=limit)
     
     return [
         {
-            "orderNo": order.orderNo,
-            "customerName": order.customerName,
-            "totalAmount": float(order.totalAmount),
-            "status": order.status,
-            "createdAt": order.createdAt.isoformat() if order.createdAt else None
+            "orderNo": order.get("orderNo"),
+            "customerName": order.get("customerName"),
+            "totalAmount": float(order.get("totalAmount", 0)),
+            "status": order.get("status"),
+            "createdAt": order.get("createdAt").isoformat() if order.get("createdAt") else None
         }
         for order in orders
     ]
@@ -170,21 +180,24 @@ async def get_recent_orders(
 @router.get("/top-products")
 async def get_top_products(
     current_user: RBACUser = Depends(get_current_rbac_user),
-    db: Session = Depends(get_db),
+    db = Depends(get_db),
     limit: int = 5
 ):
     """Get top products by stock value"""
-    products = db.query(Product).order_by(
-        desc(Product.currentStock * Product.costPrice)
-    ).limit(limit).all()
+    pipeline = [
+        {"$addFields": {"stockValue": {"$multiply": ["$currentStock", "$costPrice"]}}},
+        {"$sort": {"stockValue": -1}},
+        {"$limit": limit}
+    ]
+    products = await db.products.aggregate(pipeline).to_list(length=limit)
     
     return [
         {
-            "code": product.code,
-            "name": product.name,
-            "currentStock": product.currentStock,
-            "stockValue": float(product.currentStock * product.costPrice),
-            "type": product.type
+            "code": product.get("code"),
+            "name": product.get("name"),
+            "currentStock": product.get("currentStock", 0),
+            "stockValue": float(product.get("stockValue", 0)),
+            "type": product.get("type")
         }
         for product in products
     ]

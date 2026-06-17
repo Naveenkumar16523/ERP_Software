@@ -1,7 +1,7 @@
 """
 RBAC Router - Handles access requests and user management (MongoDB Version)
 """
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from pydantic import BaseModel, EmailStr
 from typing import List, Optional
 from datetime import datetime
@@ -9,11 +9,12 @@ import secrets
 import string
 
 from app.utils.mongodb import get_mongo_db
+from app.utils.audit import log_audit_event
 from app.models.mongo_models import AccessRequestModel, ERPUserModel
 from app.routers.rbac_auth import get_current_user, require_ceo
 from passlib.context import CryptContext
 
-router = APIRouter(prefix="/api/v1/rbac", tags=["RBAC"])
+router = APIRouter(prefix="/rbac", tags=["RBAC"])
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 # Schemas
@@ -150,6 +151,7 @@ async def get_access_request(request_id: str, db = Depends(get_mongo_db)):
 
 @router.post("/access-requests/{request_id}/approve")
 async def approve_access_request(
+    http_req: Request,
     request_id: str,
     approval_data: AccessRequestApprove,
     current_user: dict = Depends(require_ceo),
@@ -217,6 +219,8 @@ async def approve_access_request(
             "reviewedAt": datetime.utcnow()
         }}
     )
+
+    await log_audit_event("USER_CREATE", "User", f"Created user {approval_data.username} from access request {request_id}", current_user.get("id"), http_req)
 
     return {
         "message": "Access request approved and user account created",
@@ -315,7 +319,7 @@ async def get_role_modules(role_id: str, db = Depends(get_mongo_db)):
     ]
 
 @router.get("/users", response_model=List[UserResponse])
-async def list_users(db = Depends(get_mongo_db)):
+async def list_users(current_user: dict = Depends(require_ceo), db = Depends(get_mongo_db)):
     """List all users (CEO only)"""
     if db is None:
         raise HTTPException(status_code=500, detail="Database connection failed")
@@ -324,7 +328,7 @@ async def list_users(db = Depends(get_mongo_db)):
     return users
 
 @router.post("/users", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
-async def create_user(user_data: UserCreate, db = Depends(get_mongo_db)):
+async def create_user(http_req: Request, user_data: UserCreate, current_user: dict = Depends(require_ceo), db = Depends(get_mongo_db)):
     """Create a new user (CEO only)"""
     if db is None:
         raise HTTPException(status_code=500, detail="Database connection failed")
@@ -356,10 +360,12 @@ async def create_user(user_data: UserCreate, db = Depends(get_mongo_db)):
     
     await db.erp_users.insert_one(user)
     
+    await log_audit_event("USER_CREATE", "User", f"Created user {user_data.username}", current_user.get("id"), http_req)
+    
     return user
 
 @router.put("/users/{user_id}/activate")
-async def activate_user(user_id: str, db = Depends(get_mongo_db)):
+async def activate_user(http_req: Request, user_id: str, current_user: dict = Depends(require_ceo), db = Depends(get_mongo_db)):
     """Activate a user account"""
     if db is None:
         raise HTTPException(status_code=500, detail="Database connection failed")
@@ -375,10 +381,12 @@ async def activate_user(user_id: str, db = Depends(get_mongo_db)):
             detail="User not found"
         )
     
+    await log_audit_event("USER_UPDATE", "User", f"Activated user {user_id}", current_user.get("id"), http_req)
+    
     return {"message": "User activated"}
 
 @router.put("/users/{user_id}/deactivate")
-async def deactivate_user(user_id: str, db = Depends(get_mongo_db)):
+async def deactivate_user(http_req: Request, user_id: str, current_user: dict = Depends(require_ceo), db = Depends(get_mongo_db)):
     """Deactivate a user account"""
     if db is None:
         raise HTTPException(status_code=500, detail="Database connection failed")
@@ -393,5 +401,7 @@ async def deactivate_user(user_id: str, db = Depends(get_mongo_db)):
             status_code=status.HTTP_404_NOT_FOUND,
             detail="User not found"
         )
+    
+    await log_audit_event("USER_UPDATE", "User", f"Deactivated user {user_id}", current_user.get("id"), http_req)
     
     return {"message": "User deactivated"}

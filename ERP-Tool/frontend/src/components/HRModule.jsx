@@ -1,14 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Plus, Users, UserCheck, Calendar, Clock, Edit2, Check, X } from 'lucide-react';
+import { useEmployees, useAddEmployee, useUpdateEmployee, useLeaves, useAddLeave, useUpdateLeave } from '../hooks/useHR';
 import { useERPStore } from '../store/useERPStore';
-import { api } from '../utils/api';
 import Modal from './ui/Modal';
 
 export default function HRModule() {
   const {
-    employees, setEmployees, addEmployee, updateEmployee,
-    leaveRequests, setLeaveRequests, addLeaveRequest, updateLeaveStatus, leaveBalances,
     jobPostings, addJobPosting,
     applicants, addApplicant, updateApplicantStatus,
     performanceReviews, addPerformanceReview, updateReviewStatus,
@@ -18,41 +16,12 @@ export default function HRModule() {
     addToast
   } = useERPStore();
 
-  useEffect(() => {
-    let active = true;
-    const loadHRData = async () => {
-      try {
-        const [empData, leaveData] = await Promise.all([
-          api.hr.getEmployees(),
-          api.hr.getLeaveRequests()
-        ]);
-        if (active) {
-          if (Array.isArray(empData)) {
-            const formatted = empData.map(emp => ({
-              ...emp,
-              department: emp.department?.name || emp.departmentId || emp.department || 'Unknown'
-            }));
-            setEmployees(formatted);
-          }
-          if (Array.isArray(leaveData)) {
-            const formattedLeaves = leaveData.map(lr => ({
-              ...lr,
-              employeeName: lr.employee ? `${lr.employee.firstName} ${lr.employee.lastName}` : lr.employeeName || 'Unknown',
-              startDate: typeof lr.startDate === 'string' ? lr.startDate.split('T')[0] : lr.startDate,
-              endDate: typeof lr.endDate === 'string' ? lr.endDate.split('T')[0] : lr.endDate
-            }));
-            setLeaveRequests(formattedLeaves);
-          }
-        }
-      } catch (err) {
-        console.error('Failed to load HR data:', err);
-      }
-    };
-    loadHRData();
-    return () => {
-      active = false;
-    };
-  }, [setEmployees, setLeaveRequests]);
+  const { data: employees = [], isLoading: loadingEmployees } = useEmployees();
+  const { mutateAsync: mutateAddEmployee } = useAddEmployee();
+  
+  const { data: leaveRequests = [], isLoading: loadingLeaves } = useLeaves();
+  const { mutateAsync: mutateAddLeave } = useAddLeave();
+  const { mutateAsync: mutateUpdateLeave } = useUpdateLeave();
 
   const [activeTab, setActiveTab] = useState('employees');
   const [empModalOpen, setEmpModalOpen] = useState(false);
@@ -75,16 +44,7 @@ export default function HRModule() {
     };
 
     try {
-      const savedEmp = await api.hr.addEmployee(payload);
-      const formattedSavedEmp = {
-        ...savedEmp,
-        department: savedEmp.department?.name || savedEmp.departmentId || savedEmp.department || payload.departmentId
-      };
-      
-      const exists = employees.some(e => e.email === formattedSavedEmp.email || e.employeeCode === formattedSavedEmp.employeeCode);
-      if (!exists) {
-        addEmployee(formattedSavedEmp);
-      }
+      await mutateAddEmployee(payload);
       addToast(`Employee ${newEmp.firstName} ${newEmp.lastName} added successfully`, 'success');
     } catch (err) {
       addToast(`Error adding employee: ${err.message}`, 'error');
@@ -100,22 +60,14 @@ export default function HRModule() {
     
     try {
       const leavePayload = {
-        leaveType: newLeave.leaveType,
-        startDate: new Date(newLeave.startDate).toISOString(),
-        endDate: new Date(newLeave.endDate).toISOString(),
-        reason: newLeave.reason || null
+        leave_type: newLeave.leaveType,
+        start_date: new Date(newLeave.startDate).toISOString(),
+        end_date: new Date(newLeave.endDate).toISOString(),
+        reason: newLeave.reason || null,
+        employee_id: newLeave.employeeId
       };
       
-      const created = await api.hr.createLeaveRequest(newLeave.employeeId, leavePayload);
-      if (created && created.id) {
-        const formattedCreated = {
-          ...created,
-          employeeName: emp ? `${emp.firstName} ${emp.lastName}` : 'Unknown',
-          startDate: newLeave.startDate,
-          endDate: newLeave.endDate
-        };
-        addLeaveRequest(formattedCreated);
-      }
+      await mutateAddLeave(leavePayload);
       addToast('Leave request submitted', 'success');
       setLeaveModalOpen(false);
     } catch (err) {
@@ -125,8 +77,7 @@ export default function HRModule() {
 
   const handleUpdateLeaveStatus = async (id, status) => {
     try {
-      await api.hr.updateLeaveStatus(id, status);
-      updateLeaveStatus(id, status);
+      await mutateUpdateLeave({ id, status });
       addToast(`Leave request ${status.toLowerCase()}`, 'success');
     } catch (err) {
       addToast(err.message || 'Failed to update leave status', 'error');

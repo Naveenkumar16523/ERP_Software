@@ -15,71 +15,135 @@ from app.utils.mongodb import connect_mongodb, get_mongo_connection_status, clos
 from app.routers.rbac import router as rbac_router
 from app.routers.rbac_auth import router as rbac_auth_router
 from app.routers.admin import router as admin_router
+from app.routers.analytics import router as analytics_router
+from app.routers.assets import router as assets_router
+from app.routers.automation import router as automation_router
+from app.routers.banking import router as banking_router
+from app.routers.crm import router as crm_router
+from app.routers.dashboard import router as dashboard_router
+from app.routers.ecommerce import router as ecommerce_router
+from app.routers.education import router as education_router
+from app.routers.finance import router as finance_router
+from app.routers.healthcare import router as healthcare_router
+from app.routers.hr import router as hr_router
+from app.routers.inventory import router as inventory_router
+from app.routers.manufacturing import router as manufacturing_router
+from app.routers.marketing import router as marketing_router
+from app.routers.payroll import router as payroll_router
+from app.routers.procurement import router as procurement_router
+from app.routers.projects import router as projects_router
+from app.routers.security import router as security_router
+from app.routers.supply_chain import router as supply_chain_router
+from app.routers.support import router as support_router
+from app.routers.sustainability import router as sustainability_router
 
 load_dotenv()
 
+import sentry_sdk
+from prometheus_fastapi_instrumentator import Instrumentator
+
+SENTRY_DSN = os.getenv("SENTRY_DSN")
+if SENTRY_DSN:
+    sentry_sdk.init(
+        dsn=SENTRY_DSN,
+        traces_sample_rate=1.0,
+        profiles_sample_rate=1.0,
+        environment=os.getenv("NODE_ENV", "development")
+    )
+
 app = FastAPI(title="NexusERP Python API", version="2.0.0")
 
-from fastapi import Request
+# Setup Prometheus metrics
+Instrumentator().instrument(app).expose(app)
+
+from fastapi import Request, HTTPException, status
 from fastapi.responses import JSONResponse
+from fastapi.exceptions import RequestValidationError
+from app.middlewares.rate_limit import setup_rate_limiting
+import uuid
+import logging
+
+logger = logging.getLogger(__name__)
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"error": True, "code": "HTTP_ERROR", "message": str(exc.detail), "request_id": str(uuid.uuid4())}
+    )
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    return JSONResponse(
+        status_code=422,
+        content={"error": True, "code": "VALIDATION_ERROR", "message": "Invalid request parameters", "details": exc.errors(), "request_id": str(uuid.uuid4())}
+    )
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
-    # This suppresses any SQLAlchemy OperationalErrors or AttributeErrors 
-    # that occur when querying the dummy models, returning a valid JSON response.
-    print(f"[STUB] Suppressed error for {request.url.path}: {type(exc).__name__}")
-    return JSONResponse(status_code=200, content={"message": "Operation stubbed in database-free mode", "data": [], "stubbed": True})
+    req_id = str(uuid.uuid4())
+    logger.error(f"[{req_id}] Unhandled error at {request.url.path}: {exc}", exc_info=True)
+    if os.getenv("NODE_ENV") == "development":
+        # Safe fallback for dummy models in dev mode if needed
+        return JSONResponse(status_code=500, content={"error": True, "code": "INTERNAL_ERROR", "message": str(exc), "request_id": req_id})
+    return JSONResponse(
+        status_code=500,
+        content={"error": True, "code": "INTERNAL_ERROR", "message": "An internal server error occurred.", "request_id": req_id}
+    )
+
+# Setup Rate Limiting
+setup_rate_limiting(app)
 
 # Configure CORS origins
-cors_env = os.getenv("CORS_ORIGINS", "")
-frontend_env = os.getenv("FRONTEND_ORIGIN", "")
+cors_env = os.getenv("CORS_ORIGINS", "http://localhost:5173,http://localhost:3001,http://localhost:3000")
 
-# Static allowed origins (production + localhost dev)
-allowed_origins = [
-    "http://localhost:5173",
-    "http://localhost:3000",
-    "http://localhost:3003",
-    "http://localhost:8080",
-    "https://erp-software-cyan.vercel.app",
-    # Add any specific production Vercel URLs here
-    "https://erp-software-iyiexnm2x-naveenkumar16523s-projects.vercel.app",
-    "https://erp-software-ox6nz7ucc-naveenkumar16523s-projects.vercel.app",
-]
-if cors_env:
-    allowed_origins.extend([o.strip() for o in cors_env.split(",")])
-if frontend_env:
-    allowed_origins.extend([o.strip() for o in frontend_env.split(",")])
-
-allowed_origins = list(set([origin for origin in allowed_origins if origin]))
-
-# Regex to allow ALL Vercel preview deployments and localhost ports automatically
-# This covers URLs like: https://erp-software-<hash>-naveenkumar16523s-projects.vercel.app
-allow_origin_regex = (
-    r"https://.*\.vercel\.app"
-    r"|https?://localhost:\d+"
-    r"|https?://127\.0\.0\.1:\d+"
-)
+# Explicit allowed origins ONLY from env
+allowed_origins = [o.strip() for o in cors_env.split(",")]
+if "http://localhost:3001" not in allowed_origins:
+    allowed_origins.append("http://localhost:3001")
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
-    allow_origin_regex=allow_origin_regex,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization", "X-Requested-With"],
     max_age=86400,
 )
 
+import asyncio
+import traceback
+
 # Startup connections
 @app.on_event("startup")
 async def startup_connections():
-    from app.utils.db import engine, Base
-    Base.metadata.create_all(bind=engine)
-    await connect_mongodb()
-    print("[INFO] Clarix ERP started — connecting to MongoDB Atlas and SQLite in-memory")
+    logger.info("Initializing application startup sequence...")
+
+    # 1. Connect MongoDB with Retries
+    mongo_retries = 3
+    for attempt in range(mongo_retries):
+        try:
+            await connect_mongodb()
+            logger.info(f"MongoDB Atlas connected successfully.")
+            break
+        except Exception as e:
+            logger.error(f"MongoDB connection attempt {attempt+1}/{mongo_retries} failed: {e}")
+            if attempt < mongo_retries - 1:
+                await asyncio.sleep(2)
+            else:
+                logger.error("MongoDB Atlas connection failed after max retries.")
+
+    # 3. Check Redis Connection
+    try:
+        from app.utils.redis_client import redis_client
+        if redis_client and redis_client.ping():
+            logger.info("Redis connected successfully.")
+    except Exception as e:
+        logger.warning(f"Redis not available: {e} - Application will run with graceful degradation.")
 
 @app.on_event("shutdown")
 async def shutdown_connections():
+    logger.info("Shutting down application...")
     await close_mongodb()
 
 # Health diagnostic endpoint
@@ -89,16 +153,14 @@ async def health_check():
     redis_status = "DOWN"
     mongo_status = "DOWN"
 
-    # Database check
-    from sqlalchemy import text
-    db = SessionLocal()
+    # MongoDB check (primary database)
     try:
-        db.execute(text("SELECT 1"))
-        db_status = "UP"
+        mongo_status = "UP" if get_mongo_connection_status() else "DOWN"
+        if mongo_status == "UP":
+            db_status = "UP"
     except Exception:
+        mongo_status = "ERROR"
         db_status = "ERROR"
-    finally:
-        db.close()
 
     # Redis check
     try:
@@ -107,14 +169,8 @@ async def health_check():
     except Exception:
         redis_status = "ERROR"
 
-    # MongoDB check
-    try:
-        mongo_status = "UP" if get_mongo_connection_status() else "DOWN"
-    except Exception:
-        mongo_status = "ERROR"
-
-    overall_status = "UP" if db_status == "UP" else "DEGRADED"
-    status_code = status.HTTP_200_OK if overall_status == "UP" else status.HTTP_500_INTERNAL_SERVER_ERROR
+    overall_status = "UP" if mongo_status == "UP" else "DEGRADED"
+    status_code = status.HTTP_200_OK  # Always return 200 so the frontend doesn't crash the proxy loop
 
     return JSONResponse(
         status_code=status_code,
@@ -124,7 +180,7 @@ async def health_check():
             "version": "2.0.0",
             "environment": os.getenv("NODE_ENV", "development"),
             "services": {
-                "database": db_status,
+                "database": mongo_status,
                 "redis": redis_status,
                 "mongodb": mongo_status
             }
@@ -155,4 +211,25 @@ async def root_index():
 app.include_router(rbac_auth_router, prefix="/api/v1")
 app.include_router(rbac_router, prefix="/api/v1")
 app.include_router(admin_router, prefix="/api/v1")
+app.include_router(analytics_router, prefix="/api/v1")
+app.include_router(assets_router, prefix="/api/v1")
+app.include_router(automation_router, prefix="/api/v1")
+app.include_router(banking_router, prefix="/api/v1")
+app.include_router(crm_router, prefix="/api/v1")
+app.include_router(dashboard_router, prefix="/api/v1")
+app.include_router(ecommerce_router, prefix="/api/v1")
+app.include_router(education_router, prefix="/api/v1")
+app.include_router(finance_router, prefix="/api/v1")
+app.include_router(healthcare_router, prefix="/api/v1")
+app.include_router(hr_router, prefix="/api/v1")
+app.include_router(inventory_router, prefix="/api/v1")
+app.include_router(manufacturing_router, prefix="/api/v1")
+app.include_router(marketing_router, prefix="/api/v1")
+app.include_router(payroll_router, prefix="/api/v1")
+app.include_router(procurement_router, prefix="/api/v1")
+app.include_router(projects_router, prefix="/api/v1")
+app.include_router(security_router, prefix="/api/v1")
+app.include_router(supply_chain_router, prefix="/api/v1")
+app.include_router(support_router, prefix="/api/v1")
+app.include_router(sustainability_router, prefix="/api/v1")
 

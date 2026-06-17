@@ -7,6 +7,7 @@ from pydantic import BaseModel
 from datetime import datetime, timedelta
 from typing import List, Optional
 import os
+import uuid
 
 from app.utils.mongodb import get_mongo_db
 from app.models.mongo_models import ERPUserModel, ERPRoleModel, ModuleAccessModel, ERPDepartmentModel
@@ -18,9 +19,14 @@ security = HTTPBearer()
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 # JWT Configuration
-JWT_SECRET = os.getenv("JWT_SECRET", "your-secret-key-change-in-production")
+JWT_SECRET = os.getenv("JWT_SECRET")
+if not JWT_SECRET:
+    raise RuntimeError("JWT_SECRET environment variable must be set")
+
+JWT_REFRESH_SECRET = os.getenv("JWT_REFRESH_SECRET", "your-refresh-secret-key")
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRATION_MINUTES = 60 * 24  # 24 hours
+JWT_REFRESH_EXPIRATION_DAYS = 7
 
 # Schemas
 class Login(BaseModel):
@@ -30,6 +36,7 @@ class Login(BaseModel):
 
 class TokenResponse(BaseModel):
     access_token: str
+    refresh_token: Optional[str] = None
     token_type: str = "bearer"
     user: dict
     permissions: List[dict]
@@ -47,14 +54,18 @@ class UserResponse(BaseModel):
     isCEO: bool
 
 # Helper functions
-def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
+def create_access_token(data: dict):
     to_encode = data.copy()
-    if expires_delta:
-        expire = datetime.utcnow() + expires_delta
-    else:
-        expire = datetime.utcnow() + timedelta(minutes=JWT_EXPIRATION_MINUTES)
+    expire = datetime.utcnow() + timedelta(minutes=JWT_EXPIRATION_MINUTES)
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, JWT_SECRET, algorithm=JWT_ALGORITHM)
+    return encoded_jwt
+
+def create_refresh_token(data: dict):
+    to_encode = data.copy()
+    expire = datetime.utcnow() + timedelta(days=JWT_REFRESH_EXPIRATION_DAYS)
+    to_encode.update({"exp": expire})
+    encoded_jwt = jwt.encode(to_encode, JWT_REFRESH_SECRET, algorithm=JWT_ALGORITHM)
     return encoded_jwt
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
@@ -218,9 +229,59 @@ def require_read_only_or_full(module_key: str, method: str = "GET"):
     
     return check_access
 
+def require_permission(permission: str):
+    """Dependency to require specific permission. Format is 'module:action' e.g. 'finance:read'"""
+    async def check_permission(
+        current_user: dict = Depends(get_current_user),
+        db = Depends(get_mongo_db)
+    ):
+        if db is None:
+            raise HTTPException(status_code=500, detail="Database connection failed")
+        # CEO has access to everything
+        if current_user.get("isCEO", False):
+            return current_user
+            
+        parts = permission.split(":")
+        if len(parts) != 2:
+            raise HTTPException(status_code=500, detail=f"Invalid permission format: {permission}")
+            
+        module_key, action = parts[0], parts[1]
+        
+        # Check module access
+        module_access = await db.module_access.find_one({
+            "roleId": current_user["roleId"],
+            "moduleKey": module_key
+        })
+        
+        if not module_access:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"No access to module: {module_key}"
+            )
+            
+        # Check specific action
+        if action == "read" and not module_access.get("canRead", False):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Read permission required"
+            )
+        elif action == "write" and not module_access.get("canWrite", False):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Write permission required"
+            )
+        elif action == "export" and not module_access.get("canExport", False):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Export permission required"
+            )
+            
+        return current_user
+    return check_permission
+
 # Endpoints
 
-@router.post("/reset-ceo")
+@router.api_route("/reset-ceo", methods=["GET", "POST"])
 async def reset_ceo_password(secret: str, db = Depends(get_mongo_db)):
     """
     Emergency CEO password reset endpoint.
@@ -230,7 +291,10 @@ async def reset_ceo_password(secret: str, db = Depends(get_mongo_db)):
     if db is None:
         raise HTTPException(status_code=500, detail="Database connection failed")
     
-    RESET_SECRET = os.getenv("RESET_SECRET", "clarix-reset-2024")
+    RESET_SECRET = os.getenv("RESET_SECRET")
+    if not RESET_SECRET:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Reset secret is not configured on the server")
+        
     if secret != RESET_SECRET:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid reset secret")
 
@@ -367,7 +431,7 @@ async def login(credentials: Login, db = Depends(get_mongo_db)):
     # Get allowed modules list
     allowed_modules = await get_allowed_modules(user["id"], db)
     
-    # Create JWT token with actual isCEO status and allowed_modules
+    # Create JWT tokens
     access_token = create_access_token(
         data={
             "sub": user["id"],
@@ -378,9 +442,22 @@ async def login(credentials: Login, db = Depends(get_mongo_db)):
             "allowed_modules": allowed_modules
         }
     )
+    refresh_token = create_refresh_token(
+        data={"sub": user["id"]}
+    )
+    
+    await db.refresh_tokens.insert_one({
+        "id": str(uuid.uuid4()),
+        "userId": user["id"],
+        "token": refresh_token,
+        "createdAt": datetime.utcnow(),
+        "expiresAt": datetime.utcnow() + timedelta(days=JWT_REFRESH_EXPIRATION_DAYS),
+        "isRevoked": False
+    })
     
     return TokenResponse(
         access_token=access_token,
+        refresh_token=refresh_token,
         user={
             "id": user["id"],
             "username": user["username"],
@@ -396,6 +473,67 @@ async def login(credentials: Login, db = Depends(get_mongo_db)):
         },
         permissions=permissions
     )
+
+class RefreshTokenRequest(BaseModel):
+    refresh_token: str
+
+@router.post("/refresh")
+async def refresh_token(request: RefreshTokenRequest, db = Depends(get_mongo_db)):
+    """Issue a new access token using a valid refresh token"""
+    if db is None:
+        raise HTTPException(status_code=500, detail="Database connection failed")
+    try:
+        payload = jwt.decode(request.refresh_token, JWT_REFRESH_SECRET, algorithms=[JWT_ALGORITHM])
+        user_id: str = payload.get("sub")
+        if user_id is None:
+            raise HTTPException(status_code=401, detail="Invalid refresh token")
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid or expired refresh token")
+
+    # Check database for refresh token
+    token_doc = await db.refresh_tokens.find_one({"token": request.refresh_token})
+    if not token_doc:
+        raise HTTPException(status_code=401, detail="Refresh token not found")
+    if token_doc.get("isRevoked"):
+        raise HTTPException(status_code=401, detail="Refresh token has been revoked")
+
+    user = await db.erp_users.find_one({"id": user_id})
+    if not user or not user.get("isActive", True):
+        raise HTTPException(status_code=401, detail="User inactive or deleted")
+
+    # Revoke old token
+    await db.refresh_tokens.update_one(
+        {"id": token_doc["id"]},
+        {"$set": {"isRevoked": True}}
+    )
+
+    allowed_modules = await get_allowed_modules(user["id"], db)
+    
+    new_access_token = create_access_token(
+        data={
+            "sub": user["id"],
+            "username": user["username"],
+            "isCEO": user.get("isCEO", False),
+            "roleId": user["roleId"],
+            "departmentId": user["departmentId"],
+            "allowed_modules": allowed_modules
+        }
+    )
+    
+    new_refresh_token = create_refresh_token(
+        data={"sub": user["id"]}
+    )
+    
+    await db.refresh_tokens.insert_one({
+        "id": str(uuid.uuid4()),
+        "userId": user["id"],
+        "token": new_refresh_token,
+        "createdAt": datetime.utcnow(),
+        "expiresAt": datetime.utcnow() + timedelta(days=JWT_REFRESH_EXPIRATION_DAYS),
+        "isRevoked": False
+    })
+    
+    return {"access_token": new_access_token, "refresh_token": new_refresh_token, "token_type": "bearer"}
 
 @router.get("/me", response_model=dict)
 async def get_current_user_info(current_user: dict = Depends(get_current_user), db = Depends(get_mongo_db)):
@@ -424,8 +562,13 @@ async def get_current_user_info(current_user: dict = Depends(get_current_user), 
     }
 
 @router.post("/logout")
-async def logout():
-    """Logout endpoint (client-side token deletion)"""
+async def logout(request: RefreshTokenRequest, db = Depends(get_mongo_db)):
+    """Logout endpoint (revokes refresh token)"""
+    if db is not None:
+        await db.refresh_tokens.update_one(
+            {"token": request.refresh_token},
+            {"$set": {"isRevoked": True}}
+        )
     return {"message": "Logged out successfully"}
 
 class ChangePasswordRequest(BaseModel):

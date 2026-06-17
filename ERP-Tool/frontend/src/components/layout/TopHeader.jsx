@@ -6,13 +6,13 @@ import GlobalSearch from '../ui/GlobalSearch';
 
 export default function TopHeader() {
   const {
-    activeModule,
-    setMobileSidebar,
     dbLive,
     setDbLive,
     notifications,
     clearNotifications,
     markNotificationRead,
+    activeModule,
+    setMobileSidebar,
     currentUser
   } = useERPStore();
 
@@ -26,20 +26,49 @@ export default function TopHeader() {
     return () => clearInterval(timer);
   }, []);
 
-  // Poll database health status every 20 seconds
+  // Poll database health status with exponential backoff
   useEffect(() => {
+    let timeoutId;
+    let failCount = 0;
+    let isMounted = true;
+
     const checkHealth = async () => {
-      try {
-        const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-        const res = await fetch(`${API_URL}/api/v1/health`, { signal: AbortSignal.timeout(3000) });
-        setDbLive(res.ok);
-      } catch {
+      if (!isMounted) return;
+      if (failCount >= 5) {
         setDbLive(false);
+        return; // Stop polling after 5 consecutive failures
+      }
+
+      try {
+        const API_URL = '';
+        const res = await fetch(`${API_URL}/api/v1/health`, { signal: AbortSignal.timeout(5000) });
+        if (isMounted) {
+          setDbLive(res.ok);
+          if (res.ok) {
+            failCount = 0; // Reset counter on success
+          } else {
+            failCount++;
+          }
+        }
+      } catch (error) {
+        if (isMounted) {
+          setDbLive(false);
+          failCount++;
+        }
+      }
+
+      if (isMounted && failCount < 5) {
+        // Exponential backoff: 20s, 30s, 45s, 60s, max 60s
+        const nextInterval = Math.min(20000 * Math.pow(1.5, failCount), 60000);
+        timeoutId = setTimeout(checkHealth, nextInterval);
       }
     };
+
     checkHealth();
-    const interval = setInterval(checkHealth, 20000);
-    return () => clearInterval(interval);
+    return () => {
+      isMounted = false;
+      clearTimeout(timeoutId);
+    };
   }, [setDbLive]);
 
   // Open search on Ctrl+K / Cmd+K

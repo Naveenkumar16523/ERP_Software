@@ -62,12 +62,13 @@ export default function Sidebar() {
     toggleSidebar,
     mobileSidebarOpen,
     setMobileSidebar,
+    demoMode,
     currentUser,
-    logout,
     userPermissions,
-    allowedModules,
-    demoMode
+    logout,
   } = useERPStore();
+  
+  const allowedModules = currentUser?.allowed_modules || [];
 
   const handleNavClick = (moduleId) => {
     setActiveModule(moduleId);

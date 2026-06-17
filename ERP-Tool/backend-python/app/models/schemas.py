@@ -1,2 +1,124 @@
-"from datetime import datetime\nfrom enum import Enum\nfrom typing import List, Optional\nfrom pydantic import BaseModel, EmailStr, Field, field_validator, model_validator\n\nclass UserRegister(BaseModel):\n    firstName: str = Field(..., min_length=1, max_length=100)\n    lastName: str = Field(..., min_length=1, max_length=100)\n    email: EmailStr\n    password: str = Field(..., min_length=6)\n\nclass UserLogin(BaseModel):\n    email: EmailStr\n    password: str\n\nclass MFAVerify(BaseModel):\n    token: str = Field(..., min_length=6, max_length=6)\n\nclass AccountType(str, Enum):\n    ASSET = \"ASSET\"\n    LIABILITY = \"LIABILITY\"\n    EQUITY = \"EQUITY\"\n    REVENUE = \"REVENUE\"\n    EXPENSE = \"EXPENSE\"\n\nclass AccountCreate(BaseModel):\n    code: str = Field(..., min_length=1)\n    name: str = Field(..., min_length=1)\n    type: str\n    balance: float = Field(default=0.0)\n\nclass VoucherType(str, Enum):\n    PAYMENT = \"PAYMENT\"\n    RECEIPT = \"RECEIPT\"\n    JOURNAL = \"JOURNAL\"\n    CONTRA = \"CONTRA\"\n\nclass VoucherCreate(BaseModel):\n    voucherType: VoucherType\n    amount: float = Field(..., gt=0.0, max_digits=15)\n    debitAcc: str = Field(..., min_length=1, max_length=100)\n    creditAcc: str = Field(..., min_length=1, max_length=100)\n    narration: Optional[str] = Field(default=\"\")\n\n    @field_validator('debitAcc', 'creditAcc')\n    @classmethod\n    def strip_spaces(cls, v: str) -> str:\n        return v.strip()\n\nclass EmployeeCreate(BaseModel):\n    employeeCode: str = Field(..., min_length=1, max_length=20)\n    firstName: str = Field(..., min_length=1, max_length=100)\n    lastName: str = Field(..., min_length=1, max_length=100)\n    email: EmailStr\n    phone: Optional[str] = Field(default=None, max_length=20)\n    departmentId: str\n    jobTitle: str = Field(..., min_length=1, max_length=100)\n    managerId: Optional[str] = Field(default=None)\n    baseSalary: float = Field(..., gt=0.0)\n\n    @field_validator('employeeCode')\n    @classmethod\n    def format_code(cls, v: 
-<truncated 3621 bytes>
+from datetime import datetime
+from typing import Optional, List
+from pydantic import BaseModel, EmailStr, Field
+
+class UserRegister(BaseModel):
+    firstName: str = Field(..., min_length=1, max_length=100)
+    lastName: str = Field(..., min_length=1, max_length=100)
+    email: EmailStr
+    password: str = Field(..., min_length=6)
+
+class UserLogin(BaseModel):
+    email: EmailStr
+    password: str
+
+class MFAVerify(BaseModel):
+    token: str = Field(..., min_length=6, max_length=6)
+
+class LeadStageUpdate(BaseModel):
+    status: str
+
+class AssetCreate(BaseModel):
+    assetCode: str
+    name: str
+    category: str
+    location: str
+    serialNo: Optional[str] = None
+    purchaseDate: datetime
+    purchaseCost: float
+    salvageValue: Optional[float] = None
+    usefulLifeYears: Optional[int] = None
+    depMethod: Optional[str] = None
+    depRate: Optional[float] = None
+
+class OrderPlace(BaseModel):
+    customerId: str
+    items: List[dict]
+    shippingAddress: dict
+    paymentMethod: str
+
+class SupportTicketCreate(BaseModel):
+    subject: str
+    description: str
+    priority: str = "MEDIUM"
+    category: str
+
+class ShipmentCreate(BaseModel):
+    trackingNumber: str
+    origin: str
+    destination: str
+    carrier: str
+    estimatedDelivery: datetime
+
+class ProjectCreate(BaseModel):
+    name: str
+    description: Optional[str] = None
+    startDate: datetime
+    endDate: Optional[datetime] = None
+    budget: Optional[float] = None
+    status: str = "PLANNING"
+
+class ProjectTaskCreate(BaseModel):
+    projectId: str
+    title: str
+    description: Optional[str] = None
+    dueDate: Optional[datetime] = None
+    status: str = "TODO"
+
+class OEELogCreate(BaseModel):
+    workCenterId: str
+    availability: float
+    performance: float
+    quality: float
+    timestamp: datetime
+
+class VoucherCreate(BaseModel):
+    voucherNo: str
+    date: datetime
+    amount: float
+    description: str
+    accountId: str
+
+class AccountCreate(BaseModel):
+    accountCode: str
+    accountName: str
+    accountType: str
+    balance: float = 0.0
+
+class InvoiceCreate(BaseModel):
+    invoiceNo: str
+    customerId: str
+    amount: float
+    dueDate: datetime
+    description: Optional[str] = None
+
+class BudgetCreate(BaseModel):
+    departmentId: str
+    fiscalYear: int
+    amount: float
+    category: str
+
+class ExpenseCreate(BaseModel):
+    amount: float
+    description: str
+    category: str
+    date: datetime
+    accountId: str
+
+class ApprovalWorkflowCreate(BaseModel):
+    name: str
+    description: Optional[str] = None
+    entityType: str
+    requiredApprovals: int
+
+class TaxDeadlineCreate(BaseModel):
+    taxType: str
+    dueDate: datetime
+    amount: Optional[float] = None
+    status: str = "PENDING"
+
+class StatementCreate(BaseModel):
+    accountId: str
+    period: str
+    startDate: datetime
+    endDate: datetime
