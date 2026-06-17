@@ -9,9 +9,15 @@ import sys
 from passlib.context import CryptContext
 from motor.motor_asyncio import AsyncIOMotorClient
 
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-MONGO_URL = os.getenv("MONGO_URL", "mongodb://localhost:27017/erp_database")
+MONGO_URL = os.getenv("MONGODB_URL", os.getenv("MONGO_URL", "mongodb://localhost:27017/erp_database"))
 DB_NAME = os.getenv("MONGO_DB_NAME", "erp_database")
 
 # Exact 21 modules as specified
