@@ -29,7 +29,8 @@ async def connect_mongodb():
             mongodb_url, 
             serverSelectionTimeoutMS=5000, 
             tls=True,
-            tlsCAFile=certifi.where()
+            tlsCAFile=certifi.where(),
+            tlsAllowInvalidCertificates=True
         )
         # Verify connection by pinging
         await mongo.client.admin.command('ping')

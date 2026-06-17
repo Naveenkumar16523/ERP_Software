@@ -129,7 +129,8 @@ async def main():
     client = AsyncIOMotorClient(
         MONGO_URL,
         tls=True,
-        tlsCAFile=certifi.where()
+        tlsCAFile=certifi.where(),
+        tlsAllowInvalidCertificates=True
     )
     db = client[DB_NAME]
     
