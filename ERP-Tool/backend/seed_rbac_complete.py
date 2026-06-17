@@ -124,7 +124,13 @@ async def main():
     print("Starting MongoDB RBAC Seeding...")
     print("=" * 60)
     
-    client = AsyncIOMotorClient(MONGO_URL)
+    import certifi
+    
+    client = AsyncIOMotorClient(
+        MONGO_URL,
+        tls=True,
+        tlsCAFile=certifi.where()
+    )
     db = client[DB_NAME]
     
     try:
