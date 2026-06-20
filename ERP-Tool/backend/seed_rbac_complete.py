@@ -125,13 +125,24 @@ async def main():
     print("=" * 60)
     
     import certifi
-    
-    client = AsyncIOMotorClient(
-        MONGO_URL,
-        tls=True,
-        tlsCAFile=certifi.where(),
-        tlsAllowInvalidCertificates=True
-    )
+    is_atlas = MONGO_URL.startswith("mongodb+srv://")
+
+    if is_atlas:
+        client = AsyncIOMotorClient(
+            MONGO_URL,
+            tlsCAFile=certifi.where(),
+            serverSelectionTimeoutMS=30000,
+            connectTimeoutMS=20000,
+            socketTimeoutMS=20000,
+            retryWrites=True,
+            w="majority",
+        )
+    else:
+        client = AsyncIOMotorClient(
+            MONGO_URL,
+            serverSelectionTimeoutMS=30000,
+            connectTimeoutMS=20000,
+        )
     db = client[DB_NAME]
     
     try:

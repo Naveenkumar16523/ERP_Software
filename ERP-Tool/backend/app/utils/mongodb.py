@@ -1,9 +1,10 @@
 """
-mongodb.py — MongoDB connection using Motor
+mongodb.py — MongoDB connection using Motor (async)
 """
 import os
-from motor.motor_asyncio import AsyncIOMotorClient
 import logging
+import certifi
+from motor.motor_asyncio import AsyncIOMotorClient
 
 logger = logging.getLogger(__name__)
 
@@ -15,31 +16,49 @@ class MongoDBClient:
 mongo = MongoDBClient()
 
 async def connect_mongodb():
-    """Initialize MongoDB connection."""
+    """Initialize MongoDB connection with proper TLS for Atlas."""
     mongodb_url = os.getenv("MONGODB_URL")
     if not mongodb_url:
         logger.warning("MONGODB_URL is not set in environment. MongoDB will not connect.")
         return
-        
+
     mongodb_url = mongodb_url.strip('"').strip("'")
 
+    # Detect Atlas (mongodb+srv://) vs plain MongoDB
+    is_atlas = mongodb_url.startswith("mongodb+srv://")
+
     try:
-        import certifi
-        mongo.client = AsyncIOMotorClient(
-            mongodb_url, 
-            serverSelectionTimeoutMS=5000, 
-            tls=True,
-            tlsCAFile=certifi.where(),
-            tlsAllowInvalidCertificates=True
-        )
-        # Verify connection by pinging
-        await mongo.client.admin.command('ping')
+        if is_atlas:
+            # Atlas: let the +srv URI handle TLS negotiation automatically.
+            # Only supply the CA bundle — do NOT set tlsAllowInvalidCertificates
+            # (that flag conflicts with Atlas's strict TLS and causes SSL errors).
+            mongo.client = AsyncIOMotorClient(
+                mongodb_url,
+                tlsCAFile=certifi.where(),
+                serverSelectionTimeoutMS=30000,   # 30s for Render cold starts
+                connectTimeoutMS=20000,
+                socketTimeoutMS=20000,
+                retryWrites=True,
+                w="majority",
+            )
+        else:
+            # Plain MongoDB (local / Render internal) — no TLS needed
+            mongo.client = AsyncIOMotorClient(
+                mongodb_url,
+                serverSelectionTimeoutMS=30000,
+                connectTimeoutMS=20000,
+                socketTimeoutMS=20000,
+            )
+
+        # Verify connection
+        await mongo.client.admin.command("ping")
         mongo.is_connected = True
-        
+
         db_name = os.getenv("MONGODB_DB_NAME", "erp_database")
         mongo.db = mongo.client[db_name]
-        logger.info(f"Successfully connected to MongoDB Atlas (Database: {db_name})")
+        logger.info(f"Successfully connected to MongoDB (Database: {db_name})")
         await create_indexes()
+
     except Exception as e:
         logger.error(f"Failed to connect to MongoDB: {e}")
         mongo.is_connected = False

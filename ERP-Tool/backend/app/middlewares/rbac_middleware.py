@@ -9,7 +9,7 @@ from jose import JWTError, jwt
 import os
 
 from app.utils.db import get_db
-from app.models.models import ERPUser, ERPRole, ModuleAccess, ERPDepartment
+from app.models.mongo_models import ERPUserModel as ERPUser, ERPRoleModel as ERPRole, ModuleAccessModel as ModuleAccess, ERPDepartmentModel as ERPDepartment
 
 security = HTTPBearer()
 

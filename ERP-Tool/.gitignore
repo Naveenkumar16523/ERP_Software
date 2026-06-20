@@ -2,6 +2,7 @@
 .env
 .env.*
 !.env.example
+render.yaml
 
 # Node
 node_modules/

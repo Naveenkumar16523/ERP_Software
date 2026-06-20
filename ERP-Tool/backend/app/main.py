@@ -1,9 +1,13 @@
 import os
+from dotenv import load_dotenv
+
+# Load environment variables before any imports that depend on them
+load_dotenv()
+
 from datetime import datetime
 from fastapi import FastAPI, status
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
-from dotenv import load_dotenv
 
 # Utilities
 from app.utils.db import SessionLocal
@@ -15,27 +19,27 @@ from app.utils.mongodb import connect_mongodb, get_mongo_connection_status, clos
 from app.routers.rbac import router as rbac_router
 from app.routers.rbac_auth import router as rbac_auth_router
 from app.routers.admin import router as admin_router
-from app.routers.analytics import router as analytics_router
-from app.routers.assets import router as assets_router
-from app.routers.automation import router as automation_router
-from app.routers.banking import router as banking_router
-from app.routers.crm import router as crm_router
+# from app.routers.analytics import router as analytics_router  # Temporarily disabled - missing models
+# from app.routers.assets import router as assets_router  # Temporarily disabled - missing models
+# from app.routers.automation import router as automation_router  # Temporarily disabled - missing models
+# from app.routers.banking import router as banking_router  # Temporarily disabled - missing models
+# from app.routers.crm import router as crm_router  # Temporarily disabled - missing models
 from app.routers.dashboard import router as dashboard_router
-from app.routers.ecommerce import router as ecommerce_router
-from app.routers.education import router as education_router
-from app.routers.finance import router as finance_router
-from app.routers.healthcare import router as healthcare_router
-from app.routers.hr import router as hr_router
-from app.routers.inventory import router as inventory_router
-from app.routers.manufacturing import router as manufacturing_router
-from app.routers.marketing import router as marketing_router
-from app.routers.payroll import router as payroll_router
-from app.routers.procurement import router as procurement_router
-from app.routers.projects import router as projects_router
-from app.routers.security import router as security_router
-from app.routers.supply_chain import router as supply_chain_router
-from app.routers.support import router as support_router
-from app.routers.sustainability import router as sustainability_router
+# from app.routers.ecommerce import router as ecommerce_router  # Temporarily disabled - missing models
+# from app.routers.education import router as education_router  # Temporarily disabled - missing models
+# from app.routers.finance import router as finance_router  # Temporarily disabled - missing models
+# from app.routers.healthcare import router as healthcare_router  # Temporarily disabled - missing models
+# from app.routers.hr import router as hr_router  # Temporarily disabled - missing models
+# from app.routers.inventory import router as inventory_router  # Temporarily disabled - missing models
+# from app.routers.manufacturing import router as manufacturing_router  # Temporarily disabled - missing models
+# from app.routers.marketing import router as marketing_router  # Temporarily disabled - missing models
+# from app.routers.payroll import router as payroll_router  # Temporarily disabled - missing models
+# from app.routers.procurement import router as procurement_router  # Temporarily disabled - missing models
+# from app.routers.projects import router as projects_router  # Temporarily disabled - missing models
+# from app.routers.security import router as security_router  # Temporarily disabled - missing models
+# from app.routers.supply_chain import router as supply_chain_router  # Temporarily disabled - missing models
+# from app.routers.support import router as support_router  # Temporarily disabled - missing models
+# from app.routers.sustainability import router as sustainability_router  # Temporarily disabled - missing models
 
 load_dotenv()
 
@@ -211,25 +215,25 @@ async def root_index():
 app.include_router(rbac_auth_router, prefix="/api/v1")
 app.include_router(rbac_router, prefix="/api/v1")
 app.include_router(admin_router, prefix="/api/v1")
-app.include_router(analytics_router, prefix="/api/v1")
-app.include_router(assets_router, prefix="/api/v1")
-app.include_router(automation_router, prefix="/api/v1")
-app.include_router(banking_router, prefix="/api/v1")
-app.include_router(crm_router, prefix="/api/v1")
+# app.include_router(analytics_router, prefix="/api/v1")  # Temporarily disabled - missing models
+# app.include_router(assets_router, prefix="/api/v1")  # Temporarily disabled - missing models
+# app.include_router(automation_router, prefix="/api/v1")  # Temporarily disabled - missing models
+# app.include_router(banking_router, prefix="/api/v1")  # Temporarily disabled - missing models
+# app.include_router(crm_router, prefix="/api/v1")  # Temporarily disabled - missing models
 app.include_router(dashboard_router, prefix="/api/v1")
-app.include_router(ecommerce_router, prefix="/api/v1")
-app.include_router(education_router, prefix="/api/v1")
-app.include_router(finance_router, prefix="/api/v1")
-app.include_router(healthcare_router, prefix="/api/v1")
-app.include_router(hr_router, prefix="/api/v1")
-app.include_router(inventory_router, prefix="/api/v1")
-app.include_router(manufacturing_router, prefix="/api/v1")
-app.include_router(marketing_router, prefix="/api/v1")
-app.include_router(payroll_router, prefix="/api/v1")
-app.include_router(procurement_router, prefix="/api/v1")
-app.include_router(projects_router, prefix="/api/v1")
-app.include_router(security_router, prefix="/api/v1")
-app.include_router(supply_chain_router, prefix="/api/v1")
-app.include_router(support_router, prefix="/api/v1")
-app.include_router(sustainability_router, prefix="/api/v1")
+# app.include_router(ecommerce_router, prefix="/api/v1")  # Temporarily disabled - missing models
+# app.include_router(education_router, prefix="/api/v1")  # Temporarily disabled - missing models
+# app.include_router(finance_router, prefix="/api/v1")  # Temporarily disabled - missing models
+# app.include_router(healthcare_router, prefix="/api/v1")  # Temporarily disabled - missing models
+# app.include_router(hr_router, prefix="/api/v1")  # Temporarily disabled - missing models
+# app.include_router(inventory_router, prefix="/api/v1")  # Temporarily disabled - missing models
+# app.include_router(manufacturing_router, prefix="/api/v1")  # Temporarily disabled - missing models
+# app.include_router(marketing_router, prefix="/api/v1")  # Temporarily disabled - missing models
+# app.include_router(payroll_router, prefix="/api/v1")  # Temporarily disabled - missing models
+# app.include_router(procurement_router, prefix="/api/v1")  # Temporarily disabled - missing models
+# app.include_router(projects_router, prefix="/api/v1")  # Temporarily disabled - missing models
+# app.include_router(security_router, prefix="/api/v1")  # Temporarily disabled - missing models
+# app.include_router(supply_chain_router, prefix="/api/v1")  # Temporarily disabled - missing models
+# app.include_router(support_router, prefix="/api/v1")  # Temporarily disabled - missing models
+# app.include_router(sustainability_router, prefix="/api/v1")  # Temporarily disabled - missing models
 
