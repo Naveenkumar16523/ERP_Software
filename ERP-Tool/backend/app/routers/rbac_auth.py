@@ -19,9 +19,9 @@ router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 @router.get("/registration-status")
 def registration_status():
-    \"\"\"
+    """
     Mock registration status. RBAC handles registration exclusively via CEO/HR creation.
-    \"\"\"
+    """
     return {"registrationEnabled": False}
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
