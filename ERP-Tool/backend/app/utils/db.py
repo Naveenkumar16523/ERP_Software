@@ -14,6 +14,10 @@ if raw_url:
         MYSQL_URL = raw_url.replace("mysql://", "mysql+pymysql://", 1)
     else:
         MYSQL_URL = raw_url
+    
+    # pymysql doesn't support 'ssl-mode' in the query string
+    if "?ssl-mode=" in MYSQL_URL:
+        MYSQL_URL = MYSQL_URL.split("?ssl-mode=")[0]
 
 engine = None
 SessionLocal = None

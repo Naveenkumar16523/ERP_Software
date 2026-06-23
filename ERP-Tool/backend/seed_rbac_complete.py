@@ -18,6 +18,10 @@ if not MYSQL_URL:
 if MYSQL_URL.startswith("mysql://"):
     MYSQL_URL = MYSQL_URL.replace("mysql://", "mysql+pymysql://", 1)
 
+# pymysql doesn't support 'ssl-mode' in the query string
+if "?ssl-mode=" in MYSQL_URL:
+    MYSQL_URL = MYSQL_URL.split("?ssl-mode=")[0]
+
 from sqlalchemy import create_engine, text
 from passlib.context import CryptContext
 
