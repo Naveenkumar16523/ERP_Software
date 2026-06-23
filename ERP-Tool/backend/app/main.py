@@ -12,6 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 # Utilities
 from app.utils.db import SessionLocal, test_connection, Base, engine
 import app.models.sql_models  # Import to register models with Base
+import app.models.finance_sql_models  # Register finance models
 from app.utils.redis_client import connect_redis, cache_get
 
 # Routers
@@ -27,7 +28,7 @@ from app.routers.admin import router as admin_router
 from app.routers.dashboard import router as dashboard_router
 # from app.routers.ecommerce import router as ecommerce_router  # Temporarily disabled - missing models
 # from app.routers.education import router as education_router  # Temporarily disabled - missing models
-# from app.routers.finance import router as finance_router  # Temporarily disabled - missing models
+from app.routers.finance import router as finance_router
 # from app.routers.healthcare import router as healthcare_router  # Temporarily disabled - missing models
 # from app.routers.hr import router as hr_router  # Temporarily disabled - missing models
 # from app.routers.inventory import router as inventory_router  # Temporarily disabled - missing models
@@ -213,7 +214,7 @@ app.include_router(admin_router, prefix="/api/v1")
 app.include_router(dashboard_router, prefix="/api/v1")
 # app.include_router(ecommerce_router, prefix="/api/v1")  # Temporarily disabled - missing models
 # app.include_router(education_router, prefix="/api/v1")  # Temporarily disabled - missing models
-# app.include_router(finance_router, prefix="/api/v1")  # Temporarily disabled - missing models
+app.include_router(finance_router, prefix="/api/v1")
 # app.include_router(healthcare_router, prefix="/api/v1")  # Temporarily disabled - missing models
 # app.include_router(hr_router, prefix="/api/v1")  # Temporarily disabled - missing models
 # app.include_router(inventory_router, prefix="/api/v1")  # Temporarily disabled - missing models
