@@ -121,14 +121,28 @@ async def login(req: Request, credentials: LoginRequest, db: Session = Depends(g
 
     await log_audit_event("LOGIN_SUCCESS", "Auth", "User logged in", user.id, req)
 
+    # Fetch role and permissions
+    role_name = "user"
+    permissions = []
+    if user.roleId:
+        from app.models.sql_models import ERPRole, ModuleAccess
+        role = db.query(ERPRole).filter(ERPRole.id == user.roleId).first()
+        if role:
+            role_name = role.name
+            access_records = db.query(ModuleAccess).filter(ModuleAccess.roleId == role.id).all()
+            permissions = [acc.moduleName for acc in access_records if acc.canRead]
+
     return {
         "accessToken": access_token,
         "refreshToken": refresh_token_str,
         "user": {
             "id": user.id,
             "username": user.username,
+            "email": user.email,
             "fullName": user.fullName,
             "roleId": user.roleId,
+            "role": role_name,
+            "permissions": permissions,
             "departmentId": user.departmentId,
             "isCEO": user.isCEO
         }
