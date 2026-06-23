@@ -33,7 +33,8 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 30
 REFRESH_TOKEN_EXPIRE_DAYS = 7
 
 class LoginRequest(BaseModel):
-    username: str
+    username: Optional[str] = None
+    email: Optional[str] = None
     password: str
 
 class LoginResponse(BaseModel):
@@ -83,9 +84,22 @@ async def require_ceo(current_user: ERPUser = Depends(get_current_user)):
 
 @router.post("/login", response_model=LoginResponse)
 async def login(req: Request, credentials: LoginRequest, db: Session = Depends(get_db)):
-    user = db.query(ERPUser).filter(ERPUser.username == credentials.username).first()
+    """
+    Unified Login.
+    Looks up the user by email or username. Verifies password.
+    Returns standard access and refresh tokens.
+    """
+    login_id = credentials.username or credentials.email
+    if not login_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Username or email is required",
+        )
+
+    # First check if the user exists
+    user = db.query(ERPUser).filter((ERPUser.username == login_id) | (ERPUser.email == login_id)).first()
     if not user or not verify_password(credentials.password, user.passwordHash):
-        await log_audit_event("LOGIN_FAILED", "Auth", f"Failed login attempt for {credentials.username}", req=req)
+        await log_audit_event("LOGIN_FAILED", "Auth", f"Failed login attempt for {login_id}", req=req)
         raise HTTPException(status_code=401, detail="Invalid username or password")
         
     if not user.isActive:
