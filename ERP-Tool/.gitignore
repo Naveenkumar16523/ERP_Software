@@ -1,0 +1,71 @@
+# Environments
+.env
+.env.*
+!.env.example
+render.yaml
+
+# Node
+node_modules/
+dist/
+build/
+npm-debug.log
+yarn-error.log
+
+# Python
+venv/
+env/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Databases
+*.db
+*.sqlite
+*.sqlite3
+
+# Dev Artifacts & Scripts (From Mega-Prompt Cleanup)
+check_*.py
+test_*.py
+scratch_*.js
+extract_*.js
+search_*.js
+inspect_*.js
+read_*.js
+find_*.js
+list_*.js
+scan_*.js
+print_*.js
+debug_*.py
+reset_*.py
+clear_*.py
+drop_*.py
+get_*.py
+verify_*.py
+update_*.py
+write_*.py
+seed_*.py
+!seed.py
+install_deps.py
+add_ceo_to_mysql.py
+
+# PowerShell Scripts
+*.ps1
+
+# Dumps & Backups
+*.txt
+!requirements.txt
+!backend/requirements.txt
+!ai-services/requirements.txt
+*backup*
+App_backup.jsx
+fix_css.py
+replace_theme.py
+replace_currency.js
+
+# OS Files
+.DS_Store
+Thumbs.db

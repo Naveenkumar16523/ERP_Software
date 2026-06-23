@@ -1,0 +1,61 @@
+# Backend files (Python)
+backend/
+backend-python/
+*.py
+requirements.txt
+*.db
+venv/
+
+# Database files
+erp.db
+
+# Development files
+.git/
+node_modules/
+.env
+.env.backup
+*.log
+
+# Documentation
+RENDER_DEPLOYMENT_GUIDE.md
+RBAC_IMPLEMENTATION_GUIDE.md
+EMPLOYEE_ACCESS_REQUEST_GUIDE.md
+
+# Docker files
+docker-compose.yml
+Dockerfile
+
+# AI services
+ai-services/
+
+# Test/check scripts
+check_*.py
+check_*.js
+test_*.py
+test_*.js
+inspect_*.py
+inspect_*.js
+extract_*.js
+scan_*.js
+search_*.js
+print_*.js
+restore_*.js
+fix_*.py
+fix_*.js
+fix_*.ps1
+replace_*.js
+unstringify.py
+write_env.py
+get_users.py
+run_git.py
+push_project.ps1
+setup-python.ps1
+install-node-local.ps1
+extract_creds.py
+
+# Seed scripts
+seed_*.py
+
+# Misc
+git_output.txt
+test_output.txt

@@ -1,0 +1,14 @@
+{
+  "name": "epr-dashboard",
+  "version": "1.0.0",
+  "description": "EPR Dashboard System",
+  "private": true,
+  "workspaces": [
+    "frontend"
+  ],
+  "scripts": {
+    "dev": "node start-dev.js",
+    "dev:frontend": "npm run dev -w frontend",
+    "dev:backend": "node -e \"const fs=require('fs'), path=require('path'), cp=require('child_process'); const d=path.join(process.cwd(), 'backend'); const p=process.platform==='win32'?path.join(d,'venv','Scripts','python.exe'):path.join(d,'venv','bin','python'); cp.spawn(fs.existsSync(p)?p:'python', ['-m','uvicorn','app.main:app','--port','5000','--reload'], {stdio:'inherit', shell:true, cwd:d});\""
+  }
+}

@@ -1,0 +1,101 @@
+/* Aetheric Enterprise HSL Design System */
+
+:root {
+  /* Font Families */
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-heading: 'Poppins', sans-serif;
+  --font-mono: 'Inter', monospace;
+
+  /* Standard Layout variables */
+  --sidebar-width: 260px; /* Made slightly wider for new design */
+  --sidebar-collapsed-width: 80px;
+  --header-height: 72px; 
+  
+  --radius-sm: 6px;
+  --radius-default: 12px;
+  --radius-md: 16px;
+  --radius-lg: 20px;
+  --radius-xl: 24px;
+  --radius-full: 9999px;
+
+  /* Animations & Transitions */
+  --transition-fast: 150ms ease;
+  --transition-normal: 250ms cubic-bezier(0.16, 1, 0.3, 1);
+  --transition-slow: 320ms cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* Light Theme (Default) */
+  --bg-deep: 210 20% 98%;           /* #f8fafc (App background) */
+  --bg-primary: 0 0% 100%;          /* #ffffff (Cards) */
+  --bg-secondary: 210 20% 96%;      /* #f1f5f9 */
+  --bg-tertiary: 210 20% 92%;       /* #e2e8f0 */
+  --bg-elevated: 210 20% 90%;       
+  --bg-highest: 0 0% 100%;          
+  --bg-bright: 0 0% 100%;           
+  
+  --text-primary: 222 47% 11%;      /* #0f172a */
+  --text-secondary: 215 16% 47%;    /* #64748b */
+  --text-tertiary: 215 16% 65%;     /* #94a3b8 */
+
+  --border-light: 214 32% 91%;      /* #e2e8f0 */
+  --border-medium: 215 16% 80%;     /* #cbd5e1 */
+
+  --primary: 244 76% 59%;           /* #4f46e5 (Indigo) */
+  --primary-hover: 244 76% 50%;     /* #4338ca */
+  --primary-light: 244 76% 95%;     /* #e0e7ff */
+  --inverse-primary: 0 0% 100%;
+
+  --secondary: 191 97% 42%;         /* #0284c7 (Sky) */
+  --secondary-hover: 191 91% 35%;   
+  
+  --success: 154 100% 30%;          /* #059669 (Emerald) */
+  --success-light: 154 100% 95%;    
+  
+  --warning: 38 92% 50%;            /* #f59e0b (Amber) */
+  --warning-light: 38 92% 95%;      
+
+  --danger: 348 83% 47%;            /* #e11d48 (Rose) */
+  --danger-light: 348 83% 95%;      
+
+  --info: 191 91% 40%;
+  --info-light: 191 91% 95%;
+  
+  --ai-purple: 271 91% 55%;
+  --ai-purple-light: 271 91% 95%;
+
+  /* Soft Shadows */
+  --shadow-sm: 0 1px 2px 0 rgba(15, 23, 42, 0.03);
+  --shadow-md: 0 4px 12px -1px rgba(15, 23, 42, 0.05), 0 2px 6px -1px rgba(15, 23, 42, 0.03);
+  --shadow-lg: 0 12px 20px -3px rgba(15, 23, 42, 0.06), 0 4px 8px -2px rgba(15, 23, 42, 0.04);
+  --shadow-xl: 0 24px 36px -5px rgba(15, 23, 42, 0.08), 0 12px 16px -5px rgba(15, 23, 42, 0.04);
+
+  --glass-bg: rgba(255, 255, 255, 0.75);
+  --glass-border: rgba(15, 23, 42, 0.07);
+  --glass-shadow: 0 8px 32px 0 rgba(15, 23, 42, 0.04);
+}
+
+/* Dark Mode Fallback */
+html[data-theme='dark'] {
+  --bg-deep: 222 47% 4%;            /* Sleek midnight black */
+  --bg-primary: 222 47% 7%;         /* Deep slate/navy cards */
+  --bg-secondary: 222 47% 10%;
+  --bg-tertiary: 222 47% 13%;
+  --bg-elevated: 222 47% 16%;
+  --bg-highest: 222 47% 20%;
+  --bg-bright: 222 47% 24%;
+  
+  --text-primary: 210 40% 98%;      /* Off-white */
+  --text-secondary: 215 20% 80%;    /* Muted silver */
+  --text-tertiary: 215 15% 60%;     /* Dark silver */
+
+  --border-light: 222 30% 16%;      /* Subtle dark border */
+  --border-medium: 222 30% 28%;
+
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.5);
+  --shadow-md: 0 4px 16px -1px rgba(0, 0, 0, 0.6), 0 2px 8px -1px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 12px 24px -3px rgba(0, 0, 0, 0.7), 0 4px 12px -2px rgba(0, 0, 0, 0.5);
+  --shadow-xl: 0 24px 48px -5px rgba(0, 0, 0, 0.8), 0 12px 24px -5px rgba(0, 0, 0, 0.6);
+
+  --glass-bg: rgba(11, 19, 38, 0.6);
+  --glass-border: rgba(255, 255, 255, 0.07);
+  --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5);
+}
