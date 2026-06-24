@@ -1,7 +1,8 @@
 import axios from 'axios';
 
 // Get base URL from env or use Vite's dev proxy in local development.
-const API_BASE_URL = import.meta.env.VITE_API_URL || '/api/v1';
+const API_URL = import.meta.env.VITE_API_URL || '';
+const API_BASE_URL = API_URL ? `${API_URL}/api/v1` : '/api/v1';
 
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -10,10 +11,12 @@ export const apiClient = axios.create({
   },
 });
 
+import { useERPStore } from '../store/useERPStore';
+
 // Request interceptor: attach token
 apiClient.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('access_token');
+    const token = useERPStore.getState().token;
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -59,11 +62,10 @@ apiClient.interceptors.response.use(
       originalRequest._retry = true;
       isRefreshing = true;
 
-      const refreshToken = localStorage.getItem('refresh_token');
+      const refreshToken = localStorage.getItem('erp_refresh_token');
       if (!refreshToken) {
         // No refresh token, force logout
-        localStorage.removeItem('access_token');
-        window.location.href = '/login';
+        useERPStore.getState().logout();
         return Promise.reject(error);
       }
 
@@ -72,8 +74,11 @@ apiClient.interceptors.response.use(
           refresh_token: refreshToken,
         });
 
-        const newAccessToken = data.access_token;
-        localStorage.setItem('access_token', newAccessToken);
+        const newAccessToken = data.accessToken || data.access_token || data.token;
+        useERPStore.getState().setToken(newAccessToken);
+        if (data.refreshToken) {
+          localStorage.setItem('erp_refresh_token', data.refreshToken);
+        }
 
         apiClient.defaults.headers.common.Authorization = `Bearer ${newAccessToken}`;
         originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
@@ -82,9 +87,7 @@ apiClient.interceptors.response.use(
         return apiClient(originalRequest);
       } catch (refreshError) {
         processQueue(refreshError, null);
-        localStorage.removeItem('access_token');
-        localStorage.removeItem('refresh_token');
-        window.location.href = '/login';
+        useERPStore.getState().logout();
         return Promise.reject(refreshError);
       } finally {
         isRefreshing = false;
