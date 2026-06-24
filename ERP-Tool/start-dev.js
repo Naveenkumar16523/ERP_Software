@@ -127,4 +127,4 @@ process.on('SIGTERM', cleanup);
 console.log(`${COLORS.bright}${COLORS.yellow}=== ERP Dashboard Startup Script ===${COLORS.reset}\n`);
 startFrontend();
 startBackend();
-startAIService();
+// startAIService();

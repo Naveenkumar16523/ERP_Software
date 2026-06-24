@@ -229,4 +229,3 @@ app.include_router(hr_router, prefix="/api/v1")
 # app.include_router(supply_chain_router, prefix="/api/v1")  # Temporarily disabled - missing models
 # app.include_router(support_router, prefix="/api/v1")  # Temporarily disabled - missing models
 # app.include_router(sustainability_router, prefix="/api/v1")  # Temporarily disabled - missing models
-
