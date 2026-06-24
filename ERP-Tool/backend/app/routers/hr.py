@@ -241,7 +241,7 @@ async def create_leave_type(
     return lt
 
 
-@router.get("/leave/requests")
+@router.get("/leaves")
 async def list_leave_requests(
     status_filter: Optional[str] = None,
     employee_id: Optional[str] = None,
