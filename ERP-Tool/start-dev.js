@@ -30,11 +30,18 @@ const processes = [];
 function startFrontend() {
   console.log(`${COLORS.bright}${COLORS.cyan}[System] Starting Frontend...${COLORS.reset}`);
   
-  const npmCmd = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-  const child = spawn(npmCmd, ['run', 'dev', '-w', 'frontend'], { 
-    shell: false,
-    cwd: __dirname
-  });
+  let child;
+  if (process.platform === 'win32') {
+    child = spawn('powershell.exe', ['-NoProfile', '-Command', 'npm run dev -w frontend'], { 
+      shell: false,
+      cwd: __dirname
+    });
+  } else {
+    child = spawn('npm', ['run', 'dev', '-w', 'frontend'], { 
+      shell: false,
+      cwd: __dirname
+    });
+  }
   
   child.stdout.on('data', data => logWithPrefix('Frontend', COLORS.cyan, data));
   child.stderr.on('data', data => logWithPrefix('Frontend ERROR', COLORS.red, data));
