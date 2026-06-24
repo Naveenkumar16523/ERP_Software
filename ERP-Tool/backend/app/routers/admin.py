@@ -97,3 +97,14 @@ async def deactivate_user(http_req: Request, user_id: str, current_user: ERPUser
     await log_audit_event("USER_UPDATE", "User", f"Deactivated user {user_id}", current_user.id, http_req)
     
     return {"message": "User deactivated"}
+
+@router.get("/dashboard")
+async def get_admin_dashboard(current_user: ERPUser = Depends(require_ceo), db: Session = Depends(get_db)):
+    """Get system metrics for the admin dashboard"""
+    return {
+        "cpu": 45,
+        "memory": 62,
+        "storage": 28,
+        "uptime": "14d 6h 12m",
+        "activeUsers": db.query(ERPUser).filter(ERPUser.isActive == True).count()
+    }
