@@ -61,7 +61,7 @@ async function request(path, options = {}) {
               });
               if (refreshRes.ok) {
                 const refreshData = await refreshRes.json();
-                useERPStore.getState().setToken(refreshData.access_token || refreshData.token);
+                useERPStore.getState().setToken(refreshData.accessToken || refreshData.access_token || refreshData.token);
                 if (refreshData.refreshToken) {
                   localStorage.setItem('erp_refresh_token', refreshData.refreshToken);
                 }
