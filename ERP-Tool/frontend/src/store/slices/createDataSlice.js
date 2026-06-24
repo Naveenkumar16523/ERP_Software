@@ -1,4 +1,4 @@
-﻿export const createDataSlice = (set, get) => ({
+export const createDataSlice = (set, get) => ({
   // ── Finance Module ────────────────────────────────────────────────
   accounts: [],
   journalEntries: [],
@@ -388,6 +388,7 @@
   })),
 
   // ── Fixed Assets ─────────────────────────────────────────────────
+  setAssets: (assets) => set({ assets }),
   addAsset: (asset) => set((s) => ({
     assets: [...s.assets, { ...asset, id: `asset-${Date.now()}`, status: 'ACTIVE' }]
   })),
