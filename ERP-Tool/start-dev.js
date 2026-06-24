@@ -30,8 +30,9 @@ const processes = [];
 function startFrontend() {
   console.log(`${COLORS.bright}${COLORS.cyan}[System] Starting Frontend...${COLORS.reset}`);
   
-  const child = spawn('npm', ['run', 'dev', '-w', 'frontend'], { 
-    shell: true,
+  const npmCmd = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+  const child = spawn(npmCmd, ['run', 'dev', '-w', 'frontend'], { 
+    shell: false,
     cwd: __dirname
   });
   
@@ -63,7 +64,7 @@ function startBackend() {
   
   const child = spawn(pythonPath, ['-m', 'uvicorn', 'app.main:app', '--port', '5000', '--reload'], { 
     cwd: backendDir,
-    shell: process.platform === 'win32'
+    shell: false
   });
   
   child.stdout.on('data', data => logWithPrefix('Backend', COLORS.magenta, data));
@@ -94,7 +95,7 @@ function startAIService() {
   
   const child = spawn(pythonPath, ['main.py'], { 
     cwd: aiDir,
-    shell: process.platform === 'win32'
+    shell: false
   });
   
   child.stdout.on('data', data => logWithPrefix('AI Service', COLORS.green, data));
