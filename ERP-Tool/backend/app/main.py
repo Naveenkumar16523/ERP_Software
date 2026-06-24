@@ -88,16 +88,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     req_id = str(uuid.uuid4())
-    
-    # Force print to stdout so Render captures it immediately
-    import traceback
-    print(f"\n--- FATAL UNHANDLED EXCEPTION [{req_id}] ---", flush=True)
-    print(f"Path: {request.url.path}", flush=True)
-    print(traceback.format_exc(), flush=True)
-    print("--------------------------------------------\n", flush=True)
-    
     logger.error(f"[{req_id}] Unhandled error at {request.url.path}: {exc}", exc_info=True)
-    
     if os.getenv("NODE_ENV") == "development":
         # Safe fallback for dummy models in dev mode if needed
         return JSONResponse(status_code=500, content={"error": True, "code": "INTERNAL_ERROR", "message": str(exc), "request_id": req_id})
