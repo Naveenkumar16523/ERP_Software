@@ -45,7 +45,7 @@ async function request(path, options = {}) {
                             errorMessage === 'Session has expired or been revoked' || 
                             errorMessage === 'Access token is required' || 
                             errorMessage === 'User is not authenticated' ||
-                            (res.status === 401 && !String(errorMessage).includes('Invalid credentials'));
+                            (res.status === 401 && !String(errorMessage).includes('Invalid credentials') && !String(errorMessage).includes('Invalid username or password'));
         
         if (isAuthError) {
           const isDemo = useERPStore.getState().demoMode;
