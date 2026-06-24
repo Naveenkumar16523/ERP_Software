@@ -196,3 +196,39 @@ async def reset_ceo(req: Request, data: ResetCEORequest, db: Session = Depends(g
         db.commit()
         await log_audit_event("CEO_CREATED", "Auth", "CEO account was created", new_ceo.id, req)
         return {"message": "New CEO account has been created"}
+
+@router.post("/refresh")
+async def refresh_token_route(
+    req: Request,
+    refreshToken: Optional[str] = None,
+    db: Session = Depends(get_db)
+):
+    """
+    Refresh access token using refresh token.
+    Accepts refreshToken as a query param or refresh_token / refreshToken in JSON body.
+    """
+    token_to_use = refreshToken
+    
+    if not token_to_use:
+        try:
+            body = await req.json()
+            token_to_use = body.get("refresh_token") or body.get("refreshToken")
+        except:
+            pass
+            
+    if not token_to_use:
+        raise HTTPException(status_code=400, detail="Refresh token required")
+        
+    rt = db.query(RefreshToken).filter(RefreshToken.token == token_to_use).first()
+    if not rt or rt.expiresAt < datetime.utcnow() or rt.isRevoked:
+        raise HTTPException(status_code=401, detail="Invalid or expired refresh token")
+        
+    user = db.query(ERPUser).filter(ERPUser.id == rt.userId).first()
+    if not user or not user.isActive:
+        raise HTTPException(status_code=401, detail="User inactive or deleted")
+        
+    new_access = create_access_token(data={"sub": user.id})
+    return {
+        "accessToken": new_access,
+        "token": new_access
+    }
