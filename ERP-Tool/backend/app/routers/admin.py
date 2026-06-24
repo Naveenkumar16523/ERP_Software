@@ -25,19 +25,32 @@ class UserCreate(BaseModel):
 class UserResponse(BaseModel):
     id: str
     username: str
-    fullName: str
+    full_name: str
     email: str
-    roleId: str
-    departmentId: str
-    isActive: bool
-    isCEO: bool
+    role_name: str
+    department_name: str
+    is_active: bool
+    is_ceo: bool
     createdAt: datetime
 
 @router.get("/users", response_model=List[UserResponse])
 async def list_users(current_user: ERPUser = Depends(require_ceo), db: Session = Depends(get_db)):
     """List all users (CEO only)"""
     users = db.query(ERPUser).all()
-    return users
+    result = []
+    for u in users:
+        result.append({
+            "id": u.id,
+            "username": u.username,
+            "full_name": u.fullName,
+            "email": u.email,
+            "role_name": u.roleId,
+            "department_name": u.departmentId,
+            "is_active": u.isActive,
+            "is_ceo": u.isCEO,
+            "createdAt": u.createdAt
+        })
+    return result
 
 @router.post("/users", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 async def create_user(http_req: Request, user_data: UserCreate, current_user: ERPUser = Depends(require_ceo), db: Session = Depends(get_db)):
@@ -65,7 +78,17 @@ async def create_user(http_req: Request, user_data: UserCreate, current_user: ER
     
     await log_audit_event("USER_CREATE", "User", f"Created user {user_data.username}", current_user.id, http_req)
     
-    return user
+    return {
+        "id": user.id,
+        "username": user.username,
+        "full_name": user.fullName,
+        "email": user.email,
+        "role_name": user.roleId,
+        "department_name": user.departmentId,
+        "is_active": user.isActive,
+        "is_ceo": user.isCEO,
+        "createdAt": user.createdAt
+    }
 
 @router.put("/users/{user_id}/activate")
 async def activate_user(http_req: Request, user_id: str, current_user: ERPUser = Depends(require_ceo), db: Session = Depends(get_db)):
@@ -101,10 +124,32 @@ async def deactivate_user(http_req: Request, user_id: str, current_user: ERPUser
 @router.get("/dashboard")
 async def get_admin_dashboard(current_user: ERPUser = Depends(require_ceo), db: Session = Depends(get_db)):
     """Get system metrics for the admin dashboard"""
+    users = db.query(ERPUser).all()
+    
+    total_users = len(users)
+    active_users = sum(1 for u in users if u.isActive)
+    inactive_users = total_users - active_users
+    
+    dept_counts = {}
+    for u in users:
+        dept = u.departmentId or 'Unassigned'
+        dept_counts[dept] = dept_counts.get(dept, 0) + 1
+        
+    recent = sorted(users, key=lambda x: x.createdAt, reverse=True)[:5]
+    recent_users = []
+    for u in recent:
+        recent_users.append({
+            "id": u.id,
+            "username": u.username,
+            "full_name": u.fullName,
+            "role_name": u.roleId,
+            "is_active": u.isActive
+        })
+        
     return {
-        "cpu": 45,
-        "memory": 62,
-        "storage": 28,
-        "uptime": "14d 6h 12m",
-        "activeUsers": db.query(ERPUser).filter(ERPUser.isActive == True).count()
+        "total_employees": total_users,
+        "active_employees": active_users,
+        "inactive_employees": inactive_users,
+        "employees_by_department": dept_counts,
+        "recent_users": recent_users
     }
