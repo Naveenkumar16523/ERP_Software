@@ -130,7 +130,7 @@ async def login(req: Request, credentials: LoginRequest, db: Session = Depends(g
         if role:
             role_name = role.name
             access_records = db.query(ModuleAccess).filter(ModuleAccess.roleId == role.id).all()
-            permissions = [acc.moduleName for acc in access_records if acc.canRead]
+            permissions = [acc.moduleKey for acc in access_records if acc.canRead]
 
     return {
         "accessToken": access_token,
