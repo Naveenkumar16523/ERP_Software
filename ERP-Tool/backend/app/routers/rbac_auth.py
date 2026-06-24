@@ -100,7 +100,7 @@ async def login(req: Request, credentials: LoginRequest, db: Session = Depends(g
     user = db.query(ERPUser).filter((ERPUser.username == login_id) | (ERPUser.email == login_id)).first()
     if not user or not verify_password(credentials.password, user.passwordHash):
         await log_audit_event("LOGIN_FAILED", "Auth", f"Failed login attempt for {login_id}", req=req)
-        raise HTTPException(status_code=401, detail="Invalid username or password")
+        raise HTTPException(status_code=401, detail="Invalid credentials")
         
     if not user.isActive:
         raise HTTPException(status_code=403, detail="Account is deactivated")
