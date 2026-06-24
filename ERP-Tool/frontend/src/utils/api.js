@@ -5,6 +5,16 @@ import { useERPStore } from '../store/useERPStore';
 const API_URL = import.meta.env.VITE_API_URL || '';
 const BASE_URL = API_URL ? `${API_URL}/api/v1` : '/api/v1';
 
+// Modules that don't have backend SQL models yet.
+// Intercepting them here prevents 404 errors in the browser console
+// and seamlessly falls back to Zustand's rich dummy data.
+const DISABLED_MODULES = [
+  'analytics', 'assets', 'automation', 'banking', 'crm', 
+  'ecommerce', 'education', 'healthcare', 'inventory', 'manufacturing', 
+  'marketing', 'payroll', 'procurement', 'projects', 'security', 
+  'supply-chain', 'support', 'sustainability'
+];
+
 // Helper to get authorization headers
 const getHeaders = () => {
   const headers = { 'Content-Type': 'application/json' };
@@ -17,6 +27,11 @@ const getHeaders = () => {
 
 // Generic fetch wrapper with offline resilience
 async function request(path, options = {}) {
+  const moduleName = path.split('/')[1];
+  if (DISABLED_MODULES.includes(moduleName)) {
+    throw new Error('Module disabled');
+  }
+
   const url = `${BASE_URL}${path}`;
   const mergedOptions = {
     ...options,
@@ -88,8 +103,10 @@ async function request(path, options = {}) {
 
     return await res.json();
   } catch (error) {
-    console.warn(`[Network Fail] API path ${path} failed. Error:`, error.message);
-    useERPStore.getState().setDbLive(false);
+    if (error.message !== 'Module disabled') {
+      console.warn(`[Network Fail] API path ${path} failed. Error:`, error.message);
+      useERPStore.getState().setDbLive(false);
+    }
     throw error; // Let caller catch and choose whether to apply fallback
   }
 }
