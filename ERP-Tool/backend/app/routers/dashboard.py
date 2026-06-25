@@ -16,75 +16,92 @@ async def get_dashboard_metrics(
 ):
     """Get aggregated dashboard metrics for Logistics ERP using SQL"""
     
-    # HR Metrics
-    total_employees = db.query(Employee).count()
-    active_employees = db.query(Employee).filter(Employee.status == "Active").count()
+    import logging
+    logger = logging.getLogger(__name__)
     
-    # Finance Metrics
-    total_invoices = db.query(Invoice).count()
-    pending_invoices = db.query(Invoice).filter(Invoice.status == "PENDING").count()
-    
-    # Mocking disabled modules
-    total_products = 0
-    low_stock_products = 0
-    total_suppliers = 0
-    active_purchase_orders = 0
-    
-    from app.models.crm_sql_models import Lead
-    total_leads = db.query(Lead).count()
-    qualified_leads = db.query(Lead).filter(Lead.status == "Qualified").count()
-    
-    pipeline_val_query = db.query(func.sum(Lead.expectedRevenue)).filter(Lead.status == "Qualified").scalar()
-    total_pipeline_value = float(pipeline_val_query) if pipeline_val_query else 0.0
-    total_opportunities = db.query(Lead).filter(Lead.status.in_(["Negotiation", "Proposal"])).count() if hasattr(Lead, "status") else 0
+    try:
+        # HR Metrics
+        total_employees = db.query(Employee).count()
+        active_employees = db.query(Employee).filter(Employee.status == "Active").count()
+        
+        # Finance Metrics
+        total_invoices = db.query(Invoice).count()
+        pending_invoices = db.query(Invoice).filter(Invoice.status == "PENDING").count()
+        
+        # Mocking disabled modules
+        total_products = 0
+        low_stock_products = 0
+        total_suppliers = 0
+        active_purchase_orders = 0
+        
+        from app.models.crm_sql_models import Lead
+        total_leads = db.query(Lead).count()
+        qualified_leads = db.query(Lead).filter(Lead.status == "Qualified").count()
+        
+        pipeline_val_query = db.query(func.sum(Lead.expectedRevenue)).filter(Lead.status == "Qualified").scalar()
+        total_pipeline_value = float(pipeline_val_query) if pipeline_val_query else 0.0
+        total_opportunities = db.query(Lead).filter(Lead.status.in_(["Negotiation", "Proposal"])).count() if hasattr(Lead, "status") else 0
 
-    total_orders = 0
-    pending_orders = 0
-    total_revenue = 0.0
-    active_production_orders = 0
-    completed_production_orders = 0
-    total_assets = 0
-    active_assets = 0
-    recent_activity = []
-    
-    return {
-        "hr": {
-            "totalEmployees": total_employees,
-            "activeEmployees": active_employees
-        },
-        "inventory": {
-            "totalProducts": total_products,
-            "lowStockProducts": low_stock_products
-        },
-        "procurement": {
-            "totalSuppliers": total_suppliers,
-            "activePurchaseOrders": active_purchase_orders
-        },
-        "sales": {
-            "totalLeads": total_leads,
-            "qualifiedLeads": qualified_leads,
-            "totalOpportunities": total_opportunities,
-            "totalPipelineValue": total_pipeline_value
-        },
-        "ecommerce": {
-            "totalOrders": total_orders,
-            "pendingOrders": pending_orders,
-            "totalRevenue": total_revenue
-        },
-        "manufacturing": {
-            "activeProductionOrders": active_production_orders,
-            "completedProductionOrders": completed_production_orders
-        },
-        "assets": {
-            "totalAssets": total_assets,
-            "activeAssets": active_assets
-        },
-        "finance": {
-            "totalInvoices": total_invoices,
-            "pendingInvoices": pending_invoices
-        },
-        "recentActivity": recent_activity
-    }
+        total_orders = 0
+        pending_orders = 0
+        total_revenue = 0.0
+        active_production_orders = 0
+        completed_production_orders = 0
+        total_assets = 0
+        active_assets = 0
+        recent_activity = []
+        
+        return {
+            "hr": {
+                "totalEmployees": total_employees,
+                "activeEmployees": active_employees
+            },
+            "inventory": {
+                "totalProducts": total_products,
+                "lowStockProducts": low_stock_products
+            },
+            "procurement": {
+                "totalSuppliers": total_suppliers,
+                "activePurchaseOrders": active_purchase_orders
+            },
+            "sales": {
+                "totalLeads": total_leads,
+                "qualifiedLeads": qualified_leads,
+                "totalOpportunities": total_opportunities,
+                "totalPipelineValue": total_pipeline_value
+            },
+            "ecommerce": {
+                "totalOrders": total_orders,
+                "pendingOrders": pending_orders,
+                "totalRevenue": total_revenue
+            },
+            "manufacturing": {
+                "activeProductionOrders": active_production_orders,
+                "completedProductionOrders": completed_production_orders
+            },
+            "assets": {
+                "totalAssets": total_assets,
+                "activeAssets": active_assets
+            },
+            "finance": {
+                "totalInvoices": total_invoices,
+                "pendingInvoices": pending_invoices
+            },
+            "recentActivity": recent_activity
+        }
+    except Exception as e:
+        logger.error(f"Dashboard metrics error: {e}")
+        return {
+            "hr": {"totalEmployees": 0, "activeEmployees": 0},
+            "inventory": {"totalProducts": 0, "lowStockProducts": 0},
+            "procurement": {"totalSuppliers": 0, "activePurchaseOrders": 0},
+            "sales": {"totalLeads": 0, "qualifiedLeads": 0, "totalOpportunities": 0, "totalPipelineValue": 0.0},
+            "ecommerce": {"totalOrders": 0, "pendingOrders": 0, "totalRevenue": 0.0},
+            "manufacturing": {"activeProductionOrders": 0, "completedProductionOrders": 0},
+            "assets": {"totalAssets": 0, "activeAssets": 0},
+            "finance": {"totalInvoices": 0, "pendingInvoices": 0},
+            "recentActivity": []
+        }
 
 @router.get("/kpis")
 async def get_dashboard_kpis(
