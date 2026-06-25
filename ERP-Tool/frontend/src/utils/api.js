@@ -328,6 +328,18 @@ export const api = {
     async generate(month, year) {
       try { return await request('/payroll/generate', { method: 'POST', body: JSON.stringify({ month, year }) }); }
       catch (e) { throw e; }
+    },
+    async getPayrolls() {
+      try { return await request('/payroll'); }
+      catch { return useERPStore.getState().payrolls; }
+    },
+    async generatePayslip(data) {
+      try { return await request('/payroll/generate', { method: 'POST', body: JSON.stringify(data) }); }
+      catch { useERPStore.getState().addPayrollEntry(data); return data; }
+    },
+    async processPayroll(id) {
+      try { return await request(`/payroll/${id}/process`, { method: 'PATCH' }); }
+      catch { useERPStore.getState().processPayroll(id); }
     }
   },
 
@@ -343,11 +355,15 @@ export const api = {
     },
     async approvePurchaseOrder(id) {
       try { return await request(`/procurement/purchase-orders/${id}/approve`, { method: 'PATCH' }); }
-      catch { useERPStore.getState().updatePurchaseOrderStatus(id, 'Approved'); return { id }; }
+      catch { useERPStore.getState().approvePurchaseOrder(id); return { id }; }
     },
     async receivePOItem(itemId, receivedQuantity) {
       try { return await request(`/procurement/purchase-orders/items/${itemId}/receive`, { method: 'PATCH', body: JSON.stringify({ receivedQuantity }) }); }
       catch { return null; }
+    },
+    async getSuppliers() {
+      try { return await request('/procurement/suppliers'); }
+      catch { return useERPStore.getState().suppliers; }
     }
   },
 
@@ -419,41 +435,7 @@ export const api = {
     }
   },
 
-  // ── Procurement ──
-  procurement: {
-    async getPurchaseOrders() {
-      try { return await request('/procurement/purchase-orders'); }
-      catch { return useERPStore.getState().purchaseOrders; }
-    },
-    async createPurchaseOrder(po) {
-      try { return await request('/procurement/purchase-orders', { method: 'POST', body: JSON.stringify(po) }); }
-      catch { useERPStore.getState().addPurchaseOrder(po); return po; }
-    },
-    async approvePurchaseOrder(id) {
-      try { return await request(`/procurement/purchase-orders/${id}/approve`, { method: 'PATCH' }); }
-      catch { useERPStore.getState().approvePurchaseOrder(id); }
-    },
-    async getSuppliers() {
-      try { return await request('/procurement/suppliers'); }
-      catch { return useERPStore.getState().suppliers; }
-    }
-  },
 
-  // ── Payroll ──
-  payroll: {
-    async getPayrolls() {
-      try { return await request('/payroll'); }
-      catch { return useERPStore.getState().payrolls; }
-    },
-    async generatePayslip(data) {
-      try { return await request('/payroll/generate', { method: 'POST', body: JSON.stringify(data) }); }
-      catch { useERPStore.getState().addPayrollEntry(data); return data; }
-    },
-    async processPayroll(id) {
-      try { return await request(`/payroll/${id}/process`, { method: 'PATCH' }); }
-      catch { useERPStore.getState().processPayroll(id); }
-    }
-  },
 
   // ── Projects ──
   projects: {
@@ -499,7 +481,23 @@ export const api = {
     },
     async updateShipmentStatus(id, status) {
       try { return await request(`/supply-chain/shipments/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }); }
-      catch { useERPStore.getState().updateShipmentStatus(id, status); }
+      catch { useERPStore.getState().updateShipmentStatus(id, status); return { id, status }; }
+    },
+    async getVehicles() {
+      try { return await request('/supply-chain/vehicles'); }
+      catch { return []; }
+    },
+    async createVehicle(vehicle) {
+      try { return await request('/supply-chain/vehicles', { method: 'POST', body: JSON.stringify(vehicle) }); }
+      catch { return vehicle; }
+    },
+    async updateVehicleGps(id, loc) {
+      try { return await request(`/supply-chain/vehicles/${id}/gps`, { method: 'POST', body: JSON.stringify(loc) }); }
+      catch { return { id, loc }; }
+    },
+    async updateShipmentPod(id, podSignature) {
+      try { return await request(`/supply-chain/shipments/${id}/pod`, { method: 'POST', body: JSON.stringify({ podSignature }) }); }
+      catch { return { id, podSignature }; }
     }
   },
 
@@ -579,6 +577,10 @@ export const api = {
     async createLoan(loan) {
       try { return await request('/banking/loans', { method: 'POST', body: JSON.stringify(loan) }); }
       catch { useERPStore.getState().addBankingLoan(loan); return loan; }
+    },
+    async autoReconcile() {
+      try { return await request('/banking/reconcile', { method: 'POST' }); }
+      catch { return { message: "Reconciliation failed (offline)", matches: 0 }; }
     }
   },
 
@@ -731,6 +733,10 @@ export const api = {
     async createKPI(kpi) {
       try { return await request('/analytics/kpis', { method: 'POST', body: JSON.stringify(kpi) }); }
       catch { return kpi; }
+    },
+    async getLogisticsKpis() {
+      try { return await request('/analytics/logistics-kpis'); }
+      catch { return null; }
     }
   },
 
@@ -803,70 +809,7 @@ export const api = {
       return request('/admin/roles');
     }
   },
-  
-  // ── Supply Chain ──
-  supplyChain: {
-    async getVehicles() {
-      try { return await request('/supply-chain/vehicles'); }
-      catch { return []; }
-    },
-    async createVehicle(vehicle) {
-      try { return await request('/supply-chain/vehicles', { method: 'POST', body: JSON.stringify(vehicle) }); }
-      catch { return vehicle; }
-    },
-    async updateVehicleGps(id, loc) {
-      try { return await request(`/supply-chain/vehicles/${id}/gps`, { method: 'POST', body: JSON.stringify(loc) }); }
-      catch { return { id, loc }; }
-    },
-    async getShipments() {
-      try { return await request('/supply-chain/shipments'); }
-      catch { return []; }
-    },
-    async createShipment(shipment) {
-      try { return await request('/supply-chain/shipments', { method: 'POST', body: JSON.stringify(shipment) }); }
-      catch { return shipment; }
-    },
-    async updateShipmentStatus(id, status) {
-      try { return await request(`/supply-chain/shipments/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }); }
-      catch { return { id, status }; }
-    },
-    async updateShipmentPod(id, podSignature) {
-      try { return await request(`/supply-chain/shipments/${id}/pod`, { method: 'POST', body: JSON.stringify({ podSignature }) }); }
-      catch { return { id, podSignature }; }
-    }
-  },
 
-  // ── Banking ──
-  banking: {
-    async getAccounts() {
-      try { return await request('/banking/accounts'); }
-      catch { return []; }
-    },
-    async createAccount(acc) {
-      try { return await request('/banking/accounts', { method: 'POST', body: JSON.stringify(acc) }); }
-      catch { return acc; }
-    },
-    async getTransactions() {
-      try { return await request('/banking/transactions'); }
-      catch { return []; }
-    },
-    async createTransaction(tx) {
-      try { return await request('/banking/transactions', { method: 'POST', body: JSON.stringify(tx) }); }
-      catch { return tx; }
-    },
-    async autoReconcile() {
-      try { return await request('/banking/reconcile', { method: 'POST' }); }
-      catch { return { message: "Reconciliation failed (offline)", matches: 0 }; }
-    }
-  },
-
-  // ── Analytics ──
-  analytics: {
-    async getLogisticsKpis() {
-      try { return await request('/analytics/logistics-kpis'); }
-      catch { return null; }
-    }
-  },
 
   // ── Global Search ──
   search: {

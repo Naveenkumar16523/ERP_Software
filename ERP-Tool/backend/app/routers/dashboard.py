@@ -36,6 +36,7 @@ async def get_dashboard_metrics(
     
     pipeline_val_query = db.query(func.sum(Lead.expectedRevenue)).filter(Lead.status == "Qualified").scalar()
     total_pipeline_value = float(pipeline_val_query) if pipeline_val_query else 0.0
+    total_opportunities = db.query(Lead).filter(Lead.status.in_(["Negotiation", "Proposal"])).count() if hasattr(Lead, "status") else 0
 
     total_orders = 0
     pending_orders = 0

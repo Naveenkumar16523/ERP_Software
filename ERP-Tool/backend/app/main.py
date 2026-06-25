@@ -108,26 +108,17 @@ async def global_exception_handler(request: Request, exc: Exception):
 # Setup Rate Limiting
 setup_rate_limiting(app)
 
-# Configure CORS origins
-cors_env = os.getenv("CORS_ORIGINS", "http://localhost:5173,http://localhost:3001,http://localhost:3000")
-
-# Explicit allowed origins ONLY from env
-allowed_origins = [o.strip() for o in cors_env.split(",") if o.strip()]
-if "http://localhost:3001" not in allowed_origins:
-    allowed_origins.append("http://localhost:3001")
-
-cors_regex = r"https://.*\.vercel\.app|http://localhost:\d+"
+cors_env = os.getenv("CORS_ORIGINS", "*")
+allowed_origins = ["*"]
 
 logger.info(f"CORS Allowed Origins: {allowed_origins}")
-logger.info(f"CORS Allow Origin Regex: {cors_regex}")
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
-    allow_origin_regex=cors_regex,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["Content-Type", "Authorization", "X-Requested-With"],
+    allow_methods=["*"],
+    allow_headers=["*"],
     max_age=86400,
 )
 
