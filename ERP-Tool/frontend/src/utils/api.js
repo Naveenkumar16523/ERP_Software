@@ -71,7 +71,7 @@ async function request(path, options = {}) {
           const refreshToken = localStorage.getItem('erp_refresh_token');
           if (refreshToken && !options._retry) {
             try {
-              const refreshRes = await fetch(`${BASE_URL}/auth/refresh?refreshToken=${refreshToken}`, {
+              const refreshRes = await fetch(`${BASE_URL}/auth/refresh?refreshToken=${encodeURIComponent(refreshToken)}`, {
                 method: 'POST'
               });
               if (refreshRes.ok) {

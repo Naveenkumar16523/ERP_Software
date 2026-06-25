@@ -360,9 +360,9 @@ export default function AutomationModule() {
                     <span className="text-indigo-500 opacity-50 flex-shrink-0 select-none">$</span>
                     <span className={
                       line.warn ? 'text-amber-400' :
-                      line.text.includes('[COMPLETE]') ? 'text-emerald-400 font-semibold' :
-                      line.text.includes('MATCHED') || line.text.includes('✓') ? 'text-emerald-400' :
-                      line.text.includes('ERROR') || line.text.includes('FAIL') ? 'text-rose-400' :
+                      line?.text?.includes('[COMPLETE]') ? 'text-emerald-400 font-semibold' :
+                      (line?.text?.includes('MATCHED') || line?.text?.includes('✓')) ? 'text-emerald-400' :
+                      (line?.text?.includes('ERROR') || line?.text?.includes('FAIL')) ? 'text-rose-400' :
                       theme === 'dark' ? 'text-green-300/90' : 'text-slate-700'
                     }>
                       {line.text}

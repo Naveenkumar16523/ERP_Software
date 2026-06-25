@@ -94,7 +94,7 @@ async def login(req: Request, credentials: LoginRequest, db: Session = Depends(g
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Username or email is required",
-        )
+        )                                                                                                                           
 
     # First check if the user exists
     user = db.query(ERPUser).filter((ERPUser.username == login_id) | (ERPUser.email == login_id)).first()
@@ -105,9 +105,20 @@ async def login(req: Request, credentials: LoginRequest, db: Session = Depends(g
     if not user.isActive:
         raise HTTPException(status_code=403, detail="Account is deactivated")
 
-    # Generate tokens
-    access_token = create_access_token(data={"sub": user.id})
-    
+    # Fetch role and permissions
+    role_name = "user"
+    permissions = []
+    if user.roleId:
+        from app.models.sql_models import ERPRole, ModuleAccess
+        role = db.query(ERPRole).filter(ERPRole.id == user.roleId).first()
+        if role:
+            role_name = role.name
+            access_records = db.query(ModuleAccess).filter(ModuleAccess.roleId == role.id).all()
+            permissions = [acc.moduleKey for acc in access_records if acc.canRead]
+
+    # Generate token with permissions included in payload
+    access_token = create_access_token(data={"sub": user.id, "allowed_modules": permissions})
+
     import secrets
     refresh_token_str = secrets.token_urlsafe(64)
     
@@ -120,17 +131,6 @@ async def login(req: Request, credentials: LoginRequest, db: Session = Depends(g
     db.commit()
 
     await log_audit_event("LOGIN_SUCCESS", "Auth", "User logged in", user.id, req)
-
-    # Fetch role and permissions
-    role_name = "user"
-    permissions = []
-    if user.roleId:
-        from app.models.sql_models import ERPRole, ModuleAccess
-        role = db.query(ERPRole).filter(ERPRole.id == user.roleId).first()
-        if role:
-            role_name = role.name
-            access_records = db.query(ModuleAccess).filter(ModuleAccess.roleId == role.id).all()
-            permissions = [acc.moduleKey for acc in access_records if acc.canRead]
 
     return {
         "accessToken": access_token,
