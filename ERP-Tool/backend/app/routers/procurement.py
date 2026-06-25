@@ -1,239 +1,165 @@
-import uuid
-from datetime import datetime
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.orm import Session
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, status, Request
+from pydantic import BaseModel
+from datetime import datetime
 
 from app.utils.db import get_db
-from app.utils.audit import log_audit_event
-from app.middlewares.auth_middleware import get_current_user, require_permission, AuthenticatedUser
+from app.middlewares.rbac_middleware import get_current_rbac_user, require_module_access, RBACUser
+from app.models.procurement_sql_models import Supplier, PurchaseOrder, POItem
+from app.models.finance_sql_models import Budget
 
 router = APIRouter(prefix="/procurement", tags=["Procurement"])
 
-@router.get("/suppliers")
-async def get_suppliers(current_user: AuthenticatedUser = Depends(get_current_user), db = Depends(get_db)):
-    try:
-        suppliers = await db.suppliers.find({"isActive": True}).sort("name", 1).to_list(length=None)
-        for s in suppliers: s["_id"] = str(s["_id"])
-        return suppliers
-    except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail={"error": "Internal Server Error", "message": str(e)})
+class POItemCreate(BaseModel):
+    itemName: str
+    quantity: int
+    unitPrice: float
 
-@router.post("/suppliers", status_code=status.HTTP_201_CREATED)
-async def create_supplier(body: dict, req: Request, current_user: AuthenticatedUser = Depends(require_permission("procurement:write")), db = Depends(get_db)):
-    name = body.get("name")
-    contactInfo = body.get("contactInfo")
-    rating = body.get("rating")
-    paymentTerms = body.get("paymentTerms")
-
-    if not name:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail={"error": "Bad Request", "message": "Supplier name is required."})
-
-    try:
-        supplier = {
-            "id": str(uuid.uuid4()),
-            "name": name,
-            "contactInfo": contactInfo,
-            "rating": float(rating) if rating is not None else 0.0,
-            "paymentTerms": paymentTerms or "Net 30",
-            "isActive": True,
-            "createdAt": datetime.utcnow()
-        }
-        await db.suppliers.insert_one(supplier)
-        supplier["_id"] = str(supplier["_id"])
-
-        await log_audit_event(
-            user_id=current_user.id if hasattr(current_user, 'id') else current_user.get("id"),
-            action="CREATE_SUPPLIER",
-            resource="Supplier",
-            details={"id": supplier["id"], "name": supplier["name"]},
-            req=req
-        )
-
-        return supplier
-    except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail={"error": "Internal Server Error", "message": str(e)})
+class POCreate(BaseModel):
+    supplierId: str
+    department: str
+    budgetId: Optional[str] = None
+    items: List[POItemCreate]
 
 @router.get("/purchase-orders")
-async def get_purchase_orders(current_user: AuthenticatedUser = Depends(get_current_user), db = Depends(get_db)):
-    try:
-        orders = await db.purchase_orders.find().sort("orderDate", -1).to_list(length=None)
-        result = []
-        for o in orders:
-            supplier = await db.suppliers.find_one({"id": o["supplierId"]})
-            o["_id"] = str(o["_id"])
-            if supplier:
-                o["supplier"] = {"id": supplier["id"], "name": supplier["name"]}
-            else:
-                o["supplier"] = None
-            result.append(o)
-        return result
-    except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail={"error": "Internal Server Error", "message": str(e)})
+async def list_pos(
+    status_filter: Optional[str] = None,
+    current_user: RBACUser = Depends(require_module_access("procurement")),
+    db: Session = Depends(get_db)
+):
+    query = db.query(PurchaseOrder)
+    if status_filter:
+        query = query.filter(PurchaseOrder.status == status_filter)
+    pos = query.order_by(PurchaseOrder.createdAt.desc()).all()
+    
+    res = []
+    for po in pos:
+        items = db.query(POItem).filter(POItem.purchaseOrderId == po.id).all()
+        supplier = db.query(Supplier).filter(Supplier.id == po.supplierId).first()
+        po_dict = {
+            "id": po.id,
+            "poNumber": po.poNumber,
+            "supplierId": po.supplierId,
+            "supplierName": supplier.name if supplier else "Unknown Vendor",
+            "department": po.department,
+            "totalAmount": po.totalAmount,
+            "status": po.status,
+            "budgetDeducted": po.budgetDeducted,
+            "budgetId": po.budgetId,
+            "createdAt": po.createdAt,
+            "items": [
+                {
+                    "id": item.id,
+                    "itemName": item.itemName,
+                    "quantity": item.quantity,
+                    "unitPrice": item.unitPrice,
+                    "receivedQuantity": item.receivedQuantity
+                } for item in items
+            ]
+        }
+        res.append(po_dict)
+    return res
 
 @router.post("/purchase-orders", status_code=status.HTTP_201_CREATED)
-async def create_purchase_order(body: dict, req: Request, current_user: AuthenticatedUser = Depends(require_permission("procurement:write")), db = Depends(get_db)):
-    poNo = body.get("poNo")
-    supplierId = body.get("supplierId")
-    totalAmount = body.get("totalAmount")
-    items = body.get("items", [])
-
-    if not poNo or not supplierId or totalAmount is None:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail={"error": "Bad Request", "message": "PO Number, Supplier ID, and Total Amount are required."})
-
-    try:
-        po_id = str(uuid.uuid4())
-        order = {
-            "id": po_id,
-            "poNo": poNo,
-            "supplierId": supplierId,
-            "totalAmount": float(totalAmount),
-            "status": "DRAFT",
-            "orderDate": datetime.utcnow(),
-            "createdAt": datetime.utcnow()
-        }
-        await db.purchase_orders.insert_one(order)
-        order["_id"] = str(order["_id"])
-
-        if items:
-            db_items = []
-            for item in items:
-                db_items.append({
-                    "id": str(uuid.uuid4()),
-                    "poId": po_id,
-                    "productId": item.get("productId"),
-                    "quantity": float(item.get("quantity", 0)),
-                    "unitPrice": float(item.get("unitPrice", 0)),
-                    "totalPrice": float(item.get("totalPrice", 0)),
-                    "createdAt": datetime.utcnow()
-                })
-            await db.po_items.insert_many(db_items)
-
-        await log_audit_event(
-            user_id=current_user.id if hasattr(current_user, 'id') else current_user.get("id"),
-            action="CREATE_PURCHASE_ORDER",
-            resource="PurchaseOrder",
-            details={"id": order["id"], "poNo": order["poNo"]},
-            req=req
-        )
-
-        return order
-    except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail={"error": "Internal Server Error", "message": str(e)})
-
-@router.patch("/purchase-orders/{id}/status")
-async def update_po_status(id: str, body: dict, req: Request, current_user: AuthenticatedUser = Depends(require_permission("procurement:write")), db = Depends(get_db)):
-    status_val = body.get("status")
-    warehouseId = body.get("warehouseId")
-
-    if not status_val:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail={"error": "Bad Request", "message": "Status is required."})
-
-    try:
-        order = await db.purchase_orders.find_one({"id": id})
-        if not order:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail={"error": "Not Found", "message": "Purchase order not found"})
-
-        updates = {"status": status_val}
+async def create_po(
+    body: POCreate,
+    current_user: RBACUser = Depends(require_module_access("procurement")),
+    db: Session = Depends(get_db)
+):
+    supplier = db.query(Supplier).filter(Supplier.id == body.supplierId).first()
+    if not supplier:
+        # Auto create a dummy supplier if ID is a random string from UI
+        supplier = Supplier(id=body.supplierId, name="Vendor " + body.supplierId[:4])
+        db.add(supplier)
+        db.commit()
+        db.refresh(supplier)
         
-        if status_val == "RECEIVED":
-            if not warehouseId:
-                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail={"error": "Bad Request", "message": "Warehouse ID is required for receiving."})
+    po_num = f"PO-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}"
+    total = sum(item.quantity * item.unitPrice for item in body.items)
+    
+    po = PurchaseOrder(
+        poNumber=po_num,
+        supplierId=supplier.id,
+        department=body.department,
+        totalAmount=total,
+        status="Pending Approval",
+        budgetId=body.budgetId
+    )
+    db.add(po)
+    db.commit()
+    db.refresh(po)
+    
+    for item in body.items:
+        po_item = POItem(
+            purchaseOrderId=po.id,
+            itemName=item.itemName,
+            quantity=item.quantity,
+            unitPrice=item.unitPrice
+        )
+        db.add(po_item)
+    db.commit()
+    
+    return {"message": "Purchase Order created", "id": po.id}
+
+@router.patch("/purchase-orders/{po_id}/approve")
+async def approve_po(
+    po_id: str,
+    current_user: RBACUser = Depends(require_module_access("procurement")),
+    db: Session = Depends(get_db)
+):
+    po = db.query(PurchaseOrder).filter(PurchaseOrder.id == po_id).first()
+    if not po:
+        raise HTTPException(status_code=404, detail="PO not found")
+        
+    if po.status != "Pending Approval":
+        raise HTTPException(status_code=400, detail="PO is not pending approval")
+        
+    if po.budgetId and not po.budgetDeducted:
+        budget = db.query(Budget).filter(Budget.id == po.budgetId).first()
+        if budget:
+            if budget.spent + po.totalAmount > budget.amount:
+                raise HTTPException(status_code=400, detail="Insufficient budget")
+            budget.spent += po.totalAmount
+            po.budgetDeducted = True
             
-            items = await db.po_items.find({"poId": id}).to_list(length=None)
-            for it in items:
-                if it.get("productId"):
-                    tx = {
-                        "id": str(uuid.uuid4()),
-                        "productId": it["productId"],
-                        "warehouseId": warehouseId,
-                        "quantity": it["quantity"],
-                        "unitCost": it["unitPrice"],
-                        "type": "RECEIPT",
-                        "referenceNo": f"PO-RECEIPT-{order['poNo']}",
-                        "transactionDate": datetime.utcnow(),
-                        "createdAt": datetime.utcnow()
-                    }
-                    await db.stock_transactions.insert_one(tx)
-                    await db.products.update_one(
-                        {"id": it["productId"]},
-                        {"$inc": {"currentStock": it["quantity"]}}
-                    )
-                    
-            updates["deliveryDate"] = datetime.utcnow()
+    po.status = "Approved"
+    db.commit()
+    db.refresh(po)
+    return {"message": "PO Approved", "id": po.id}
 
-        await db.purchase_orders.update_one({"id": id}, {"$set": updates})
-        order.update(updates)
-        order["_id"] = str(order["_id"])
+class POItemReceive(BaseModel):
+    receivedQuantity: int
 
-        await log_audit_event(
-            user_id=current_user.id if hasattr(current_user, 'id') else current_user.get("id"),
-            action="UPDATE_PO_STATUS",
-            resource="PurchaseOrder",
-            details={"id": order["id"], "poNo": order["poNo"], "status": status_val},
-            req=req
-        )
-
-        return order
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail={"error": "Internal Server Error", "message": str(e)})
-
-@router.get("/contracts")
-async def get_contracts(current_user: AuthenticatedUser = Depends(get_current_user), db = Depends(get_db)):
-    try:
-        contracts = await db.supplier_contracts.find().sort("startDate", -1).to_list(length=None)
-        result = []
-        for c in contracts:
-            supplier = await db.suppliers.find_one({"id": c["supplierId"]})
-            c["_id"] = str(c["_id"])
-            if supplier:
-                c["supplier"] = {"id": supplier["id"], "name": supplier["name"]}
-            else:
-                c["supplier"] = None
-            result.append(c)
-        return result
-    except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail={"error": "Internal Server Error", "message": str(e)})
-
-@router.post("/contracts", status_code=status.HTTP_201_CREATED)
-async def create_contract(body: dict, req: Request, current_user: AuthenticatedUser = Depends(require_permission("procurement:write")), db = Depends(get_db)):
-    contractNo = body.get("contractNo")
-    supplierId = body.get("supplierId")
-    title = body.get("title")
-    startDate_str = body.get("startDate")
-    endDate_str = body.get("endDate")
-    value = body.get("value")
-
-    if not contractNo or not supplierId or not title:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail={"error": "Bad Request", "message": "Contract Number, Supplier, and Title are required."})
-
-    try:
-        startDate = datetime.fromisoformat(startDate_str.replace("Z", "+00:00")).replace(tzinfo=None) if startDate_str else None
-        endDate = datetime.fromisoformat(endDate_str.replace("Z", "+00:00")).replace(tzinfo=None) if endDate_str else None
-
-        contract = {
-            "id": str(uuid.uuid4()),
-            "contractNo": contractNo,
-            "supplierId": supplierId,
-            "title": title,
-            "startDate": startDate,
-            "endDate": endDate,
-            "value": float(value) if value is not None else 0.0,
-            "status": "ACTIVE",
-            "createdAt": datetime.utcnow()
-        }
-        await db.supplier_contracts.insert_one(contract)
-        contract["_id"] = str(contract["_id"])
-
-        await log_audit_event(
-            user_id=current_user.id if hasattr(current_user, 'id') else current_user.get("id"),
-            action="CREATE_CONTRACT",
-            resource="SupplierContract",
-            details={"id": contract["id"], "contractNo": contract["contractNo"]},
-            req=req
-        )
-
-        return contract
-    except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail={"error": "Internal Server Error", "message": str(e)})
+@router.patch("/purchase-orders/items/{item_id}/receive")
+async def receive_po_item(
+    item_id: str,
+    body: POItemReceive,
+    current_user: RBACUser = Depends(require_module_access("procurement")),
+    db: Session = Depends(get_db)
+):
+    item = db.query(POItem).filter(POItem.id == item_id).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+        
+    po = db.query(PurchaseOrder).filter(PurchaseOrder.id == item.purchaseOrderId).first()
+    if not po or po.status not in ["Approved", "Partially Received"]:
+        raise HTTPException(status_code=400, detail="PO must be approved before receiving")
+        
+    item.receivedQuantity += body.receivedQuantity
+    if item.receivedQuantity > item.quantity:
+        item.receivedQuantity = item.quantity
+        
+    db.commit()
+    
+    # Check if all items in PO are fully received
+    all_items = db.query(POItem).filter(POItem.purchaseOrderId == po.id).all()
+    all_received = all(i.receivedQuantity >= i.quantity for i in all_items)
+    
+    if all_received:
+        po.status = "Received"
+    else:
+        po.status = "Partially Received"
+        
+    db.commit()
+    return {"message": "Item received updated", "poStatus": po.status}

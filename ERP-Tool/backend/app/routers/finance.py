@@ -9,7 +9,9 @@ from app.utils.audit import log_audit_event
 from app.utils.crypto_ledger import calculate_block_hash
 from app.middlewares.rbac_middleware import get_current_rbac_user, require_module_access, RBACUser
 from app.models.schemas import VoucherCreate, AccountCreate, InvoiceCreate, BudgetCreate, ExpenseCreate, ApprovalWorkflowCreate, TaxDeadlineCreate, StatementCreate
-from app.models.finance_sql_models import FinanceAccount, JournalEntry, Invoice, Budget, Expense, ApprovalWorkflow, ApprovalLevel, TaxDeadline, Statement
+from app.models.finance_sql_models import FinanceAccount, JournalEntry, Invoice, Budget, Expense, ApprovalWorkflow, ApprovalLevel, TaxDeadline, Statement, FinanceAuditLog
+import httpx
+from app.utils.redis_client import cache_get, cache_set, connect_redis
 
 router = APIRouter(prefix="/finance", tags=["Finance"])
 
@@ -23,6 +25,18 @@ def update_account_balance(db: Session, account_id: str, amount: float, is_debit
         balance_change = -amount if is_debit else amount
         
     account.balance += balance_change
+    db.commit()
+
+def create_finance_audit(db: Session, user_id: str, action: str, table_name: str, record_id: str, old_value: str = None, new_value: str = None):
+    log = FinanceAuditLog(
+        userId=user_id,
+        action=action,
+        tableName=table_name,
+        recordId=record_id,
+        oldValue=old_value,
+        newValue=new_value
+    )
+    db.add(log)
     db.commit()
 
 # 1. ACCOUNTS LIST
@@ -213,12 +227,15 @@ async def create_invoice(body: InvoiceCreate, current_user: RBACUser = Depends(r
         taxRate=tax_rate,
         taxAmount=tax_amount,
         totalAmount=total_amount,
+        currency="USD",
         status="PENDING",
         dueDate=body.dueDate
     )
     db.add(invoice)
     db.commit()
     db.refresh(invoice)
+    
+    create_finance_audit(db, current_user.id, "CREATE", "finance_invoices", invoice.id, new_value=f"{{\"totalAmount\": {total_amount}}}")
     return invoice
 
 @router.patch("/invoices/{id}/status")
@@ -226,12 +243,16 @@ async def update_invoice_status(id: str, body: dict, current_user: RBACUser = De
     invoice = db.query(Invoice).filter(Invoice.id == id).first()
     if not invoice:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invoice not found")
+    
+    old_status = invoice.status
     if "status" in body:
         invoice.status = body["status"]
     if "sent" in body:
         invoice.sent = body["sent"]
     db.commit()
     db.refresh(invoice)
+    
+    create_finance_audit(db, current_user.id, "UPDATE", "finance_invoices", invoice.id, old_value=f"{{\"status\": \"{old_status}\"}}", new_value=f"{{\"status\": \"{invoice.status}\"}}")
     return invoice
 
 # 10. BUDGETS
@@ -274,6 +295,8 @@ async def create_expense(body: ExpenseCreate, current_user: RBACUser = Depends(r
     db.add(expense)
     db.commit()
     db.refresh(expense)
+    
+    create_finance_audit(db, current_user.id, "CREATE", "finance_expenses", expense.id, new_value=f"{{\"amount\": {expense.amount}}}")
     return expense
 
 @router.patch("/expenses/{id}/status")
@@ -281,11 +304,15 @@ async def update_expense_status(id: str, body: dict, current_user: RBACUser = De
     expense = db.query(Expense).filter(Expense.id == id).first()
     if not expense:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Expense not found")
+    
+    old_status = expense.status
     if "status" in body:
         expense.status = body["status"]
     expense.approvedBy = current_user.username
     db.commit()
     db.refresh(expense)
+    
+    create_finance_audit(db, current_user.id, "UPDATE", "finance_expenses", expense.id, old_value=f"{{\"status\": \"{old_status}\"}}", new_value=f"{{\"status\": \"{expense.status}\"}}")
     return expense
 
 # 12. APPROVAL WORKFLOWS
@@ -412,3 +439,34 @@ async def update_statement_status(id: str, body: dict, current_user: RBACUser = 
     db.commit()
     db.refresh(statement)
     return statement
+
+# 15. AUDIT LOGS
+
+@router.get("/audit-logs")
+async def get_audit_logs(current_user: RBACUser = Depends(require_module_access("finance")), db: Session = Depends(get_db)):
+    return db.query(FinanceAuditLog).order_by(FinanceAuditLog.timestamp.desc()).all()
+
+# 16. EXCHANGE RATES
+
+@router.get("/exchange-rates")
+async def get_exchange_rates():
+    rates = cache_get("exchange_rates")
+    if not rates:
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.get("https://api.exchangerate-api.com/v4/latest/USD")
+                if response.status_code == 200:
+                    data = response.json()
+                    rates = {
+                        "USD": data["rates"].get("USD", 1),
+                        "EUR": data["rates"].get("EUR", 0.9),
+                        "GBP": data["rates"].get("GBP", 0.8),
+                        "INR": data["rates"].get("INR", 83.0),
+                        "AED": data["rates"].get("AED", 3.67),
+                    }
+                    cache_set("exchange_rates", rates, 86400) # Cache for 24h
+        except Exception:
+            rates = {"USD": 1, "EUR": 0.92, "GBP": 0.79, "INR": 83.2, "AED": 3.67}
+    
+    return rates
+

@@ -1,14 +1,24 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip,
-  CartesianGrid, BarChart, Bar, Cell
+  CartesianGrid, BarChart, Bar, Cell, LineChart, Line
 } from 'recharts';
 import { useERPStore } from '../store/useERPStore';
+import { api } from '../utils/api';
 
 const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#f43f5e', '#06b6d4', '#8b5cf6'];
 
 export default function AnalyticsModule() {
   const { employees, leads } = useERPStore();
+  const [logisticsKpis, setLogisticsKpis] = useState(null);
+
+  useEffect(() => {
+    const fetchKpis = async () => {
+      const data = await api.analytics.getLogisticsKpis();
+      if (data) setLogisticsKpis(data);
+    };
+    fetchKpis();
+  }, []);
 
   const revenueByMonth = [
     { name: 'Jan', value: 145000 }, { name: 'Feb', value: 172000 }, { name: 'Mar', value: 198000 },
@@ -40,7 +50,7 @@ export default function AnalyticsModule() {
     <div className="p-6 space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-main">Analytics Hub</h1>
-        <p className="text-sm text-muted mt-1">Business intelligence and performance insights</p>
+        <p className="text-sm text-muted mt-1">Business intelligence, performance insights, and live logistics KPIs.</p>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -98,19 +108,54 @@ export default function AnalyticsModule() {
         </div>
       </div>
 
-      <div className="theme-card p-5">
-        <h3 className="text-sm font-semibold text-main mb-4">Headcount by Department</h3>
-        <ResponsiveContainer width="100%" height={150}>
-          <BarChart data={deptData}>
-            <XAxis dataKey="name" tick={{ fill: chartTextColor, fontSize: 10 }} axisLine={false} tickLine={false} />
-            <YAxis tick={{ fill: chartTextColor, fontSize: 10 }} axisLine={false} tickLine={false} allowDecimals={false} />
-            <Tooltip contentStyle={tooltipStyle} />
-            <Bar dataKey="value" radius={[4, 4, 0, 0]}>
-              {deptData.map((_, idx) => <Cell key={idx} fill={COLORS[idx % COLORS.length]} />)}
-            </Bar>
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
+      {logisticsKpis && (
+        <div className="space-y-4">
+          <h2 className="text-lg font-bold text-main mt-4">Supply Chain & Logistics KPIs</h2>
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+            {[
+              { label: 'OTIF Delivery', value: `${logisticsKpis.otifRate}%`, color: 'text-indigo-400' },
+              { label: 'Fleet Utilization', value: `${logisticsKpis.fleetUtilization}%`, color: 'text-amber-400' },
+              { label: 'Fuel Efficiency', value: `${logisticsKpis.fuelEfficiency} km/l`, color: 'text-emerald-400' },
+              { label: 'Rev per Km', value: `₹${logisticsKpis.revenuePerKm}`, color: 'text-sky-400' },
+              { label: 'Est. CO2', value: `${logisticsKpis.co2Emissions} t`, color: 'text-rose-400' },
+            ].map(s => (
+              <div key={s.label} className="theme-card p-4 border border-main">
+                <p className="text-xs text-dimmed">{s.label}</p>
+                <p className={`text-xl font-bold mt-1 font-data ${s.color}`}>{s.value}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="theme-card p-5">
+              <h3 className="text-sm font-semibold text-main mb-4">Shipments Trend</h3>
+              <ResponsiveContainer width="100%" height={200}>
+                <LineChart data={logisticsKpis.monthlyTrend}>
+                  <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />
+                  <XAxis dataKey="month" tick={{ fill: chartTextColor, fontSize: 11 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fill: chartTextColor, fontSize: 11 }} axisLine={false} tickLine={false} />
+                  <Tooltip contentStyle={tooltipStyle} />
+                  <Line type="monotone" dataKey="shipments" stroke="#10b981" strokeWidth={2} dot={{ r: 4 }} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+            
+            <div className="theme-card p-5">
+              <h3 className="text-sm font-semibold text-main mb-4">Headcount by Department</h3>
+              <ResponsiveContainer width="100%" height={200}>
+                <BarChart data={deptData}>
+                  <XAxis dataKey="name" tick={{ fill: chartTextColor, fontSize: 10 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fill: chartTextColor, fontSize: 10 }} axisLine={false} tickLine={false} allowDecimals={false} />
+                  <Tooltip contentStyle={tooltipStyle} />
+                  <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+                    {deptData.map((_, idx) => <Cell key={idx} fill={COLORS[idx % COLORS.length]} />)}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

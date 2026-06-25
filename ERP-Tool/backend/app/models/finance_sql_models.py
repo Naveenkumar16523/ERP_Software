@@ -1,7 +1,7 @@
 """
 SQLAlchemy Models for the Finance Module
 """
-from sqlalchemy import Column, String, Float, Boolean, Integer, DateTime, ForeignKey, Text
+from sqlalchemy import Column, String, Float, Boolean, Integer, DateTime, ForeignKey, Text, Numeric
 from datetime import datetime
 import uuid
 
@@ -17,7 +17,7 @@ class FinanceAccount(Base):
     code = Column(String(50), unique=True, index=True)
     name = Column(String(100), index=True)
     type = Column(String(50)) # Asset, Liability, Equity, Income, Expense
-    balance = Column(Float, default=0.0)
+    balance = Column(Numeric(15, 4), default=0.0)
     status = Column(String(50), default="ACTIVE")
     createdAt = Column(DateTime, default=datetime.utcnow)
 
@@ -29,7 +29,8 @@ class JournalEntry(Base):
     voucherType = Column(String(50))
     voucherNo = Column(String(100), unique=True, index=True)
     date = Column(DateTime, default=datetime.utcnow)
-    amount = Column(Float)
+    amount = Column(Numeric(15, 4))
+    currency = Column(String(10), default="USD")
     debitAcc = Column(String(100))
     creditAcc = Column(String(100))
     narration = Column(Text, nullable=True)
@@ -43,10 +44,11 @@ class Invoice(Base):
     id = Column(String(36), primary_key=True, default=generate_uuid)
     invoiceNo = Column(String(100), unique=True, index=True)
     customerName = Column(String(255))
-    subtotal = Column(Float)
-    taxRate = Column(Float)
-    taxAmount = Column(Float)
-    totalAmount = Column(Float)
+    subtotal = Column(Numeric(15, 4))
+    taxRate = Column(Numeric(15, 4))
+    taxAmount = Column(Numeric(15, 4))
+    totalAmount = Column(Numeric(15, 4))
+    currency = Column(String(10), default="USD")
     status = Column(String(50), default="PENDING")
     invoiceDate = Column(String(50))
     dueDate = Column(DateTime, nullable=True)
@@ -61,8 +63,8 @@ class Budget(Base):
     category = Column(String(100))
     costCenter = Column(String(100))
     period = Column(String(50))
-    amount = Column(Float)
-    spent = Column(Float, default=0.0)
+    amount = Column(Numeric(15, 4))
+    spent = Column(Numeric(15, 4), default=0.0)
     year = Column(Integer)
     month = Column(Integer, nullable=True)
     createdAt = Column(DateTime, default=datetime.utcnow)
@@ -73,7 +75,7 @@ class Expense(Base):
     id = Column(String(36), primary_key=True, default=generate_uuid)
     description = Column(Text)
     category = Column(String(100))
-    amount = Column(Float)
+    amount = Column(Numeric(15, 4))
     date = Column(DateTime)
     paidBy = Column(String(255))
     receiptStatus = Column(String(50), default="Pending")
@@ -87,7 +89,7 @@ class ApprovalWorkflow(Base):
     id = Column(String(36), primary_key=True, default=generate_uuid)
     requestNo = Column(String(100), unique=True, index=True)
     type = Column(String(100))
-    amount = Column(Float)
+    amount = Column(Numeric(15, 4))
     requester = Column(String(255))
     date = Column(String(50))
     reason = Column(Text, nullable=True)
@@ -112,7 +114,7 @@ class TaxDeadline(Base):
     id = Column(String(36), primary_key=True, default=generate_uuid)
     taxName = Column(String(255))
     taxType = Column(String(100))
-    rate = Column(Float)
+    rate = Column(Numeric(15, 4))
     applicableOn = Column(String(255))
     effectiveDate = Column(DateTime)
     dueDate = Column(DateTime)
@@ -126,8 +128,21 @@ class Statement(Base):
     id = Column(String(36), primary_key=True, default=generate_uuid)
     statementType = Column(String(100))
     period = Column(String(100))
-    totalIncome = Column(Float)
-    totalExpense = Column(Float)
-    netAmount = Column(Float)
+    totalIncome = Column(Numeric(15, 4))
+    totalExpense = Column(Numeric(15, 4))
+    netAmount = Column(Numeric(15, 4))
     status = Column(String(50), default="Generated")
     createdAt = Column(DateTime, default=datetime.utcnow)
+
+class FinanceAuditLog(Base):
+    __tablename__ = "finance_audit_logs"
+    
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    userId = Column(String(36), nullable=True) # ID of user who made change
+    action = Column(String(50)) # CREATE, UPDATE, DELETE
+    tableName = Column(String(100))
+    recordId = Column(String(36))
+    oldValue = Column(Text, nullable=True) # JSON string
+    newValue = Column(Text, nullable=True) # JSON string
+    timestamp = Column(DateTime, default=datetime.utcnow)
+

@@ -32,6 +32,13 @@ async function request(path, options = {}) {
     throw new Error('Module disabled');
   }
 
+  const { demoMode, token, setDbLive, logout } = useERPStore.getState();
+
+  // If in demo mode, skip network requests entirely to prevent 401s and console spam
+  if (demoMode && path !== '/health' && path !== '/auth/login' && path !== '/auth/refresh') {
+    throw new Error('Offline demo mode');
+  }
+
   const url = `${BASE_URL}${path}`;
   const mergedOptions = {
     ...options,
@@ -42,7 +49,7 @@ async function request(path, options = {}) {
     const res = await fetch(url, mergedOptions);
 
     // Set database status to live since the network succeeded
-    useERPStore.getState().setDbLive(true);
+    setDbLive(true);
 
     if (!res.ok) {
       const errBody = await res.json().catch(() => ({}));
@@ -63,9 +70,8 @@ async function request(path, options = {}) {
                             (res.status === 401 && !String(errorMessage).includes('Invalid credentials') && !String(errorMessage).includes('Invalid username or password'));
         
         if (isAuthError) {
-          const isDemo = useERPStore.getState().demoMode;
-          if (isDemo) {
-             throw new Error('Offline demo mode: Auth bypassed.');
+          if (demoMode) {
+             throw new Error('Offline demo mode');
           }
 
           const refreshToken = localStorage.getItem('erp_refresh_token');
@@ -83,16 +89,16 @@ async function request(path, options = {}) {
                 // Retry original request with new token
                 return await request(path, { ...options, _retry: true });
               } else {
-                useERPStore.getState().logout();
+                logout();
                 throw new Error('Session expired. Please log in again.');
               }
             } catch (e) {
               if (e.message.includes('Session expired')) throw e;
-              useERPStore.getState().logout();
+              logout();
               throw new Error('Session expired. Please log in again.');
             }
           } else {
-            useERPStore.getState().logout();
+            logout();
             throw new Error('Session expired. Please log in again.');
           }
         }
@@ -103,9 +109,9 @@ async function request(path, options = {}) {
 
     return await res.json();
   } catch (error) {
-    if (error.message !== 'Module disabled') {
+    if (error.message !== 'Module disabled' && error.message !== 'Offline demo mode') {
       console.warn(`[Network Fail] API path ${path} failed. Error:`, error.message);
-      useERPStore.getState().setDbLive(false);
+      setDbLive(false);
     }
     throw error; // Let caller catch and choose whether to apply fallback
   }
@@ -254,6 +260,14 @@ export const api = {
     async updateStatementStatus(id, status) {
       try { return await request(`/finance/statements/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }); }
       catch { useERPStore.getState().updateStatementStatus(id, status); }
+    },
+    async getAuditLogs() {
+      try { return await request('/finance/audit-logs'); }
+      catch { return useERPStore.getState().taxCompliance.auditTrail; }
+    },
+    async getExchangeRates() {
+      try { return await request('/finance/exchange-rates'); }
+      catch { return { "USD": 1, "EUR": 0.92, "GBP": 0.79, "INR": 83.2, "AED": 3.67 }; }
     }
   },
 
@@ -272,12 +286,68 @@ export const api = {
       catch { return useERPStore.getState().leaveRequests; }
     },
     async createLeaveRequest(employeeId, leave) {
-      try { return await request(`/hr/leaves?employeeId=${employeeId}`, { method: 'POST', body: JSON.stringify(leave) }); }
+      try { return await request(`/hr/leave/requests`, { method: 'POST', body: JSON.stringify(leave) }); }
       catch { useERPStore.getState().addLeaveRequest(leave); return leave; }
     },
-    async updateLeaveStatus(id, status) {
-      try { return await request(`/hr/leaves/${id}`, { method: 'PATCH', body: JSON.stringify({ status }) }); }
+    async updateLeaveStatus(id, status, isUnpaid = false) {
+      try { return await request(`/hr/leave/requests/${id}/action`, { method: 'PATCH', body: JSON.stringify({ action: status === 'APPROVED' ? 'approve' : 'reject', isUnpaid }) }); }
       catch { useERPStore.getState().updateLeaveStatus(id, status); }
+    },
+    async markBiometricAttendance(employeeId, thumbprintHash) {
+      try { return await request('/hr/attendance/biometric', { method: 'POST', body: JSON.stringify({ employeeId, thumbprintHash, timestamp: new Date().toISOString() }) }); }
+      catch { return null; }
+    },
+    async getDocuments(employeeId) {
+      try { return await request(`/hr/documents/${employeeId}`); }
+      catch { return []; }
+    },
+    async uploadDocument(employeeId, doc) {
+      try { return await request(`/hr/documents/${employeeId}`, { method: 'POST', body: JSON.stringify(doc) }); }
+      catch { return null; }
+    }
+  },
+
+  // ── Payroll ──
+  payroll: {
+    async getRules() {
+      try { return await request('/payroll/rules'); }
+      catch { return []; }
+    },
+    async createRule(rule) {
+      try { return await request('/payroll/rules', { method: 'POST', body: JSON.stringify(rule) }); }
+      catch { return null; }
+    },
+    async getRecords(month, year) {
+      let query = [];
+      if (month) query.push(`month=${month}`);
+      if (year) query.push(`year=${year}`);
+      let qs = query.length > 0 ? `?${query.join('&')}` : '';
+      try { return await request(`/payroll/records${qs}`); }
+      catch { return []; }
+    },
+    async generate(month, year) {
+      try { return await request('/payroll/generate', { method: 'POST', body: JSON.stringify({ month, year }) }); }
+      catch (e) { throw e; }
+    }
+  },
+
+  // ── Procurement ──
+  procurement: {
+    async getPurchaseOrders() {
+      try { return await request('/procurement/purchase-orders'); }
+      catch { return useERPStore.getState().purchaseOrders; }
+    },
+    async createPurchaseOrder(po) {
+      try { return await request('/procurement/purchase-orders', { method: 'POST', body: JSON.stringify(po) }); }
+      catch { useERPStore.getState().addPurchaseOrder(po); return po; }
+    },
+    async approvePurchaseOrder(id) {
+      try { return await request(`/procurement/purchase-orders/${id}/approve`, { method: 'PATCH' }); }
+      catch { useERPStore.getState().updatePurchaseOrderStatus(id, 'Approved'); return { id }; }
+    },
+    async receivePOItem(itemId, receivedQuantity) {
+      try { return await request(`/procurement/purchase-orders/items/${itemId}/receive`, { method: 'PATCH', body: JSON.stringify({ receivedQuantity }) }); }
+      catch { return null; }
     }
   },
 
@@ -327,17 +397,25 @@ export const api = {
       try { return await request('/crm/leads'); }
       catch { return useERPStore.getState().leads; }
     },
-    async addLead(lead) {
+    async createLead(lead) {
       try { return await request('/crm/leads', { method: 'POST', body: JSON.stringify(lead) }); }
       catch { useERPStore.getState().addLead(lead); return lead; }
     },
-    async updateLeadStage(id, status) {
-      try { return await request(`/crm/leads/${id}/stage`, { method: 'PATCH', body: JSON.stringify({ status }) }); }
+    async updateLeadStatus(id, status) {
+      try { return await request(`/crm/leads/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }); }
       catch { useERPStore.getState().updateLeadStage(id, status); }
     },
-    async getCustomers() {
-      try { return await request('/crm/customers'); }
-      catch { return useERPStore.getState().customers; }
+    async getTickets() {
+      try { return await request('/crm/tickets'); }
+      catch { return useERPStore.getState().supportTickets || []; }
+    },
+    async createTicket(ticket) {
+      try { return await request('/crm/tickets', { method: 'POST', body: JSON.stringify(ticket) }); }
+      catch { return ticket; }
+    },
+    async updateTicketStatus(id, status) {
+      try { return await request(`/crm/tickets/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }); }
+      catch { return { id, status }; }
     }
   },
 
@@ -723,6 +801,78 @@ export const api = {
     },
     async getRoles() {
       return request('/admin/roles');
+    }
+  },
+  
+  // ── Supply Chain ──
+  supplyChain: {
+    async getVehicles() {
+      try { return await request('/supply-chain/vehicles'); }
+      catch { return []; }
+    },
+    async createVehicle(vehicle) {
+      try { return await request('/supply-chain/vehicles', { method: 'POST', body: JSON.stringify(vehicle) }); }
+      catch { return vehicle; }
+    },
+    async updateVehicleGps(id, loc) {
+      try { return await request(`/supply-chain/vehicles/${id}/gps`, { method: 'POST', body: JSON.stringify(loc) }); }
+      catch { return { id, loc }; }
+    },
+    async getShipments() {
+      try { return await request('/supply-chain/shipments'); }
+      catch { return []; }
+    },
+    async createShipment(shipment) {
+      try { return await request('/supply-chain/shipments', { method: 'POST', body: JSON.stringify(shipment) }); }
+      catch { return shipment; }
+    },
+    async updateShipmentStatus(id, status) {
+      try { return await request(`/supply-chain/shipments/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }); }
+      catch { return { id, status }; }
+    },
+    async updateShipmentPod(id, podSignature) {
+      try { return await request(`/supply-chain/shipments/${id}/pod`, { method: 'POST', body: JSON.stringify({ podSignature }) }); }
+      catch { return { id, podSignature }; }
+    }
+  },
+
+  // ── Banking ──
+  banking: {
+    async getAccounts() {
+      try { return await request('/banking/accounts'); }
+      catch { return []; }
+    },
+    async createAccount(acc) {
+      try { return await request('/banking/accounts', { method: 'POST', body: JSON.stringify(acc) }); }
+      catch { return acc; }
+    },
+    async getTransactions() {
+      try { return await request('/banking/transactions'); }
+      catch { return []; }
+    },
+    async createTransaction(tx) {
+      try { return await request('/banking/transactions', { method: 'POST', body: JSON.stringify(tx) }); }
+      catch { return tx; }
+    },
+    async autoReconcile() {
+      try { return await request('/banking/reconcile', { method: 'POST' }); }
+      catch { return { message: "Reconciliation failed (offline)", matches: 0 }; }
+    }
+  },
+
+  // ── Analytics ──
+  analytics: {
+    async getLogisticsKpis() {
+      try { return await request('/analytics/logistics-kpis'); }
+      catch { return null; }
+    }
+  },
+
+  // ── Global Search ──
+  search: {
+    async query(q) {
+      try { return await request(`/search?q=${encodeURIComponent(q)}`); }
+      catch { return { results: [] }; }
     }
   }
 };

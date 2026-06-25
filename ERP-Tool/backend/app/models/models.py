@@ -11,7 +11,7 @@ def generate_uuid():
 class User(BaseModel):
     id: str = Field(default_factory=generate_uuid)
     email: str
-    password: str
+    password: str                                   
     firstName: str
     lastName: str
     isActive: bool = True

@@ -58,7 +58,7 @@ export default function FinanceModule() {
     let active = true;
     const fetchFinanceData = async () => {
       try {
-        const [accts, jEntries, invs, bdgts, exps, appr, tx, stmts] = await Promise.all([
+        const [accts, jEntries, invs, bdgts, exps, appr, tx, stmts, rates, logs] = await Promise.all([
           api.finance.getAccounts(),
           api.finance.getJournalEntries(),
           api.finance.getInvoices(),
@@ -66,7 +66,9 @@ export default function FinanceModule() {
           api.finance.getExpenses(),
           api.finance.getApprovalWorkflows(),
           api.finance.getTaxDeadlines(),
-          api.finance.getStatements()
+          api.finance.getStatements(),
+          api.finance.getExchangeRates(),
+          api.finance.getAuditLogs()
         ]);
         if (active) {
           if (Array.isArray(accts)) setAccounts(accts);
@@ -77,6 +79,8 @@ export default function FinanceModule() {
           if (Array.isArray(appr)) setApprovalWorkflows(appr);
           if (Array.isArray(tx)) setFilingDeadlines(tx);
           if (Array.isArray(stmts)) setStatements(stmts);
+          if (rates) setExchangeRates(rates);
+          if (Array.isArray(logs)) setAuditLogs(logs);
         }
       } catch (err) {
         console.error('Error fetching finance data:', err);
@@ -109,10 +113,20 @@ export default function FinanceModule() {
   const [ledgerStatus, setLedgerStatus] = useState(null);
   const [isValidating, setIsValidating] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  const [auditLogs, setAuditLogs] = useState([]);
+  const [exchangeRates, setExchangeRates] = useState({ USD: 1, EUR: 0.92, GBP: 0.79, INR: 83.2, AED: 3.67 });
+  const [currency, setCurrency] = useState('USD');
+
+  const formatC = (amt) => {
+    const val = (amt / (exchangeRates['USD'] || 1)) * (exchangeRates[currency] || 1);
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency: currency }).format(val);
+  };
+
   const [plPeriod, setPlPeriod] = useState('month');
-  const [plYear, setPlYear] = useState(2026);
-  const [plQuarter, setPlQuarter] = useState(2);
-  const [plMonth, setPlMonth] = useState(6);
+  const [plYear, setPlYear] = useState(new Date().getFullYear());
+  const [plQuarter, setPlQuarter] = useState(1);
+  const [plMonth, setPlMonth] = useState(new Date().getMonth() + 1);
 
   const revenueAccounts = accounts.filter(a => a.type === 'REVENUE');
   const expenseAccounts = accounts.filter(a => a.type === 'EXPENSE');
@@ -399,7 +413,8 @@ export default function FinanceModule() {
     { id: 'expenses', label: 'Expense Tracker', icon: AlertCircle },
     { id: 'approvals', label: 'Approvals', icon: CheckCircle },
     { id: 'tax', label: 'Tax & Compliance', icon: ShieldCheck },
-    { id: 'statements', label: 'Statements', icon: TrendingUp }
+    { id: 'statements', label: 'Statements', icon: TrendingUp },
+    { id: 'audit', label: 'Audit Trail', icon: ShieldCheck }
   ];
 
   const TYPE_COLORS = { ASSET: 'text-sky-400', LIABILITY: 'text-rose-400', EQUITY: 'text-violet-400', REVENUE: 'text-emerald-400', EXPENSE: 'text-amber-400' };
@@ -407,9 +422,18 @@ export default function FinanceModule() {
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-main">Finance & Accounting</h1>
-          <p className="text-sm text-muted mt-1">Blockchain-secured general ledger & financial statements</p>
+        <div className="flex items-center gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-main">Finance & Accounting</h1>
+            <p className="text-sm text-muted mt-1">Blockchain-secured general ledger & financial statements</p>
+          </div>
+          <select 
+            value={currency} 
+            onChange={e => setCurrency(e.target.value)}
+            className="input-field bg-surface text-main py-1.5 px-3 rounded-lg border-muted"
+          >
+            {Object.keys(exchangeRates).map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
         </div>
         <div className="flex items-center gap-2">
           {ledgerStatus === 'valid' && <span className="flex items-center gap-1.5 text-xs text-emerald-400 bg-emerald-500/10 px-3 py-1.5 rounded-full border border-emerald-500/20"><ShieldCheck className="w-3.5 h-3.5" /> Ledger Verified</span>}
@@ -432,7 +456,7 @@ export default function FinanceModule() {
           return (
             <div key={card.label} className="theme-card p-4">
               <p className="text-xs text-muted">{card.label}</p>
-              <p className={`text-lg font-bold mt-1 font-data ${card.color}`}>₹{card.value.toLocaleString('en-IN')}</p>
+              <p className={`text-lg font-bold mt-1 font-data ${card.color}`}>{formatC(card.value)}</p>
             </div>
           );
         })}
@@ -482,7 +506,7 @@ export default function FinanceModule() {
                     <td className="px-4 py-2.5">
                       <span className={`text-xs font-medium ${TYPE_COLORS[acc.type] || 'text-muted'}`}>{acc.type}</span>
                     </td>
-                    <td className="px-4 py-2.5 text-right text-sm font-data font-semibold text-main">₹{acc.balance.toLocaleString('en-IN')}</td>
+                    <td className="px-4 py-2.5 text-right text-sm font-data font-semibold text-main">{formatC(acc.balance)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -519,7 +543,7 @@ export default function FinanceModule() {
                     <td className="px-4 py-2.5 text-xs text-emerald-400">{je.debitAcc}</td>
                     <td className="px-4 py-2.5 text-xs text-rose-400">{je.creditAcc}</td>
                     <td className="px-4 py-2.5 text-xs text-muted max-w-xs truncate">{je.narration}</td>
-                    <td className="px-4 py-2.5 text-right text-sm font-data font-semibold text-main">₹{je.amount.toLocaleString('en-IN')}</td>
+                    <td className="px-4 py-2.5 text-right text-sm font-data font-semibold text-main">{formatC(je.amount)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -573,11 +597,11 @@ export default function FinanceModule() {
                         }`}>{isOverdue ? 'OVERDUE' : statusFormatted}</span>
                       </td>
                       <td className="px-4 py-2.5 text-xs text-muted">{inv.sent ? 'Yes' : 'No'}</td>
-                      <td className="px-4 py-2.5 text-right text-sm font-data text-muted">₹{(inv.subtotal || inv.totalAmount || 0).toLocaleString('en-IN')}</td>
+                      <td className="px-4 py-2.5 text-right text-sm font-data text-muted">{formatC(inv.subtotal || inv.totalAmount || 0)}</td>
                       <td className="px-4 py-2.5 text-right text-xs font-data text-muted">
-                        ₹{(inv.taxAmount || 0).toLocaleString('en-IN')} <span className="text-[10px] text-dimmed">({inv.taxRate || 0}%)</span>
+                        {formatC(inv.taxAmount || 0)} <span className="text-[10px] text-dimmed">({inv.taxRate || 0}%)</span>
                       </td>
-                      <td className="px-4 py-2.5 text-right text-sm font-data font-semibold text-main">₹{(inv.totalAmount || 0).toLocaleString('en-IN')}</td>
+                      <td className="px-4 py-2.5 text-right text-sm font-data font-semibold text-main">{formatC(inv.totalAmount || 0)}</td>
                       <td className="px-4 py-2.5">
                         <div className="flex items-center gap-2">
                           {!inv.sent && (
@@ -642,11 +666,11 @@ export default function FinanceModule() {
                       <td className="px-4 py-2.5 text-sm font-semibold text-main">{budget.budgetName || '—'}</td>
                       <td className="px-4 py-2.5 text-sm text-main">{budget.category || budget.costCenter || '—'}</td>
                       <td className="px-4 py-2.5 text-xs text-muted">{budget.period} ({budget.year}{budget.month ? `-${budget.month}` : ''})</td>
-                      <td className="px-4 py-2.5 text-sm font-data font-semibold text-main">₹{budget.amount.toLocaleString('en-IN')}</td>
-                      <td className="px-4 py-2.5 text-sm font-data text-muted">₹{(budget.spent || 0).toLocaleString('en-IN')}</td>
+                      <td className="px-4 py-2.5 text-sm font-data font-semibold text-main">{formatC(budget.amount)}</td>
+                      <td className="px-4 py-2.5 text-sm font-data text-muted">{formatC(budget.spent || 0)}</td>
                       <td className="px-4 py-2.5 text-sm font-data font-semibold text-main">
                         <span className={isOverBudget ? 'text-rose-400' : isNearLimit ? 'text-amber-400' : 'text-emerald-400'}>
-                          ₹{remaining.toLocaleString('en-IN')}
+                          {formatC(remaining)}
                         </span>
                       </td>
                       <td className="px-4 py-2.5">
@@ -694,7 +718,7 @@ export default function FinanceModule() {
                   <tr key={expense.id} className="border-b border-main/50 hover:bg-surface/50 transition-colors">
                     <td className="px-4 py-2.5 text-sm text-main">{expense.description}</td>
                     <td className="px-4 py-2.5 text-xs text-muted">{expense.category}</td>
-                    <td className="px-4 py-2.5 text-sm font-data font-semibold text-main">₹{expense.amount.toLocaleString('en-IN')}</td>
+                    <td className="px-4 py-2.5 text-sm font-data font-semibold text-main">{formatC(expense.amount)}</td>
                     <td className="px-4 py-2.5 text-xs text-muted">{expense.date}</td>
                     <td className="px-4 py-2.5 text-xs text-muted">{expense.paidBy || '—'}</td>
                     <td className="px-4 py-2.5 text-xs text-muted">
@@ -754,7 +778,7 @@ export default function FinanceModule() {
                     <td className="px-4 py-2.5 text-xs font-mono text-indigo-400">{workflow.requestNo || '—'}</td>
                     <td className="px-4 py-2.5 text-sm text-main">{workflow.type}</td>
                     <td className="px-4 py-2.5 text-xs text-muted">{workflow.requester}</td>
-                    <td className="px-4 py-2.5 text-sm font-data font-semibold text-main">₹{workflow.amount.toLocaleString('en-IN')}</td>
+                    <td className="px-4 py-2.5 text-sm font-data font-semibold text-main">{formatC(workflow.amount)}</td>
                     <td className="px-4 py-2.5 text-xs text-muted">{workflow.date || '—'}</td>
                     <td className="px-4 py-2.5 text-xs text-muted max-w-xs truncate">{workflow.reason || '—'}</td>
                     <td className="px-4 py-2.5">

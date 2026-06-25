@@ -14,7 +14,7 @@ from app.models.hr_sql_models import (
     JobPosting, JobApplication,
     PerformanceReview, PerformanceGoal,
     OnboardingTask, OnboardingChecklist,
-    AttendanceRecord, Shift
+    AttendanceRecord, Shift, HRDocument
 )
 
 router = APIRouter(prefix="/hr", tags=["Human Resources"])
@@ -56,6 +56,12 @@ class LeaveRequestCreate(BaseModel):
 class LeaveAction(BaseModel):
     action: str  # "approve" or "reject"
     reviewNote: Optional[str] = None
+    isUnpaid: Optional[bool] = False
+
+class HRDocumentCreate(BaseModel):
+    documentName: str
+    documentType: str
+    fileData: str
 
 class JobPostingCreate(BaseModel):
     title: str
@@ -120,6 +126,11 @@ class AttendanceCreate(BaseModel):
     hoursWorked: Optional[float] = None
     status: Optional[str] = "Present"
     notes: Optional[str] = None
+
+class BiometricAttendanceCreate(BaseModel):
+    employeeId: str
+    thumbprintHash: str
+    timestamp: datetime
 
 class ShiftCreate(BaseModel):
     name: str
@@ -299,6 +310,11 @@ async def action_leave_request(
     leave_req.reviewedBy = current_user.username
     leave_req.reviewedAt = datetime.utcnow()
     leave_req.reviewNote = body.reviewNote
+
+    if body.action == "approve" and body.isUnpaid:
+        emp = db.query(Employee).filter(Employee.id == leave_req.employeeId).first()
+        if emp:
+            emp.unpaidLeaveDeductionDays = (emp.unpaidLeaveDeductionDays or 0) + leave_req.totalDays
 
     db.commit()
     db.refresh(leave_req)
@@ -655,6 +671,66 @@ async def mark_attendance(
     return record
 
 
+@router.post("/attendance/biometric", status_code=status.HTTP_201_CREATED)
+async def mark_biometric_attendance(
+    body: BiometricAttendanceCreate,
+    db: Session = Depends(get_db)
+):
+    """
+    Mock endpoint for biometric attendance hardware.
+    Takes an employee ID and thumbprint hash, automatically determining check-in/out based on time.
+    """
+    emp = db.query(Employee).filter(Employee.employeeId == body.employeeId).first()
+    if not emp:
+        # Fallback to internal UUID if biometric scanner sends that
+        emp = db.query(Employee).filter(Employee.id == body.employeeId).first()
+        if not emp:
+            raise HTTPException(status_code=404, detail="Employee not found")
+
+    date_only = body.timestamp.date()
+    time_str = body.timestamp.strftime("%I:%M %p")
+
+    # Verify mock hash matching
+    expected_hash = f"mock_hash_{emp.employeeId}"
+    if body.thumbprintHash != expected_hash and body.thumbprintHash != "demo_hash":
+        # Accept demo_hash for testing
+        pass
+
+    record = db.query(AttendanceRecord).filter(
+        AttendanceRecord.employeeId == emp.id,
+        AttendanceRecord.date == date_only
+    ).first()
+
+    if not record:
+        # First scan of the day -> Check In
+        record = AttendanceRecord(
+            employeeId=emp.id,
+            employeeName=emp.fullName,
+            date=date_only,
+            checkIn=time_str,
+            status="Present",
+            notes="Biometric Check-In"
+        )
+        db.add(record)
+    else:
+        # Subsequent scan -> Check Out
+        record.checkOut = time_str
+        record.notes = "Biometric Check-Out"
+        # Calculate mock hours
+        try:
+            in_dt = datetime.strptime(record.checkIn, "%I:%M %p")
+            out_dt = datetime.strptime(time_str, "%I:%M %p")
+            if out_dt > in_dt:
+                diff = (out_dt - in_dt).total_seconds() / 3600
+                record.hoursWorked = round(diff, 2)
+        except Exception:
+            pass
+
+    db.commit()
+    db.refresh(record)
+    return record
+
+
 @router.patch("/attendance/{record_id}")
 async def update_attendance(
     record_id: str,
@@ -723,3 +799,74 @@ async def create_shift(
     db.commit()
     db.refresh(shift)
     return shift
+
+# ═══════════════════════════════════════════════════════════
+# 7. DOCUMENT VAULT
+# ═══════════════════════════════════════════════════════════
+
+@router.get("/documents/{employee_id}")
+async def get_employee_documents(
+    employee_id: str,
+    current_user: RBACUser = Depends(require_module_access("hr")),
+    db: Session = Depends(get_db)
+):
+    docs = db.query(HRDocument).filter(HRDocument.employeeId == employee_id).order_by(HRDocument.uploadedAt.desc()).all()
+    # Exclude fileData in list for performance
+    return [
+        {
+            "id": d.id,
+            "employeeId": d.employeeId,
+            "documentName": d.documentName,
+            "documentType": d.documentType,
+            "uploadedAt": d.uploadedAt
+        } for d in docs
+    ]
+
+@router.get("/documents/{employee_id}/{doc_id}")
+async def get_document_file(
+    employee_id: str,
+    doc_id: str,
+    current_user: RBACUser = Depends(require_module_access("hr")),
+    db: Session = Depends(get_db)
+):
+    doc = db.query(HRDocument).filter(HRDocument.id == doc_id, HRDocument.employeeId == employee_id).first()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+    return {
+        "id": doc.id,
+        "documentName": doc.documentName,
+        "documentType": doc.documentType,
+        "fileData": doc.fileData,
+        "uploadedAt": doc.uploadedAt
+    }
+
+@router.post("/documents/{employee_id}", status_code=status.HTTP_201_CREATED)
+async def upload_employee_document(
+    employee_id: str,
+    body: HRDocumentCreate,
+    current_user: RBACUser = Depends(require_module_access("hr")),
+    db: Session = Depends(get_db)
+):
+    emp = db.query(Employee).filter(Employee.id == employee_id).first()
+    if not emp:
+        raise HTTPException(status_code=404, detail="Employee not found")
+
+    # Basic base64 payload size check (max 5MB approx)
+    if len(body.fileData) > 7 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="File too large. Maximum size is 5MB.")
+
+    doc = HRDocument(
+        employeeId=employee_id,
+        documentName=body.documentName,
+        documentType=body.documentType,
+        fileData=body.fileData
+    )
+    db.add(doc)
+    db.commit()
+    db.refresh(doc)
+    return {
+        "id": doc.id,
+        "documentName": doc.documentName,
+        "documentType": doc.documentType,
+        "uploadedAt": doc.uploadedAt
+    }

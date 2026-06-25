@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, X, ArrowRight, LayoutDashboard } from 'lucide-react';
+import { Search, X, ArrowRight, LayoutDashboard, User, FileText, Briefcase } from 'lucide-react';
 import { useERPStore } from '../../store/useERPStore';
+import { api } from '../../utils/api';
 
 const MODULE_LIST = [
   { id: 'dashboard', label: 'Dashboard', desc: 'Overview & KPIs' },
@@ -33,6 +34,8 @@ export default function GlobalSearch({ open, onClose }) {
   const { setActiveModule, setMobileSidebar } = useERPStore();
   const [query, setQuery] = useState('');
   const [activeIndex, setActiveIndex] = useState(0);
+  const [apiResults, setApiResults] = useState([]);
+  const [isSearching, setIsSearching] = useState(false);
   const inputRef = useRef(null);
 
   // Focus input & reset when opened
@@ -41,10 +44,33 @@ export default function GlobalSearch({ open, onClose }) {
       setTimeout(() => inputRef.current?.focus(), 80);
       setQuery('');
       setActiveIndex(0);
+      setApiResults([]);
     }
   }, [open]);
 
-  const results = query.trim()
+  // Debounce API Search
+  useEffect(() => {
+    const fetchApiResults = async () => {
+      if (!query.trim()) {
+        setApiResults([]);
+        return;
+      }
+      setIsSearching(true);
+      try {
+        const res = await api.search.query(query);
+        setApiResults(res.results || []);
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setIsSearching(false);
+      }
+    };
+    
+    const timeout = setTimeout(fetchApiResults, 300);
+    return () => clearTimeout(timeout);
+  }, [query]);
+
+  const moduleResults = query.trim()
     ? MODULE_LIST.filter(
         (m) =>
           m.label.toLowerCase().includes(query.toLowerCase()) ||
@@ -52,8 +78,16 @@ export default function GlobalSearch({ open, onClose }) {
       )
     : MODULE_LIST.slice(0, 8);
 
-  const handleSelect = (moduleId) => {
-    setActiveModule(moduleId);
+  const totalResults = [...moduleResults, ...apiResults];
+
+  const handleSelect = (item) => {
+    if (item.type) {
+      // It's an API result, link to the respective module
+      setActiveModule(item.link.replace('/', ''));
+    } else {
+      // It's a module
+      setActiveModule(item.id);
+    }
     setMobileSidebar(false);
     onClose();
   };
@@ -64,25 +98,32 @@ export default function GlobalSearch({ open, onClose }) {
     const onKey = (e) => {
       if (e.key === 'ArrowDown') {
         e.preventDefault();
-        setActiveIndex((i) => Math.min(i + 1, results.length - 1));
+        setActiveIndex((i) => Math.min(i + 1, totalResults.length - 1));
       } else if (e.key === 'ArrowUp') {
         e.preventDefault();
         setActiveIndex((i) => Math.max(i - 1, 0));
-      } else if (e.key === 'Enter' && results[activeIndex]) {
+      } else if (e.key === 'Enter' && totalResults[activeIndex]) {
         e.preventDefault();
-        handleSelect(results[activeIndex].id);
+        handleSelect(totalResults[activeIndex]);
       } else if (e.key === 'Escape') {
         onClose();
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [open, results, activeIndex]);
+  }, [open, totalResults, activeIndex]);
 
   // Reset active index when query changes
   useEffect(() => {
     setActiveIndex(0);
   }, [query]);
+
+  const getIcon = (type) => {
+    if (type === 'Lead') return <Briefcase className="w-4 h-4" />;
+    if (type === 'Invoice') return <FileText className="w-4 h-4" />;
+    if (type === 'Employee') return <User className="w-4 h-4" />;
+    return <LayoutDashboard className="w-4 h-4" />;
+  };
 
   return (
     <AnimatePresence>
@@ -140,8 +181,8 @@ export default function GlobalSearch({ open, onClose }) {
             </div>
 
             {/* Results */}
-            <div className="py-1.5 max-h-80 overflow-y-auto custom-scrollbar">
-              {results.length === 0 ? (
+            <div className="py-1.5 max-h-96 overflow-y-auto custom-scrollbar">
+              {totalResults.length === 0 && !isSearching ? (
                 <div className="text-center py-10">
                   <p className="text-sm text-dimmed">
                     No results found for{' '}
@@ -151,13 +192,15 @@ export default function GlobalSearch({ open, onClose }) {
                 </div>
               ) : (
                 <>
-                  <p className="text-[11px] font-semibold text-dimmed uppercase tracking-widest px-4 py-2">
-                    {query.trim() ? `Results — ${results.length} found` : 'Quick Access'}
-                  </p>
-                  {results.map((mod, idx) => (
+                  {moduleResults.length > 0 && (
+                    <p className="text-[11px] font-semibold text-dimmed uppercase tracking-widest px-4 py-2 mt-1">
+                      {query.trim() ? `Modules — ${moduleResults.length} found` : 'Quick Access'}
+                    </p>
+                  )}
+                  {moduleResults.map((mod, idx) => (
                     <button
                       key={mod.id}
-                      onClick={() => handleSelect(mod.id)}
+                      onClick={() => handleSelect(mod)}
                       onMouseEnter={() => setActiveIndex(idx)}
                       className={`w-full flex items-center justify-between px-4 py-2.5 transition-all text-left ${
                         idx === activeIndex ? 'bg-surface' : 'hover:bg-surface/40'
@@ -191,6 +234,58 @@ export default function GlobalSearch({ open, onClose }) {
                       />
                     </button>
                   ))}
+
+                  {/* Backend API Results (Data) */}
+                  {apiResults.length > 0 && (
+                    <p className="text-[11px] font-semibold text-dimmed uppercase tracking-widest px-4 py-2 mt-3 border-t border-main pt-3">
+                      Data Records
+                    </p>
+                  )}
+                  
+                  {isSearching && apiResults.length === 0 && (
+                     <p className="text-xs text-muted px-4 py-3">Searching database...</p>
+                  )}
+                  
+                  {apiResults.map((item, idx) => {
+                    const globalIdx = moduleResults.length + idx;
+                    return (
+                      <button
+                        key={item.id}
+                        onClick={() => handleSelect(item)}
+                        onMouseEnter={() => setActiveIndex(globalIdx)}
+                        className={`w-full flex items-center justify-between px-4 py-2.5 transition-all text-left ${
+                          globalIdx === activeIndex ? 'bg-surface' : 'hover:bg-surface/40'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div
+                            className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 transition-all ${
+                              globalIdx === activeIndex
+                                ? 'bg-emerald-500/15 text-emerald-400'
+                                : 'bg-surface text-dimmed'
+                            }`}
+                          >
+                            {getIcon(item.type)}
+                          </div>
+                          <div>
+                            <p
+                              className={`text-sm font-semibold transition-colors ${
+                                globalIdx === activeIndex ? 'text-main' : 'text-muted'
+                              }`}
+                            >
+                              {item.title}
+                            </p>
+                            <p className="text-xs text-dimmed">{item.subtitle}</p>
+                          </div>
+                        </div>
+                        <ArrowRight
+                          className={`w-3.5 h-3.5 flex-shrink-0 transition-colors ${
+                            globalIdx === activeIndex ? 'text-emerald-400' : 'text-dimmed opacity-0 group-hover:opacity-100'
+                          }`}
+                        />
+                      </button>
+                    )
+                  })}
                 </>
               )}
             </div>

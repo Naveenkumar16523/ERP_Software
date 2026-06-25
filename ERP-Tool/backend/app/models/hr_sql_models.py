@@ -35,9 +35,20 @@ class Employee(Base):
     address         = Column(Text, nullable=True)
     managerId       = Column(String(36), nullable=True)
     salary          = Column(Float, nullable=True)
+    unpaidLeaveDeductionDays = Column(Integer, default=0)
     avatarUrl       = Column(String(500), nullable=True)
     createdAt       = Column(DateTime, default=datetime.utcnow)
     updatedAt       = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+class HRDocument(Base):
+    __tablename__ = "hr_documents"
+
+    id              = Column(String(36), primary_key=True, default=generate_uuid)
+    employeeId      = Column(String(36), ForeignKey("hr_employees.id"))
+    documentName    = Column(String(255))
+    documentType    = Column(String(100))
+    fileData        = Column(Text)  # Base64 encrypted data
+    uploadedAt      = Column(DateTime, default=datetime.utcnow)
 
 
 # ─── 2. LEAVE MANAGEMENT ────────────────────────────────────────────────────

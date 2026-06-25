@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Plus, Users, UserCheck, Calendar, Clock, Edit2, Check, X } from 'lucide-react';
+import { Plus, Users, UserCheck, Calendar, Clock, Edit2, Check, X, FileText } from 'lucide-react';
 import { useEmployees, useAddEmployee, useUpdateEmployee, useLeaves, useAddLeave, useUpdateLeave } from '../hooks/useHR';
 import { useERPStore } from '../store/useERPStore';
 import Modal from './ui/Modal';
@@ -22,12 +22,29 @@ export default function HRModule() {
   const { data: leaveRequests = [], isLoading: loadingLeaves } = useLeaves();
   const { mutateAsync: mutateAddLeave } = useAddLeave();
   const { mutateAsync: mutateUpdateLeave } = useUpdateLeave();
+  
+  const [documents, setDocuments] = useState([]);
+  const [selectedDocEmployee, setSelectedDocEmployee] = useState('');
 
   const [activeTab, setActiveTab] = useState('employees');
   const [empModalOpen, setEmpModalOpen] = useState(false);
   const [leaveModalOpen, setLeaveModalOpen] = useState(false);
+  const [leaveApprovalModal, setLeaveApprovalModal] = useState(null);
   const [newEmp, setNewEmp] = useState({ firstName: '', lastName: '', email: '', department: '', jobTitle: '', baseSalary: 0 });
   const [newLeave, setNewLeave] = useState({ employeeId: '', leaveType: 'CASUAL', startDate: '', endDate: '', reason: '' });
+
+  const fetchDocs = async (empId) => {
+    if (!empId) return;
+    try {
+      const { api } = await import('../utils/api');
+      const docs = await api.hr.getDocuments(empId);
+      setDocuments(docs || []);
+    } catch (e) {}
+  };
+
+  useEffect(() => {
+    fetchDocs(selectedDocEmployee);
+  }, [selectedDocEmployee]);
 
   const handleAddEmployee = async () => {
     if (!newEmp.firstName || !newEmp.email || !newEmp.department) return addToast('First name, email, and department required', 'error');
@@ -75,13 +92,46 @@ export default function HRModule() {
     }
   };
 
-  const handleUpdateLeaveStatus = async (id, status) => {
+  const handleUpdateLeaveStatus = async (id, status, isUnpaid = false) => {
     try {
-      await mutateUpdateLeave({ id, status });
+      await mutateUpdateLeave({ id, status, isUnpaid });
       addToast(`Leave request ${status.toLowerCase()}`, 'success');
+      setLeaveApprovalModal(null);
     } catch (err) {
       addToast(err.message || 'Failed to update leave status', 'error');
     }
+  };
+
+  const handleBiometricScan = async (empId) => {
+    if (!empId) return;
+    try {
+      const { api } = await import('../utils/api');
+      await api.hr.markBiometricAttendance(empId, `mock_hash_${empId}`);
+      addToast('Biometric attendance marked successfully!', 'success');
+    } catch (e) {
+      addToast('Failed to mark attendance', 'error');
+    }
+  };
+
+  const handleUploadDoc = async (e) => {
+    const file = e.target.files[0];
+    if (!file || !selectedDocEmployee) return;
+    const reader = new FileReader();
+    reader.onload = async () => {
+      try {
+        const { api } = await import('../utils/api');
+        await api.hr.uploadDocument(selectedDocEmployee, {
+          documentName: file.name,
+          documentType: file.type || 'application/pdf',
+          fileData: reader.result
+        });
+        addToast('Document uploaded securely to vault', 'success');
+        fetchDocs(selectedDocEmployee);
+      } catch (err) {
+        addToast('Failed to upload document', 'error');
+      }
+    };
+    reader.readAsDataURL(file);
   };
 
   const TABS = [
@@ -90,7 +140,8 @@ export default function HRModule() {
     { id: 'recruitment', label: 'Recruitment', icon: UserCheck },
     { id: 'performance', label: 'Performance', icon: Edit2 },
     { id: 'onboarding', label: 'Onboarding', icon: Check },
-    { id: 'attendance', label: 'Attendance', icon: Clock }
+    { id: 'attendance', label: 'Attendance', icon: Clock },
+    { id: 'documents', label: 'Document Vault', icon: FileText }
   ];
 
   const depts = [...new Set(employees.map(e => e.department))];
@@ -142,7 +193,7 @@ export default function HRModule() {
           </div>
           <div className="overflow-x-auto">
             <table className="w-full">
-              <thead><tr className="text-left text-xs text-dimmed border-b border-main">
+              <thead><tr className="text-left text-xs text-dimmed border-b border-main bg-surface">
                 <th className="px-4 py-2.5">Employee</th>
                 <th className="px-4 py-2.5">Contact</th>
                 <th className="px-4 py-2.5">Department</th>
@@ -302,10 +353,16 @@ export default function HRModule() {
         <div className="theme-card overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3 border-b border-main">
             <h3 className="text-sm font-semibold text-main">Attendance Logs ({attendanceLogs.length})</h3>
+            <div className="flex items-center gap-2">
+              <select className="input-field bg-surface text-xs" onChange={e => handleBiometricScan(e.target.value)}>
+                <option value="">Biometric Check-In (Mock)...</option>
+                {employees.map(e => <option key={e.id} value={e.id}>{e.firstName} {e.lastName}</option>)}
+              </select>
+            </div>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full">
-              <thead><tr className="text-left text-xs text-dimmed border-b border-main">
+              <thead><tr className="text-left text-xs text-dimmed border-b border-main bg-surface">
                 <th className="px-4 py-2.5">Employee</th>
                 <th className="px-4 py-2.5">Date</th>
                 <th className="px-4 py-2.5">Clock In</th>
@@ -346,7 +403,7 @@ export default function HRModule() {
           </div>
           <div className="overflow-x-auto">
             <table className="w-full">
-              <thead><tr className="text-left text-xs text-dimmed border-b border-main">
+              <thead><tr className="text-left text-xs text-dimmed border-b border-main bg-surface">
                 <th className="px-4 py-2.5">Employee</th>
                 <th className="px-4 py-2.5">Type</th>
                 <th className="px-4 py-2.5">Period</th>
@@ -370,7 +427,7 @@ export default function HRModule() {
                     <td className="px-4 py-2.5">
                       {lr.status === 'PENDING' && (
                         <div className="flex gap-2">
-                          <button onClick={() => handleUpdateLeaveStatus(lr.id, 'APPROVED')}
+                          <button onClick={() => setLeaveApprovalModal(lr)}
                             className="text-xs text-emerald-400 hover:underline flex items-center gap-1"><Check className="w-3 h-3" /> Approve</button>
                           <button onClick={() => handleUpdateLeaveStatus(lr.id, 'REJECTED')}
                             className="text-xs text-rose-400 hover:underline flex items-center gap-1"><X className="w-3 h-3" /> Reject</button>
@@ -381,6 +438,43 @@ export default function HRModule() {
                 ))}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'documents' && (
+        <div className="theme-card overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-main">
+            <h3 className="text-sm font-semibold text-main">Secure Document Vault</h3>
+            <div className="flex items-center gap-3">
+              <select className="input-field bg-surface text-xs" value={selectedDocEmployee} onChange={e => setSelectedDocEmployee(e.target.value)}>
+                <option value="">Select Employee...</option>
+                {employees.map(e => <option key={e.id} value={e.id}>{e.firstName} {e.lastName}</option>)}
+              </select>
+              {selectedDocEmployee && (
+                <label className="btn-primary text-xs flex items-center gap-1.5 cursor-pointer">
+                  <Plus className="w-3.5 h-3.5" /> Upload File
+                  <input type="file" className="hidden" onChange={handleUploadDoc} />
+                </label>
+              )}
+            </div>
+          </div>
+          <div className="p-4">
+            {!selectedDocEmployee ? (
+              <p className="text-sm text-muted text-center py-8">Select an employee to view or upload documents.</p>
+            ) : documents.length === 0 ? (
+              <p className="text-sm text-muted text-center py-8">No documents found for this employee.</p>
+            ) : (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {documents.map(doc => (
+                  <div key={doc.id} className="p-3 border border-main rounded-lg bg-surface/50">
+                    <FileText className="w-6 h-6 text-indigo-400 mb-2" />
+                    <p className="text-xs font-semibold text-main truncate">{doc.documentName}</p>
+                    <p className="text-[10px] text-muted">{new Date(doc.uploadedAt).toLocaleDateString()}</p>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -432,6 +526,22 @@ export default function HRModule() {
             <button onClick={handleAddLeave} className="btn-primary text-sm">Submit Request</button>
           </div>
         </div>
+      </Modal>
+
+      <Modal isOpen={!!leaveApprovalModal} onClose={() => setLeaveApprovalModal(null)} title="Approve Leave Request">
+        {leaveApprovalModal && (
+          <div className="space-y-4">
+            <p className="text-sm text-main">Approve leave for <span className="font-semibold">{leaveApprovalModal.employeeName}</span> ({leaveApprovalModal.totalDays} days)?</p>
+            <label className="flex items-center gap-2 mt-4 cursor-pointer">
+              <input type="checkbox" id="unpaidCheck" className="rounded border-main bg-surface" />
+              <span className="text-sm text-main">Mark as <span className="text-rose-400 font-semibold">Unpaid Leave</span> (deduct from next payroll)</span>
+            </label>
+            <div className="flex gap-2 justify-end pt-4">
+              <button onClick={() => setLeaveApprovalModal(null)} className="btn-secondary text-sm">Cancel</button>
+              <button onClick={() => handleUpdateLeaveStatus(leaveApprovalModal.id, 'APPROVED', document.getElementById('unpaidCheck').checked)} className="btn-primary text-sm bg-emerald-600 hover:bg-emerald-500">Approve Request</button>
+            </div>
+          </div>
+        )}
       </Modal>
     </div>
   );

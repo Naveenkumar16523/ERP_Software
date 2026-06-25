@@ -17,23 +17,27 @@ export default function PayrollModule() {
 
   const [activeTab, setActiveTab] = useState('payslips');
   const [modal, setModal] = useState(false);
+  const [ruleModal, setRuleModal] = useState(false);
   const [form, setForm] = useState({
-    employeeId: '',
     month: new Date().getMonth() + 1,
     year: new Date().getFullYear(),
   });
+  const [newRule, setNewRule] = useState({ region: 'Default', minSalary: 0, maxSalary: '', taxPercent: 0 });
+  const [taxRules, setTaxRules] = useState([]);
 
   useEffect(() => {
     let active = true;
     async function loadData() {
       try {
-        const [payrollData, employeeData] = await Promise.all([
-          api.payroll.getPayrolls(),
-          api.hr.getEmployees()
+        const [payrollData, employeeData, rulesData] = await Promise.all([
+          api.payroll.getRecords(),
+          api.hr.getEmployees(),
+          api.payroll.getRules()
         ]);
         if (active) {
-          setPayrolls(payrollData);
-          setEmployees(employeeData);
+          setPayrolls(payrollData || []);
+          setEmployees(employeeData || []);
+          setTaxRules(rulesData || []);
         }
       } catch (err) {
         console.error("Failed to load payroll data", err);
@@ -41,26 +45,32 @@ export default function PayrollModule() {
     }
     loadData();
     return () => { active = false; };
-  }, [setPayrolls, setEmployees]);
+  }, []);
 
   const handleGenerateSlip = async () => {
-    const emp = employees.find(e => e.id === form.employeeId);
-    if (!emp) return addToast('Select an employee', 'error');
-    
     try {
-      const generated = await api.payroll.generatePayslip({
-        employeeId: form.employeeId,
-        month: form.month,
-        year: form.year
-      });
-      if (generated && generated.id) {
-        addPayrollEntry(generated);
-      }
-      addToast('Payslip generated successfully', 'success');
+      const result = await api.payroll.generate(form.month, form.year);
+      addToast(result.message || 'Payslips generated', 'success');
+      
+      const payrollData = await api.payroll.getRecords();
+      setPayrolls(payrollData || []);
     } catch (err) {
-      addToast(err.message || 'Failed to generate payslip', 'error');
+      addToast(err.message || 'Failed to generate payslips', 'error');
     }
     setModal(false);
+  };
+
+  const handleAddRule = async () => {
+    try {
+      const payload = { ...newRule, maxSalary: newRule.maxSalary ? parseFloat(newRule.maxSalary) : null };
+      await api.payroll.createRule(payload);
+      addToast('Tax rule added', 'success');
+      const rules = await api.payroll.getRules();
+      setTaxRules(rules || []);
+      setRuleModal(false);
+    } catch(e) {
+      addToast('Failed to add tax rule', 'error');
+    }
   };
 
   const handleProcessPayroll = async (id) => {
@@ -75,7 +85,7 @@ export default function PayrollModule() {
 
   const TABS = [
     { id: 'payslips', label: 'Payslips', icon: FileText },
-    { id: 'structures', label: 'Salary Structures', icon: Settings },
+    { id: 'rules', label: 'Tax Rules', icon: Settings },
     { id: 'attendance', label: 'Time Tracking', icon: Clock }
   ];
 
@@ -87,10 +97,10 @@ export default function PayrollModule() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-main">Payroll Management</h1>
-          <p className="text-sm text-muted mt-1">Automated payslip generation with PF, ESI & TDS deductions</p>
+          <p className="text-sm text-muted mt-1">Automated payslip generation with tax and leave deductions</p>
         </div>
         <button onClick={() => setModal(true)} className="btn-primary text-sm flex items-center gap-1.5">
-          <Plus className="w-4 h-4" /> Generate Payslip
+          <Plus className="w-4 h-4" /> Run Payroll
         </button>
       </div>
 
@@ -131,10 +141,9 @@ export default function PayrollModule() {
                 <tr className="text-left text-xs text-dimmed border-b border-main">
                   <th className="px-4 py-2.5">Employee</th>
                   <th className="px-4 py-2.5">Period</th>
-                  <th className="px-4 py-2.5 text-right">Gross</th>
-                  <th className="px-4 py-2.5 text-right">PF</th>
-                  <th className="px-4 py-2.5 text-right">ESI</th>
-                  <th className="px-4 py-2.5 text-right">TDS</th>
+                  <th className="px-4 py-2.5 text-right">Base Salary</th>
+                  <th className="px-4 py-2.5 text-right">Leave Ded.</th>
+                  <th className="px-4 py-2.5 text-right">Tax Ded.</th>
                   <th className="px-4 py-2.5 text-right">Net Pay</th>
                   <th className="px-4 py-2.5">Status</th>
                   <th className="px-4 py-2.5">Actions</th>
@@ -145,24 +154,20 @@ export default function PayrollModule() {
                   <tr key={p.id} className="border-b border-main hover:bg-surface/60 transition-colors">
                     <td className="px-4 py-2.5 text-sm text-main">{p.employeeName}</td>
                     <td className="px-4 py-2.5 text-xs text-muted">{MONTHS[(p.month || 1) - 1]} {p.year}</td>
-                    <td className="px-4 py-2.5 text-right text-sm font-data text-main">₹{(p.baseSalary || 0).toLocaleString('en-IN')}</td>
-                    <td className="px-4 py-2.5 text-right text-xs font-data text-rose-400">-₹{(p.pfDeduction || 0).toLocaleString()}</td>
-                    <td className="px-4 py-2.5 text-right text-xs font-data text-rose-400">-₹{(p.esiDeduction || 0).toLocaleString()}</td>
-                    <td className="px-4 py-2.5 text-right text-xs font-data text-rose-400">-₹{(p.tdsDeduction || 0).toLocaleString()}</td>
-                    <td className="px-4 py-2.5 text-right text-sm font-data font-bold text-emerald-400">₹{(p.netPay || 0).toLocaleString('en-IN')}</td>
+                    <td className="px-4 py-2.5 text-right text-sm font-data text-main">₹{Number(p.baseSalary || 0).toLocaleString('en-IN')}</td>
+                    <td className="px-4 py-2.5 text-right text-xs font-data text-rose-400">-₹{Number(p.unpaidLeaveDeductionAmount || 0).toLocaleString('en-IN')}</td>
+                    <td className="px-4 py-2.5 text-right text-xs font-data text-rose-400">-₹{Number(p.taxDeduction || 0).toLocaleString('en-IN')}</td>
+                    <td className="px-4 py-2.5 text-right text-sm font-data font-bold text-emerald-400">₹{Number(p.netPay || 0).toLocaleString('en-IN')}</td>
                     <td className="px-4 py-2.5">
-                      <span className={`text-xs px-2 py-0.5 rounded-full ${p.status === 'PAID' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400'}`}>
+                      <span className={`text-xs px-2 py-0.5 rounded-full ${p.status === 'Processed' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400'}`}>
                         {p.status}
                       </span>
                     </td>
                     <td className="px-4 py-2.5">
-                      {p.status === 'PENDING' && (
-                        <button
-                          onClick={() => handleProcessPayroll(p.id)}
-                          className="text-xs text-emerald-400 hover:underline flex items-center gap-1"
-                        >
-                          <Check className="w-3 h-3" /> Pay
-                        </button>
+                      {p.payslipPdf && (
+                        <a href={p.payslipPdf} download={`Payslip_${p.employeeName}_${p.month}_${p.year}.pdf`} className="text-xs text-indigo-400 hover:underline flex items-center gap-1">
+                          <FileText className="w-3 h-3" /> Download
+                        </a>
                       )}
                     </td>
                   </tr>
@@ -173,30 +178,29 @@ export default function PayrollModule() {
         </div>
       )}
 
-      {activeTab === 'structures' && (
+      {activeTab === 'rules' && (
         <div className="theme-card overflow-hidden">
-          <div className="px-4 py-3 border-b border-main">
-            <h3 className="text-sm font-semibold text-main">Salary Structures ({salaryStructures.length})</h3>
+          <div className="flex items-center justify-between px-4 py-3 border-b border-main">
+            <h3 className="text-sm font-semibold text-main">Tax Rules ({taxRules.length})</h3>
+            <button onClick={() => setRuleModal(true)} className="btn-primary text-xs flex items-center gap-1.5">
+              <Plus className="w-3.5 h-3.5" /> Add Rule
+            </button>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full">
-              <thead><tr className="text-left text-xs text-dimmed border-b border-main">
-                <th className="px-4 py-2.5">Structure Name</th>
-                <th className="px-4 py-2.5 text-right">Basic Salary</th>
-                <th className="px-4 py-2.5 text-right">HRA %</th>
-                <th className="px-4 py-2.5 text-right">DA %</th>
-                <th className="px-4 py-2.5 text-right">PF %</th>
-                <th className="px-4 py-2.5">Tax Bracket</th>
+              <thead><tr className="text-left text-xs text-dimmed border-b border-main bg-surface">
+                <th className="px-4 py-2.5">Region</th>
+                <th className="px-4 py-2.5 text-right">Min Salary</th>
+                <th className="px-4 py-2.5 text-right">Max Salary</th>
+                <th className="px-4 py-2.5 text-right">Tax Rate (%)</th>
               </tr></thead>
               <tbody>
-                {salaryStructures.map(struct => (
-                  <tr key={struct.id} className="border-b border-main hover:bg-surface/60 transition-colors">
-                    <td className="px-4 py-2.5 text-sm text-main">{struct.name}</td>
-                    <td className="px-4 py-2.5 text-right text-sm font-data text-main">₹{struct.basicSalary.toLocaleString('en-IN')}</td>
-                    <td className="px-4 py-2.5 text-right text-sm font-data text-main">{struct.hraPercentage}%</td>
-                    <td className="px-4 py-2.5 text-right text-sm font-data text-main">{struct.daPercentage}%</td>
-                    <td className="px-4 py-2.5 text-right text-sm font-data text-main">{struct.pfPercentage}%</td>
-                    <td className="px-4 py-2.5 text-xs text-muted">{struct.taxBracket}</td>
+                {taxRules.map(rule => (
+                  <tr key={rule.id} className="border-b border-main hover:bg-surface/60 transition-colors">
+                    <td className="px-4 py-2.5 text-sm text-main">{rule.region}</td>
+                    <td className="px-4 py-2.5 text-right text-sm font-data text-main">₹{Number(rule.minSalary).toLocaleString('en-IN')}</td>
+                    <td className="px-4 py-2.5 text-right text-sm font-data text-main">{rule.maxSalary ? `₹${Number(rule.maxSalary).toLocaleString('en-IN')}` : 'No Limit'}</td>
+                    <td className="px-4 py-2.5 text-right text-sm font-data text-rose-400 font-bold">{rule.taxPercent}%</td>
                   </tr>
                 ))}
               </tbody>
@@ -243,15 +247,10 @@ export default function PayrollModule() {
         </div>
       )}
 
-      <Modal isOpen={modal} onClose={() => setModal(false)} title="Generate Payslip">
+      <Modal isOpen={modal} onClose={() => setModal(false)} title="Run Payroll Generation">
         <div className="space-y-4">
-          <div><label className="form-label">Employee</label>
-            <select className="form-input" value={form.employeeId} onChange={e => setForm({...form, employeeId: e.target.value})}>
-              <option value="">Select employee...</option>
-              {employees.map(e => <option key={e.id} value={e.id}>{e.firstName} {e.lastName} — ₹{(e.baseSalary||0).toLocaleString()}/mo</option>)}
-            </select>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
+          <p className="text-sm text-muted">Generate payslips for all active employees. This will automatically calculate base pay, deduct unpaid leave amount based on HR data, and apply matching tax rules.</p>
+          <div className="grid grid-cols-2 gap-3 mt-4">
             <div><label className="form-label">Month</label>
               <select className="form-input" value={form.month} onChange={e => setForm({...form, month: parseInt(e.target.value)})}>
                 {MONTHS.map((m, i) => <option key={m} value={i+1}>{m}</option>)}
@@ -263,7 +262,30 @@ export default function PayrollModule() {
           </div>
           <div className="flex gap-2 justify-end pt-2">
             <button onClick={() => setModal(false)} className="btn-secondary text-sm">Cancel</button>
-            <button onClick={handleGenerateSlip} className="btn-primary text-sm">Generate</button>
+            <button onClick={handleGenerateSlip} className="btn-primary text-sm bg-indigo-600">Run Payroll</button>
+          </div>
+        </div>
+      </Modal>
+      
+      <Modal isOpen={ruleModal} onClose={() => setRuleModal(false)} title="Add Tax Rule">
+        <div className="space-y-4">
+          <div><label className="form-label">Region Name</label>
+            <input type="text" className="form-input" value={newRule.region} onChange={e => setNewRule({...newRule, region: e.target.value})} />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div><label className="form-label">Min Salary (₹)</label>
+              <input type="number" className="form-input" value={newRule.minSalary} onChange={e => setNewRule({...newRule, minSalary: e.target.value})} />
+            </div>
+            <div><label className="form-label">Max Salary (₹) (Optional)</label>
+              <input type="number" className="form-input" value={newRule.maxSalary} placeholder="Leave blank for no limit" onChange={e => setNewRule({...newRule, maxSalary: e.target.value})} />
+            </div>
+          </div>
+          <div><label className="form-label">Tax Deduction (%)</label>
+            <input type="number" step="0.1" className="form-input" value={newRule.taxPercent} onChange={e => setNewRule({...newRule, taxPercent: e.target.value})} />
+          </div>
+          <div className="flex gap-2 justify-end pt-2">
+            <button onClick={() => setRuleModal(false)} className="btn-secondary text-sm">Cancel</button>
+            <button onClick={handleAddRule} className="btn-primary text-sm">Add Rule</button>
           </div>
         </div>
       </Modal>

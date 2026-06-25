@@ -29,10 +29,14 @@ async def get_dashboard_metrics(
     low_stock_products = 0
     total_suppliers = 0
     active_purchase_orders = 0
-    total_leads = 0
-    qualified_leads = 0
-    total_opportunities = 0
-    total_pipeline_value = 0.0
+    
+    from app.models.crm_sql_models import Lead
+    total_leads = db.query(Lead).count()
+    qualified_leads = db.query(Lead).filter(Lead.status == "Qualified").count()
+    
+    pipeline_val_query = db.query(func.sum(Lead.expectedRevenue)).filter(Lead.status == "Qualified").scalar()
+    total_pipeline_value = float(pipeline_val_query) if pipeline_val_query else 0.0
+
     total_orders = 0
     pending_orders = 0
     total_revenue = 0.0
