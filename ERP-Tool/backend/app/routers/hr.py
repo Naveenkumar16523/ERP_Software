@@ -150,12 +150,17 @@ async def list_employees(
     current_user: RBACUser = Depends(require_module_access("hr")),
     db: Session = Depends(get_db)
 ):
-    query = db.query(Employee)
-    if status:
-        query = query.filter(Employee.status == status)
-    if department:
-        query = query.filter(Employee.departmentName == department)
-    return query.order_by(Employee.fullName).all()
+    try:
+        query = db.query(Employee)
+        if status:
+            query = query.filter(Employee.status == status)
+        if department:
+            query = query.filter(Employee.departmentName == department)
+        return query.order_by(Employee.fullName).all()
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).error(f"Error fetching employees: {e}")
+        return []
 
 
 @router.post("/employees", status_code=status.HTTP_201_CREATED)

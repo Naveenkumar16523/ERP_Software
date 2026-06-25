@@ -127,8 +127,13 @@ async def create_voucher(body: VoucherCreate, req: Request, current_user: RBACUs
 
 @router.get("/journal-entries")
 async def get_journal_entries(current_user: RBACUser = Depends(require_module_access("finance")), db: Session = Depends(get_db)):
-    entries = db.query(JournalEntry).order_by(JournalEntry.blockIndex.desc()).all()
-    return entries
+    try:
+        entries = db.query(JournalEntry).order_by(JournalEntry.blockIndex.desc()).all()
+        return entries
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).error(f"Error fetching journal entries: {e}")
+        return []
 
 # 3. VERIFY LEDGER CHAIN INTEGRITY
 
@@ -208,7 +213,13 @@ async def get_tax_summary(current_user: RBACUser = Depends(require_module_access
 
 @router.get("/invoices")
 async def get_invoices(current_user: RBACUser = Depends(require_module_access("finance")), db: Session = Depends(get_db)):
-    return db.query(Invoice).order_by(Invoice.createdAt.desc()).all()
+    try:
+        invoices = db.query(Invoice).order_by(Invoice.invoiceDate.desc()).all()
+        return invoices
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).error(f"Error fetching invoices: {e}")
+        return []
 
 @router.post("/invoices", status_code=status.HTTP_201_CREATED)
 async def create_invoice(body: InvoiceCreate, current_user: RBACUser = Depends(require_module_access("finance")), db: Session = Depends(get_db)):
