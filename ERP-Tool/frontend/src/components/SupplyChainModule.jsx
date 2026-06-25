@@ -184,7 +184,7 @@ export default function SupplyChainModule() {
           <p className="text-sm text-muted mt-1">Live tracking, shipments, and fleet management</p>
         </div>
         <div className="flex gap-2">
-          <button onClick={() => setVehicleModal(true)} className="btn-secondary text-sm flex items-center gap-1.5">
+          <button onClick={() => setVehicleModal(true)} className="px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 bg-gradient-to-r from-sky-500/20 to-indigo-500/20 text-sky-300 border border-sky-500/30 hover:bg-sky-500/30 hover:shadow-[0_0_15px_rgba(14,165,233,0.3)] transition-all">
             <Plus className="w-4 h-4" /> New Vehicle
           </button>
           <button onClick={() => setShipModal(true)} className="btn-primary text-sm flex items-center gap-1.5">
@@ -355,7 +355,7 @@ export default function SupplyChainModule() {
             </select>
           </div>
           <div className="flex gap-2 justify-end pt-2">
-            <button onClick={() => setShipModal(false)} className="btn-secondary text-sm">Cancel</button>
+            <button onClick={() => setShipModal(false)} className="px-4 py-2 rounded-lg text-sm font-medium bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 hover:shadow-[0_0_15px_rgba(239,68,68,0.2)] transition-all">Cancel</button>
             <button onClick={handleAddShipment} className="btn-primary text-sm">Create</button>
           </div>
         </div>
@@ -375,7 +375,7 @@ export default function SupplyChainModule() {
             </select>
           </div>
           <div className="flex gap-2 justify-end pt-2">
-            <button onClick={() => setVehicleModal(false)} className="btn-secondary text-sm">Cancel</button>
+            <button onClick={() => setVehicleModal(false)} className="px-4 py-2 rounded-lg text-sm font-medium bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 hover:shadow-[0_0_15px_rgba(239,68,68,0.2)] transition-all">Cancel</button>
             <button onClick={handleAddVehicle} className="btn-primary text-sm">Create</button>
           </div>
         </div>
@@ -402,7 +402,7 @@ export default function SupplyChainModule() {
           <div className="flex justify-between items-center pt-2">
             <button onClick={clearCanvas} className="text-xs text-rose-400 hover:underline">Clear Signature</button>
             <div className="flex gap-2">
-              <button onClick={() => setPodModal(false)} className="btn-secondary text-sm">Cancel</button>
+              <button onClick={() => setPodModal(false)} className="px-4 py-2 rounded-lg text-sm font-medium bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 hover:shadow-[0_0_15px_rgba(239,68,68,0.2)] transition-all">Cancel</button>
               <button onClick={submitPod} className="btn-primary text-sm">Submit POD</button>
             </div>
           </div>

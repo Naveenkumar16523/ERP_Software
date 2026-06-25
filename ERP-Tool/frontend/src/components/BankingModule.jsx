@@ -95,7 +95,7 @@ export default function BankingModule() {
           <p className="text-sm text-muted mt-1">Manage accounts and auto-reconcile transactions with invoices.</p>
         </div>
         <div className="flex gap-2">
-          <button onClick={() => setAccountModal(true)} className="btn-secondary text-sm flex items-center gap-1.5">
+          <button onClick={() => setAccountModal(true)} className="px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 bg-gradient-to-r from-emerald-500/20 to-teal-500/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/30 hover:shadow-[0_0_15px_rgba(16,185,129,0.3)] transition-all">
             <Plus className="w-4 h-4" /> Add Account
           </button>
           <button onClick={() => setTransactionModal(true)} className="btn-primary text-sm flex items-center gap-1.5">
@@ -222,7 +222,7 @@ export default function BankingModule() {
             </div>
           </div>
           <div className="flex gap-2 justify-end pt-2">
-            <button onClick={() => setAccountModal(false)} className="btn-secondary text-sm">Cancel</button>
+            <button onClick={() => setAccountModal(false)} className="px-4 py-2 rounded-lg text-sm font-medium bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 hover:shadow-[0_0_15px_rgba(239,68,68,0.2)] transition-all">Cancel</button>
             <button onClick={handleCreateAccount} className="btn-primary text-sm">Create Account</button>
           </div>
         </div>
@@ -251,7 +251,7 @@ export default function BankingModule() {
             </div>
           </div>
           <div className="flex gap-2 justify-end pt-2">
-            <button onClick={() => setTransactionModal(false)} className="btn-secondary text-sm">Cancel</button>
+            <button onClick={() => setTransactionModal(false)} className="px-4 py-2 rounded-lg text-sm font-medium bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 hover:shadow-[0_0_15px_rgba(239,68,68,0.2)] transition-all">Cancel</button>
             <button onClick={handlePostTransaction} className="btn-primary text-sm">Post</button>
           </div>
         </div>
