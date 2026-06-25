@@ -142,8 +142,12 @@ async def startup_connections():
         if engine:
             Base.metadata.create_all(bind=engine)
             logger.info("SQL database tables created/verified successfully.")
+            
+            # Run lightweight auto-migrations to add new columns to existing tables
+            from app.utils.migrations import run_auto_migrations
+            run_auto_migrations()
     except Exception as e:
-        logger.error(f"Failed to create SQL tables: {e}")
+        logger.error(f"Failed to create SQL tables or run migrations: {e}")
 
     # 3. Check Redis Connection
     try:
