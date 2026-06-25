@@ -126,7 +126,7 @@ export default function ProcurementModule() {
           <h1 className="text-2xl font-bold text-main">Procurement</h1>
           <p className="text-sm text-muted mt-1">Purchase orders, budget deductions & receiving</p>
         </div>
-        <button onClick={() => setModal(true)} className="btn-primary text-sm flex items-center gap-1.5">
+        <button onClick={() => setModal(true)} className="px-4 py-2 rounded-xl text-sm font-semibold flex items-center gap-2 bg-gradient-to-r from-emerald-500/20 to-teal-500/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/30 hover:shadow-[0_0_15px_rgba(16,185,129,0.3)] transition-all duration-300">
           <Plus className="w-4 h-4" /> New PO
         </button>
       </div>
@@ -291,7 +291,7 @@ export default function ProcurementModule() {
           </div>
 
           <div className="flex gap-2 justify-end pt-2">
-            <button onClick={() => setModal(false)} className="btn-secondary text-sm">Cancel</button>
+            <button onClick={() => setModal(false)} className="px-4 py-2 rounded-lg text-sm font-medium bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 hover:shadow-[0_0_15px_rgba(239,68,68,0.2)] transition-all">Cancel</button>
             <button onClick={handleAdd} className="btn-primary text-sm bg-indigo-600">Create PO</button>
           </div>
         </div>
@@ -326,7 +326,7 @@ export default function ProcurementModule() {
               })}
             </div>
             <div className="flex gap-2 justify-end pt-2">
-              <button onClick={() => setReceiveModal(null)} className="btn-secondary text-sm">Cancel</button>
+              <button onClick={() => setReceiveModal(null)} className="px-4 py-2 rounded-lg text-sm font-medium bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 hover:shadow-[0_0_15px_rgba(239,68,68,0.2)] transition-all">Cancel</button>
               <button onClick={handleReceive} className="btn-primary text-sm bg-emerald-600">Mark Received</button>
             </div>
           </div>

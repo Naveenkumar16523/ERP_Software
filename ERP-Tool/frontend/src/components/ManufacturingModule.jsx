@@ -330,7 +330,7 @@ export default function FleetAndOperationsModule() {
               </div>
             </div>
             <div className="flex gap-2 justify-end pt-2">
-              <button onClick={() => setModal(false)} className="btn-secondary text-sm">Cancel</button>
+              <button onClick={() => setModal(false)} className="px-4 py-2 rounded-lg text-sm font-medium bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 hover:shadow-[0_0_15px_rgba(239,68,68,0.2)] transition-all">Cancel</button>
               <button onClick={handleAddMachine} className="btn-primary text-sm">Register Asset</button>
             </div>
           </div>
@@ -363,7 +363,7 @@ export default function FleetAndOperationsModule() {
               </div>
             </div>
             <div className="flex gap-2 justify-end pt-2">
-              <button onClick={() => setModal(false)} className="btn-secondary text-sm">Cancel</button>
+              <button onClick={() => setModal(false)} className="px-4 py-2 rounded-lg text-sm font-medium bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 hover:shadow-[0_0_15px_rgba(239,68,68,0.2)] transition-all">Cancel</button>
               <button onClick={handleAddWorkOrder} className="btn-primary text-sm">Create Work Order</button>
             </div>
           </div>
@@ -395,7 +395,7 @@ export default function FleetAndOperationsModule() {
               <textarea className="form-input" rows={2} value={downtimeForm.reason} onChange={e => setDowntimeForm({...downtimeForm, reason: e.target.value})} placeholder="e.g., Clutch failure on highway, engine cooling breakdown..." />
             </div>
             <div className="flex gap-2 justify-end pt-2">
-              <button onClick={() => setModal(false)} className="btn-secondary text-sm">Cancel</button>
+              <button onClick={() => setModal(false)} className="px-4 py-2 rounded-lg text-sm font-medium bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 hover:shadow-[0_0_15px_rgba(239,68,68,0.2)] transition-all">Cancel</button>
               <button onClick={handleAddDowntime} className="btn-primary text-sm">Log Breakdown</button>
             </div>
           </div>

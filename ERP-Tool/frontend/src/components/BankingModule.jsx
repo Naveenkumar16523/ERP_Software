@@ -98,7 +98,7 @@ export default function BankingModule() {
           <button onClick={() => setAccountModal(true)} className="px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 bg-gradient-to-r from-emerald-500/20 to-teal-500/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/30 hover:shadow-[0_0_15px_rgba(16,185,129,0.3)] transition-all">
             <Plus className="w-4 h-4" /> Add Account
           </button>
-          <button onClick={() => setTransactionModal(true)} className="btn-primary text-sm flex items-center gap-1.5">
+          <button onClick={() => setTransactionModal(true)} className="px-4 py-2 rounded-xl text-sm font-semibold flex items-center gap-2 bg-gradient-to-r from-emerald-500/20 to-teal-500/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/30 hover:shadow-[0_0_15px_rgba(16,185,129,0.3)] transition-all duration-300">
             <Plus className="w-4 h-4" /> Post Transaction
           </button>
         </div>

@@ -187,7 +187,7 @@ export default function HRModule() {
         <div className="theme-card overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3 border-b border-main">
             <h3 className="text-sm font-semibold text-main">Employee Directory ({employees.length})</h3>
-            <button onClick={() => setEmpModalOpen(true)} className="btn-primary text-xs flex items-center gap-1.5">
+            <button onClick={() => setEmpModalOpen(true)} className="px-4 py-2 rounded-xl text-sm font-semibold flex items-center gap-2 bg-gradient-to-r from-emerald-500/20 to-teal-500/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/30 hover:shadow-[0_0_15px_rgba(16,185,129,0.3)] transition-all duration-300">
               <Plus className="w-3.5 h-3.5" /> Add Employee
             </button>
           </div>
@@ -397,7 +397,7 @@ export default function HRModule() {
         <div className="theme-card overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3 border-b border-main">
             <h3 className="text-sm font-semibold text-main">Leave Requests ({leaveRequests.length})</h3>
-            <button onClick={() => setLeaveModalOpen(true)} className="btn-primary text-xs flex items-center gap-1.5">
+            <button onClick={() => setLeaveModalOpen(true)} className="px-4 py-2 rounded-xl text-sm font-semibold flex items-center gap-2 bg-gradient-to-r from-emerald-500/20 to-teal-500/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/30 hover:shadow-[0_0_15px_rgba(16,185,129,0.3)] transition-all duration-300">
               <Plus className="w-3.5 h-3.5" /> New Request
             </button>
           </div>
@@ -497,7 +497,7 @@ export default function HRModule() {
           <div><label className="form-label">Job Title</label><input className="form-input" value={newEmp.jobTitle} onChange={e => setNewEmp({...newEmp, jobTitle: e.target.value})} /></div>
           <div><label className="form-label">Base Salary (₹)</label><input type="number" className="form-input" value={newEmp.baseSalary} onChange={e => setNewEmp({...newEmp, baseSalary: e.target.value})} /></div>
           <div className="flex gap-2 justify-end pt-2">
-            <button onClick={() => setEmpModalOpen(false)} className="btn-secondary text-sm">Cancel</button>
+            <button onClick={() => setEmpModalOpen(false)} className="px-4 py-2 rounded-lg text-sm font-medium bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 hover:shadow-[0_0_15px_rgba(239,68,68,0.2)] transition-all">Cancel</button>
             <button onClick={handleAddEmployee} className="btn-primary text-sm">Add Employee</button>
           </div>
         </div>
@@ -522,7 +522,7 @@ export default function HRModule() {
           </div>
           <div><label className="form-label">Reason</label><textarea className="form-input" rows={2} value={newLeave.reason} onChange={e => setNewLeave({...newLeave, reason: e.target.value})} /></div>
           <div className="flex gap-2 justify-end pt-2">
-            <button onClick={() => setLeaveModalOpen(false)} className="btn-secondary text-sm">Cancel</button>
+            <button onClick={() => setLeaveModalOpen(false)} className="px-4 py-2 rounded-lg text-sm font-medium bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 hover:shadow-[0_0_15px_rgba(239,68,68,0.2)] transition-all">Cancel</button>
             <button onClick={handleAddLeave} className="btn-primary text-sm">Submit Request</button>
           </div>
         </div>
@@ -537,7 +537,7 @@ export default function HRModule() {
               <span className="text-sm text-main">Mark as <span className="text-rose-400 font-semibold">Unpaid Leave</span> (deduct from next payroll)</span>
             </label>
             <div className="flex gap-2 justify-end pt-4">
-              <button onClick={() => setLeaveApprovalModal(null)} className="btn-secondary text-sm">Cancel</button>
+              <button onClick={() => setLeaveApprovalModal(null)} className="px-4 py-2 rounded-lg text-sm font-medium bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 hover:shadow-[0_0_15px_rgba(239,68,68,0.2)] transition-all">Cancel</button>
               <button onClick={() => handleUpdateLeaveStatus(leaveApprovalModal.id, 'APPROVED', document.getElementById('unpaidCheck').checked)} className="btn-primary text-sm bg-emerald-600 hover:bg-emerald-500">Approve Request</button>
             </div>
           </div>

@@ -271,7 +271,7 @@ export default function MarketingModule() {
               <div><label className="form-label">End Date</label><input type="date" className="form-input" value={form.endDate} onChange={e => setForm({...form, endDate: e.target.value})} /></div>
             </div>
             <div className="flex gap-2 justify-end pt-2">
-              <button onClick={() => setModal(false)} className="btn-secondary text-sm">Cancel</button>
+              <button onClick={() => setModal(false)} className="px-4 py-2 rounded-lg text-sm font-medium bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 hover:shadow-[0_0_15px_rgba(239,68,68,0.2)] transition-all">Cancel</button>
               <button onClick={handleAdd} className="btn-primary text-sm">Launch Campaign</button>
             </div>
           </div>
@@ -292,7 +292,7 @@ export default function MarketingModule() {
               </div>
             </div>
             <div className="flex gap-2 justify-end pt-2">
-              <button onClick={() => setModal(false)} className="btn-secondary text-sm">Cancel</button>
+              <button onClick={() => setModal(false)} className="px-4 py-2 rounded-lg text-sm font-medium bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 hover:shadow-[0_0_15px_rgba(239,68,68,0.2)] transition-all">Cancel</button>
               <button onClick={handleAdd} className="btn-primary text-sm">Save Prospect Account</button>
             </div>
           </div>

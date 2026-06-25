@@ -484,7 +484,7 @@ export default function FinanceModule() {
         <div className="theme-card overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3 border-b border-main">
             <h3 className="text-sm font-semibold text-main">Chart of Accounts ({accounts.length})</h3>
-            <button onClick={() => setAcctModalOpen(true)} className="btn-primary text-xs flex items-center gap-1.5">
+            <button onClick={() => setAcctModalOpen(true)} className="px-4 py-2 rounded-xl text-sm font-semibold flex items-center gap-2 bg-gradient-to-r from-emerald-500/20 to-teal-500/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/30 hover:shadow-[0_0_15px_rgba(16,185,129,0.3)] transition-all duration-300">
               <Plus className="w-3.5 h-3.5" /> New Account
             </button>
           </div>
@@ -519,7 +519,7 @@ export default function FinanceModule() {
         <div className="theme-card overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3 border-b border-main">
             <h3 className="text-sm font-semibold text-main">Journal Entries ({journalEntries.length})</h3>
-            <button onClick={() => setJournalModalOpen(true)} className="btn-primary text-xs flex items-center gap-1.5">
+            <button onClick={() => setJournalModalOpen(true)} className="px-4 py-2 rounded-xl text-sm font-semibold flex items-center gap-2 bg-gradient-to-r from-emerald-500/20 to-teal-500/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/30 hover:shadow-[0_0_15px_rgba(16,185,129,0.3)] transition-all duration-300">
               <Plus className="w-3.5 h-3.5" /> New Entry
             </button>
           </div>
@@ -558,7 +558,7 @@ export default function FinanceModule() {
             <h3 className="text-sm font-semibold text-main">Invoices ({invoices.length})</h3>
             <div className="flex items-center gap-2">
               <button onClick={handleCheckOverdue} className="btn-secondary text-xs">Check Overdue</button>
-              <button onClick={() => setInvoiceModalOpen(true)} className="btn-primary text-xs flex items-center gap-1.5">
+              <button onClick={() => setInvoiceModalOpen(true)} className="px-4 py-2 rounded-xl text-sm font-semibold flex items-center gap-2 bg-gradient-to-r from-emerald-500/20 to-teal-500/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/30 hover:shadow-[0_0_15px_rgba(16,185,129,0.3)] transition-all duration-300">
                 <Plus className="w-3.5 h-3.5" /> New Invoice
               </button>
             </div>
@@ -638,7 +638,7 @@ export default function FinanceModule() {
         <div className="theme-card overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3 border-b border-main">
             <h3 className="text-sm font-semibold text-main">Budget Planner ({budgets.length})</h3>
-            <button onClick={() => setBudgetModalOpen(true)} className="btn-primary text-xs flex items-center gap-1.5">
+            <button onClick={() => setBudgetModalOpen(true)} className="px-4 py-2 rounded-xl text-sm font-semibold flex items-center gap-2 bg-gradient-to-r from-emerald-500/20 to-teal-500/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/30 hover:shadow-[0_0_15px_rgba(16,185,129,0.3)] transition-all duration-300">
               <Plus className="w-3.5 h-3.5" /> New Budget
             </button>
           </div>
@@ -754,7 +754,7 @@ export default function FinanceModule() {
         <div className="theme-card overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3 border-b border-main">
             <h3 className="text-sm font-semibold text-main">Approval Workflows ({approvalWorkflows.length})</h3>
-            <button onClick={() => setApprovalModalOpen(true)} className="btn-primary text-xs flex items-center gap-1.5">
+            <button onClick={() => setApprovalModalOpen(true)} className="px-4 py-2 rounded-xl text-sm font-semibold flex items-center gap-2 bg-gradient-to-r from-emerald-500/20 to-teal-500/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/30 hover:shadow-[0_0_15px_rgba(16,185,129,0.3)] transition-all duration-300">
               <Plus className="w-3.5 h-3.5" /> New Request
             </button>
           </div>
@@ -821,7 +821,7 @@ export default function FinanceModule() {
             <div className="theme-card p-5 md:col-span-2">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-sm font-semibold text-main">Filing Deadlines ({taxCompliance.filingDeadlines.length})</h3>
-                <button onClick={() => setTaxModalOpen(true)} className="btn-primary text-xs flex items-center gap-1.5">
+                <button onClick={() => setTaxModalOpen(true)} className="px-4 py-2 rounded-xl text-sm font-semibold flex items-center gap-2 bg-gradient-to-r from-emerald-500/20 to-teal-500/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/30 hover:shadow-[0_0_15px_rgba(16,185,129,0.3)] transition-all duration-300">
                   <Plus className="w-3.5 h-3.5" /> New Record
                 </button>
               </div>
@@ -1052,7 +1052,7 @@ export default function FinanceModule() {
           </div>
           <div><label className="form-label">Opening Balance (₹)</label><input type="number" className="form-input" value={newAcct.balance} onChange={e => setNewAcct({...newAcct, balance: e.target.value})} /></div>
           <div className="flex gap-2 justify-end pt-2">
-            <button onClick={() => setAcctModalOpen(false)} disabled={isSubmitting} className="btn-secondary text-sm">Cancel</button>
+            <button onClick={() => setAcctModalOpen(false)} disabled={isSubmitting} className="px-4 py-2 rounded-lg text-sm font-medium bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 hover:shadow-[0_0_15px_rgba(239,68,68,0.2)] transition-all">Cancel</button>
             <button onClick={handleAddAccount} disabled={isSubmitting} className="btn-primary text-sm">
               {isSubmitting ? 'Creating...' : 'Create Account'}
             </button>
@@ -1088,7 +1088,7 @@ export default function FinanceModule() {
           <div><label className="form-label">Amount (₹)</label><input type="number" className="form-input" value={newJournal.amount} onChange={e => setNewJournal({...newJournal, amount: e.target.value})} /></div>
           <div><label className="form-label">Description</label><textarea className="form-input" rows={2} value={newJournal.narration} onChange={e => setNewJournal({...newJournal, narration: e.target.value})} /></div>
           <div className="flex gap-2 justify-end pt-2">
-            <button onClick={() => setJournalModalOpen(false)} disabled={isSubmitting} className="btn-secondary text-sm">Cancel</button>
+            <button onClick={() => setJournalModalOpen(false)} disabled={isSubmitting} className="px-4 py-2 rounded-lg text-sm font-medium bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 hover:shadow-[0_0_15px_rgba(239,68,68,0.2)] transition-all">Cancel</button>
             <button onClick={handleAddJournal} disabled={isSubmitting} className="btn-primary text-sm">
               {isSubmitting ? 'Recording...' : 'Record Entry'}
             </button>
@@ -1138,7 +1138,7 @@ export default function FinanceModule() {
             </select>
           </div>
           <div className="flex gap-2 justify-end pt-2">
-            <button onClick={() => setInvoiceModalOpen(false)} disabled={isSubmitting} className="btn-secondary text-sm">Cancel</button>
+            <button onClick={() => setInvoiceModalOpen(false)} disabled={isSubmitting} className="px-4 py-2 rounded-lg text-sm font-medium bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 hover:shadow-[0_0_15px_rgba(239,68,68,0.2)] transition-all">Cancel</button>
             <button onClick={handleAddInvoice} disabled={isSubmitting} className="btn-primary text-sm">
               {isSubmitting ? 'Creating...' : 'Create Invoice'}
             </button>
@@ -1191,7 +1191,7 @@ export default function FinanceModule() {
             </div>
           )}
           <div className="flex gap-2 justify-end pt-2">
-            <button onClick={() => setBudgetModalOpen(false)} disabled={isSubmitting} className="btn-secondary text-sm">Cancel</button>
+            <button onClick={() => setBudgetModalOpen(false)} disabled={isSubmitting} className="px-4 py-2 rounded-lg text-sm font-medium bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 hover:shadow-[0_0_15px_rgba(239,68,68,0.2)] transition-all">Cancel</button>
             <button onClick={handleAddBudget} disabled={isSubmitting} className="btn-primary text-sm">
               {isSubmitting ? 'Creating...' : 'Create Budget'}
             </button>
@@ -1239,7 +1239,7 @@ export default function FinanceModule() {
             </div>
           </div>
           <div className="flex gap-2 justify-end pt-2">
-            <button onClick={() => setExpenseModalOpen(false)} disabled={isSubmitting} className="btn-secondary text-sm">Cancel</button>
+            <button onClick={() => setExpenseModalOpen(false)} disabled={isSubmitting} className="px-4 py-2 rounded-lg text-sm font-medium bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 hover:shadow-[0_0_15px_rgba(239,68,68,0.2)] transition-all">Cancel</button>
             <button onClick={handleAddExpense} disabled={isSubmitting} className="btn-primary text-sm">
               {isSubmitting ? 'Logging...' : 'Log Expense'}
             </button>
@@ -1284,7 +1284,7 @@ export default function FinanceModule() {
             <textarea className="form-input" rows={3} placeholder="Please provide details..." value={newApproval.reason} onChange={e => setNewApproval({...newApproval, reason: e.target.value})} />
           </div>
           <div className="flex gap-2 justify-end pt-2">
-            <button onClick={() => setApprovalModalOpen(false)} disabled={isSubmitting} className="btn-secondary text-sm">Cancel</button>
+            <button onClick={() => setApprovalModalOpen(false)} disabled={isSubmitting} className="px-4 py-2 rounded-lg text-sm font-medium bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 hover:shadow-[0_0_15px_rgba(239,68,68,0.2)] transition-all">Cancel</button>
             <button onClick={handleAddApproval} disabled={isSubmitting} className="btn-primary text-sm">
               {isSubmitting ? 'Creating...' : 'Create Request'}
             </button>
@@ -1348,7 +1348,7 @@ export default function FinanceModule() {
             </select>
           </div>
           <div className="flex gap-2 justify-end pt-2">
-            <button onClick={() => setTaxModalOpen(false)} disabled={isSubmitting} className="btn-secondary text-sm">Cancel</button>
+            <button onClick={() => setTaxModalOpen(false)} disabled={isSubmitting} className="px-4 py-2 rounded-lg text-sm font-medium bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 hover:shadow-[0_0_15px_rgba(239,68,68,0.2)] transition-all">Cancel</button>
             <button onClick={handleAddTax} disabled={isSubmitting} className="btn-primary text-sm">
               {isSubmitting ? 'Creating...' : 'Create Tax Deadline'}
             </button>
@@ -1403,7 +1403,7 @@ export default function FinanceModule() {
             </select>
           </div>
           <div className="flex gap-2 justify-end pt-2">
-            <button onClick={() => setStmtModalOpen(false)} disabled={isSubmitting} className="btn-secondary text-sm">Cancel</button>
+            <button onClick={() => setStmtModalOpen(false)} disabled={isSubmitting} className="px-4 py-2 rounded-lg text-sm font-medium bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 hover:shadow-[0_0_15px_rgba(239,68,68,0.2)] transition-all">Cancel</button>
             <button onClick={handleAddStatement} disabled={isSubmitting} className="btn-primary text-sm">
               {isSubmitting ? 'Logging...' : 'Log Statement'}
             </button>

@@ -71,7 +71,7 @@ export default function SupportModule() {
           <h1 className="text-2xl font-bold text-main">Support Center</h1>
           <p className="text-sm text-muted mt-1">IT helpdesk and support ticket management</p>
         </div>
-        <button onClick={() => setModal(true)} className="btn-primary text-sm flex items-center gap-1.5"><Plus className="w-4 h-4" /> New Ticket</button>
+        <button onClick={() => setModal(true)} className="px-4 py-2 rounded-xl text-sm font-semibold flex items-center gap-2 bg-gradient-to-r from-emerald-500/20 to-teal-500/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/30 hover:shadow-[0_0_15px_rgba(16,185,129,0.3)] transition-all duration-300"><Plus className="w-4 h-4" /> New Ticket</button>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -151,7 +151,7 @@ export default function SupportModule() {
             </div>
           </div>
           <div className="flex gap-2 justify-end pt-2">
-            <button onClick={() => setModal(false)} className="btn-secondary text-sm">Cancel</button>
+            <button onClick={() => setModal(false)} className="px-4 py-2 rounded-lg text-sm font-medium bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 hover:shadow-[0_0_15px_rgba(239,68,68,0.2)] transition-all">Cancel</button>
             <button onClick={handleAdd} className="btn-primary text-sm">Create Ticket</button>
           </div>
         </div>

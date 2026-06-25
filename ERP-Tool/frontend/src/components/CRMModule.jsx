@@ -128,10 +128,10 @@ export default function CRMModule() {
           <p className="text-sm text-muted mt-1">Lead management and ticketing</p>
         </div>
         <div className="flex gap-2">
-          <button onClick={() => setTicketModal(true)} className="btn-secondary text-sm flex items-center gap-1.5">
+          <button onClick={() => setTicketModal(true)} className="px-4 py-2 rounded-xl text-sm font-semibold flex items-center gap-2 bg-gradient-to-r from-emerald-500/20 to-teal-500/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/30 hover:shadow-[0_0_15px_rgba(16,185,129,0.3)] transition-all duration-300">
             <Plus className="w-4 h-4" /> New Ticket
           </button>
-          <button onClick={() => setLeadModal(true)} className="btn-primary text-sm flex items-center gap-1.5">
+          <button onClick={() => setLeadModal(true)} className="px-4 py-2 rounded-xl text-sm font-semibold flex items-center gap-2 bg-gradient-to-r from-emerald-500/20 to-teal-500/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/30 hover:shadow-[0_0_15px_rgba(16,185,129,0.3)] transition-all duration-300">
             <Plus className="w-4 h-4" /> Add Lead
           </button>
         </div>
@@ -277,7 +277,7 @@ export default function CRMModule() {
             <label className="form-label">Expected Revenue (₹)</label><input type="number" className="form-input" value={newLead.expectedRevenue} onChange={e => setNewLead({...newLead, expectedRevenue: e.target.value})} />
           </div>
           <div className="flex gap-2 justify-end pt-2">
-            <button onClick={() => setLeadModal(false)} className="btn-secondary text-sm">Cancel</button>
+            <button onClick={() => setLeadModal(false)} className="px-4 py-2 rounded-lg text-sm font-medium bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 hover:shadow-[0_0_15px_rgba(239,68,68,0.2)] transition-all">Cancel</button>
             <button onClick={handleAddLead} className="btn-primary text-sm">Add Lead</button>
           </div>
         </div>
@@ -307,7 +307,7 @@ export default function CRMModule() {
             </div>
           </div>
           <div className="flex gap-2 justify-end pt-2">
-            <button onClick={() => setTicketModal(false)} className="btn-secondary text-sm">Cancel</button>
+            <button onClick={() => setTicketModal(false)} className="px-4 py-2 rounded-lg text-sm font-medium bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 hover:shadow-[0_0_15px_rgba(239,68,68,0.2)] transition-all">Cancel</button>
             <button onClick={handleAddTicket} className="btn-primary text-sm">Create Ticket</button>
           </div>
         </div>

@@ -142,7 +142,7 @@ export default function AssetModule() {
             <input className="form-input" value={form.location} onChange={e => setForm({...form, location: e.target.value})} />
           </div>
           <div className="flex gap-2 justify-end pt-2">
-            <button onClick={() => setModal(false)} className="btn-secondary text-sm">Cancel</button>
+            <button onClick={() => setModal(false)} className="px-4 py-2 rounded-lg text-sm font-medium bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 hover:shadow-[0_0_15px_rgba(239,68,68,0.2)] transition-all">Cancel</button>
             <button onClick={handleAdd} className="btn-primary text-sm">Register</button>
           </div>
         </div>
