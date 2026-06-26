@@ -355,11 +355,11 @@ async def create_approval_workflow(body: ApprovalWorkflowCreate, current_user: R
     
     workflow = ApprovalWorkflow(
         requestNo=req_no,
-        type=body.entityType,
-        amount=0.0,
-        requester=current_user.username,
-        date=datetime.utcnow().strftime("%Y-%m-%d"),
-        reason=body.description or body.name,
+        type=body.type,
+        amount=Decimal(str(body.amount)),
+        requester=body.requester or current_user.username,
+        date=body.date or datetime.utcnow().strftime("%Y-%m-%d"),
+        reason=body.reason,
         status="PENDING",
         currentLevel=1
     )

@@ -114,10 +114,12 @@ class ExpenseCreate(BaseModel):
     receiptStatus: str = "Pending"
 
 class ApprovalWorkflowCreate(BaseModel):
-    name: str
-    description: Optional[str] = None
-    entityType: str
-    requiredApprovals: int
+    type: str
+    requester: str
+    amount: float
+    date: str
+    reason: str
+    requestNo: Optional[str] = None
 
 class TaxDeadlineCreate(BaseModel):
     taxType: str
