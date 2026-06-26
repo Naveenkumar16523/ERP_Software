@@ -14,7 +14,7 @@ from app.models.sql_models import ERPUser, ERPRole, ModuleAccess, ERPDepartment
 security = HTTPBearer()
 
 # JWT Configuration
-JWT_SECRET = os.getenv("JWT_SECRET", "your-secret-key-change-in-production")
+JWT_SECRET = os.getenv("JWT_SECRET", "super-secret-key")
 JWT_ALGORITHM = "HS256"
 
 class RBACUser:
