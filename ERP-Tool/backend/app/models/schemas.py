@@ -128,7 +128,9 @@ class TaxDeadlineCreate(BaseModel):
     status: str = "PENDING"
 
 class StatementCreate(BaseModel):
-    accountId: str
+    statementType: str
     period: str
-    startDate: datetime
-    endDate: datetime
+    totalIncome: float
+    totalExpense: float
+    netAmount: float
+    status: str = "Generated"

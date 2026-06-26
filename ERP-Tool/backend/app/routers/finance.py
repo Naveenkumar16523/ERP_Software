@@ -444,12 +444,12 @@ async def get_statements(current_user: RBACUser = Depends(require_module_access(
 @router.post("/statements", status_code=status.HTTP_201_CREATED)
 async def create_statement(body: StatementCreate, current_user: RBACUser = Depends(require_module_access("finance")), db: Session = Depends(get_db)):
     statement = Statement(
-        statementType="Account Statement",
+        statementType=body.statementType,
         period=body.period,
-        totalIncome=0.0,
-        totalExpense=0.0,
-        netAmount=0.0,
-        status="Generated"
+        totalIncome=Decimal(str(body.totalIncome)),
+        totalExpense=Decimal(str(body.totalExpense)),
+        netAmount=Decimal(str(body.netAmount)),
+        status=body.status
     )
     db.add(statement)
     db.commit()

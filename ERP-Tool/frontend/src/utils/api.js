@@ -777,7 +777,7 @@ export const api = {
       return request('/admin/users');
     },
     async createUser(userData) {
-      return request('/admin/users/create', { method: 'POST', body: JSON.stringify(userData) });
+      return request('/admin/users', { method: 'POST', body: JSON.stringify(userData) });
     },
     async updateUser(userId, userData) {
       return request(`/admin/users/${userId}`, { method: 'PUT', body: JSON.stringify(userData) });
