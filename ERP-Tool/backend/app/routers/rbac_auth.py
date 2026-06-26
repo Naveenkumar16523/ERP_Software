@@ -148,6 +148,21 @@ async def login(req: Request, credentials: LoginRequest, db: Session = Depends(g
         }
     }
 
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
+
+@router.post("/change-password")
+async def change_password(req: Request, data: ChangePasswordRequest, current_user: ERPUser = Depends(get_current_user), db: Session = Depends(get_db)):
+    if not verify_password(data.current_password, current_user.passwordHash):
+        raise HTTPException(status_code=400, detail="Incorrect current password")
+    
+    current_user.passwordHash = get_password_hash(data.new_password)
+    db.commit()
+    
+    await log_audit_event("PASSWORD_CHANGE", "User", f"User {current_user.username} changed password", current_user.id, req)
+    return {"message": "Password updated successfully"}
+
 class ResetCEORequest(BaseModel):
     resetSecret: str
     ceoPassword: str
