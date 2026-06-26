@@ -79,7 +79,7 @@ async def create_user(http_req: Request, user_data: UserCreate, current_user: ER
     db.commit()
     db.refresh(user)
     
-    await log_audit_event("USER_CREATE", "User", f"Created user {user_data.username}", current_user.id, http_req)
+    await log_audit_event("USER_CREATE", "User", f"Created user {user.username}", current_user.id, http_req)
     
     return {
         "id": user.id,
