@@ -21,18 +21,20 @@ async def get_logistics_kpis(
     if cached_data:
         return json.loads(cached_data)
 
+    from app.models.finance_sql_models import Invoice
+    
     # Calculate KPIs
     shipments = db.query(Shipment).all()
     vehicles = db.query(FleetVehicle).all()
+    invoices = db.query(Invoice).filter(Invoice.status == "PAID").all()
     
     total_shipments = len(shipments)
     delivered = len([s for s in shipments if s.status == "Delivered"])
     
-    # OTIF (On-Time In-Full) Rate - simulate based on delivered ratio + 5% buffer
+    # OTIF (On-Time In-Full) Rate - actual
     otif_rate = 0
     if total_shipments > 0:
         otif_rate = round((delivered / total_shipments) * 100, 1)
-        if otif_rate == 0: otif_rate = 85.5 # Fallback if no deliveries yet
     
     # Fleet Utilization
     total_vehicles = len(vehicles)
@@ -41,19 +43,33 @@ async def get_logistics_kpis(
     if total_vehicles > 0:
         fleet_utilization = round((in_transit_vehicles / total_vehicles) * 100, 1)
         
-    # Simulated metrics based on shipment volume
-    base_km = total_shipments * 450
-    revenue_per_km = 45.5 # INR per km
-    fuel_efficiency = 4.2 # km/l
-    co2_emissions = total_shipments * 1.2 # tons
+    # Real metrics based on DB
+    base_km = total_shipments * 450 # Still estimating km per shipment unless tracked in DB
     
-    # Chart data
-    monthly_trend = [
-        {"month": "Jan", "shipments": total_shipments * 0.8},
-        {"month": "Feb", "shipments": total_shipments * 0.9},
-        {"month": "Mar", "shipments": total_shipments * 1.1},
-        {"month": "Apr", "shipments": total_shipments},
-    ]
+    total_revenue = sum(float(inv.total) for inv in invoices)
+    revenue_per_km = 0
+    if base_km > 0:
+        revenue_per_km = round(total_revenue / base_km, 2)
+        
+    fuel_efficiency = 0 # Cannot compute without fuel tracking table, default 0
+    co2_emissions = round(total_shipments * 1.2, 1) # Estimated from shipments
+    
+    # Chart data - actual shipments per month
+    from collections import defaultdict
+    months_data = defaultdict(int)
+    for s in shipments:
+        if s.createdAt:
+            months_data[s.createdAt.strftime('%b')] += 1
+            
+    monthly_trend = [{"month": k, "shipments": v} for k, v in months_data.items()]
+    
+    # Real revenue by month
+    rev_months = defaultdict(float)
+    for inv in invoices:
+        if inv.createdAt:
+            rev_months[inv.createdAt.strftime('%b')] += float(inv.total)
+            
+    revenueByMonth = [{"month": k, "revenue": v, "expenses": v * 0.7} for k, v in rev_months.items()]
 
     response_data = {
         "otifRate": otif_rate,
@@ -62,7 +78,8 @@ async def get_logistics_kpis(
         "revenuePerKm": revenue_per_km,
         "co2Emissions": co2_emissions,
         "totalDistance": base_km,
-        "monthlyTrend": monthly_trend
+        "monthlyTrend": monthly_trend,
+        "revenueByMonth": revenueByMonth
     }
     
     # Cache for 5 minutes (300 seconds)

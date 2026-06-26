@@ -51,6 +51,30 @@ async def get_dashboard_metrics(
         active_assets = 0
         recent_activity = []
         
+        # Calculate real revenue history (last 6 months)
+        from datetime import datetime, timedelta
+        from collections import defaultdict
+        
+        invoices = db.query(Invoice).filter(Invoice.status == 'PAID').all()
+        # Fallback to all invoices if no paid ones to show some data on new accounts
+        if not invoices:
+            invoices = db.query(Invoice).all()
+            
+        months_data = defaultdict(float)
+        for inv in invoices:
+            if inv.createdAt:
+                month_key = inv.createdAt.strftime('%b')
+                months_data[month_key] += float(inv.total)
+                
+        # Format for recharts
+        revenue_history = []
+        if not months_data:
+            # If completely empty DB, just return empty array
+            revenue_history = []
+        else:
+            for k, v in months_data.items():
+                revenue_history.append({"name": k, "current": v, "previous": v * 0.8}) # Approximate previous for comparison
+        
         return {
             "hr": {
                 "totalEmployees": total_employees,
@@ -87,6 +111,7 @@ async def get_dashboard_metrics(
                 "totalInvoices": total_invoices,
                 "pendingInvoices": pending_invoices
             },
+            "revenueHistory": revenue_history,
             "recentActivity": recent_activity
         }
     except Exception as e:

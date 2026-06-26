@@ -32,12 +32,7 @@ async function request(path, options = {}) {
     throw new Error('Module disabled');
   }
 
-  const { demoMode, token, setDbLive, logout } = useERPStore.getState();
-
-  // If in demo mode, skip network requests entirely to prevent 401s and console spam
-  if (demoMode && path !== '/health' && path !== '/auth/login' && path !== '/auth/refresh') {
-    throw new Error('Offline demo mode');
-  }
+  const { token, setDbLive, logout } = useERPStore.getState();
 
   const url = `${BASE_URL}${path}`;
   const mergedOptions = {
@@ -70,9 +65,6 @@ async function request(path, options = {}) {
                             (res.status === 401 && !String(errorMessage).includes('Invalid credentials') && !String(errorMessage).includes('Invalid username or password'));
         
         if (isAuthError) {
-          if (demoMode) {
-             throw new Error('Offline demo mode');
-          }
 
           const refreshToken = localStorage.getItem('erp_refresh_token');
           if (refreshToken && !options._retry) {
@@ -109,7 +101,7 @@ async function request(path, options = {}) {
 
     return await res.json();
   } catch (error) {
-    if (error.message !== 'Module disabled' && error.message !== 'Offline demo mode') {
+    if (error.message !== 'Module disabled') {
       console.warn(`[Network Fail] API path ${path} failed. Error:`, error.message);
       setDbLive(false);
     }

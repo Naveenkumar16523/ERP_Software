@@ -13,33 +13,9 @@ export const apiClient = axios.create({
 
 import { useERPStore } from '../store/useERPStore';
 
-const DISABLED_MODULES = [
-  'analytics', 'assets', 'automation', 'banking', 'crm', 
-  'ecommerce', 'education', 'healthcare', 'inventory', 'manufacturing', 
-  'marketing', 'payroll', 'procurement', 'projects', 'security', 
-  'supply-chain', 'support', 'sustainability'
-];
-
-// Request interceptor: attach token & intercept disabled modules
+// Request interceptor: attach token
 apiClient.interceptors.request.use(
   (config) => {
-    const urlPath = config.url ? config.url.split('?')[0].replace(/^\/api\/v1/, '').replace(/^\//, '') : '';
-    const moduleName = urlPath.split('/')[0];
-
-    // If module is disabled, mock a successful empty response to prevent 404 errors
-    if (DISABLED_MODULES.includes(moduleName)) {
-      config.adapter = () => {
-        return Promise.resolve({
-          data: { data: [] },
-          status: 200,
-          statusText: 'OK',
-          headers: {},
-          config,
-          request: {}
-        });
-      };
-    }
-
     const token = useERPStore.getState().token;
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;

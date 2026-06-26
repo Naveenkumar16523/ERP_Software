@@ -80,9 +80,9 @@ class VoucherCreate(BaseModel):
     accountId: str
 
 class AccountCreate(BaseModel):
-    accountCode: str
-    accountName: str
-    accountType: str
+    code: str
+    name: str
+    type: str
     balance: float = 0.0
 
 class InvoiceCreate(BaseModel):

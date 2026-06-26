@@ -20,10 +20,7 @@ export default function AnalyticsModule() {
     fetchKpis();
   }, []);
 
-  const revenueByMonth = [
-    { name: 'Jan', value: 145000 }, { name: 'Feb', value: 172000 }, { name: 'Mar', value: 198000 },
-    { name: 'Apr', value: 215000 }, { name: 'May', value: 224100 }
-  ];
+  const revenueByMonth = logisticsKpis?.revenueByMonth || [];
 
   const deptData = Object.entries(
     employees.reduce((acc, e) => { acc[e.department] = (acc[e.department] || 0) + 1; return acc; }, {})
@@ -55,7 +52,7 @@ export default function AnalyticsModule() {
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[
-          { label: 'YTD Revenue', value: `₹${revenueByMonth.reduce((s, d) => s + d.value, 0).toLocaleString('en-IN')}`, color: 'text-emerald-400' },
+          { label: 'YTD Revenue', value: `₹${revenueByMonth.reduce((s, d) => s + (d.revenue || 0), 0).toLocaleString('en-IN')}`, color: 'text-emerald-400' },
           { label: 'Total Leads', value: leads.length, color: 'text-sky-400' },
           { label: 'Conversion Rate', value: `${leads.length > 0 ? ((leads.filter(l => l.status === 'WON').length / leads.length) * 100).toFixed(1) : 0}%`, color: 'text-violet-400' },
           { label: 'Headcount', value: employees.length, color: 'text-rose-400' }
@@ -79,10 +76,10 @@ export default function AnalyticsModule() {
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />
-              <XAxis dataKey="name" tick={{ fill: chartTextColor, fontSize: 11 }} axisLine={false} tickLine={false} />
+              <XAxis dataKey="month" tick={{ fill: chartTextColor, fontSize: 11 }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fill: chartTextColor, fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={v => `₹${(v / 1000).toFixed(0)}k`} />
               <Tooltip contentStyle={tooltipStyle} formatter={v => [`₹${v.toLocaleString('en-IN')}`, 'Revenue']} />
-              <Area type="monotone" dataKey="value" stroke="#6366f1" fill="url(#rev-grad)" strokeWidth={2} dot={false} />
+              <Area type="monotone" dataKey="revenue" stroke="#6366f1" fill="url(#rev-grad)" strokeWidth={2} dot={false} />
             </AreaChart>
           </ResponsiveContainer>
         </div>

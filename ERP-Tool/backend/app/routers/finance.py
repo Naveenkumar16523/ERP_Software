@@ -48,7 +48,7 @@ async def get_accounts(current_user: RBACUser = Depends(require_module_access("f
 
 @router.post("/accounts", status_code=status.HTTP_201_CREATED)
 async def create_account(body: AccountCreate, current_user: RBACUser = Depends(require_module_access("finance")), db: Session = Depends(get_db)):
-    existing = db.query(FinanceAccount).filter((FinanceAccount.code == body.accountCode) | (FinanceAccount.name == body.accountName)).first()
+    existing = db.query(FinanceAccount).filter((FinanceAccount.code == body.code) | (FinanceAccount.name == body.name)).first()
     if existing:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Account code or name already exists")
     
@@ -56,11 +56,11 @@ async def create_account(body: AccountCreate, current_user: RBACUser = Depends(r
         "ASSET": "Asset", "LIABILITY": "Liability", "EQUITY": "Equity",
         "REVENUE": "Income", "EXPENSE": "Expense"
     }
-    db_type = type_mapping.get(body.accountType, body.accountType)
+    db_type = type_mapping.get(body.type, body.type)
     
     acc = FinanceAccount(
-        code=body.accountCode,
-        name=body.accountName,
+        code=body.code,
+        name=body.name,
         type=db_type,
         balance=body.balance,
         status="ACTIVE"

@@ -71,25 +71,12 @@ const Dashboard = React.memo(function Dashboard() {
     }
   }, []);
 
-  const revenueExpensesData = useMemo(() => [
-    { name: '1', current: 1400, previous: 900 },
-    { name: '2', current: 2200, previous: 1200 },
-    { name: '3', current: 2800, previous: 1800 },
-    { name: '4', current: 2100, previous: 1400 },
-    { name: '5', current: 2500, previous: 1600 },
-    { name: '6', current: 1800, previous: 1200 },
-    { name: '7', current: 2400, previous: 1500 },
-    { name: '8', current: 3200, previous: 2100 },
-    { name: '9', current: 2800, previous: 1900 },
-  ], []);
+  const revenueExpensesData = dashboardData?.revenueHistory || [];
 
   const inventoryStatusData = dashboardData ? [
     { name: 'In Stock', value: dashboardData.inventory?.totalProducts - dashboardData.inventory?.lowStockProducts || 0 },
     { name: 'Low Stock', value: dashboardData.inventory?.lowStockProducts || 0 }
-  ] : [
-    { name: 'In Stock', value: 4 },
-    { name: 'Low Stock', value: 1 }
-  ];
+  ] : [];
 
   const kpis = dashboardData ? [
     {

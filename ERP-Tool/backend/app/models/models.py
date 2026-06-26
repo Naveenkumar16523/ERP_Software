@@ -151,10 +151,10 @@ class Contact(BaseModel):
 
 class Account(BaseModel):
     id: str = Field(default_factory=generate_uuid)
-    code: str
-    name: str
+    accountCode: str
+    accountName: str
     type: str
-    balance: float = 0.0
+    openingBalance: float = 0.0
     isActive: bool = True
     createdAt: datetime = Field(default_factory=datetime.utcnow)
 

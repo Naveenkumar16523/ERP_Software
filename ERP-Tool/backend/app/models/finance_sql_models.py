@@ -1,6 +1,3 @@
-"""
-SQLAlchemy Models for the Finance Module
-"""
 from sqlalchemy import Column, String, Float, Boolean, Integer, DateTime, ForeignKey, Text, Numeric
 from datetime import datetime
 import uuid
@@ -16,7 +13,7 @@ class FinanceAccount(Base):
     id = Column(String(36), primary_key=True, default=generate_uuid)
     code = Column(String(50), unique=True, index=True)
     name = Column(String(100), index=True)
-    type = Column(String(50)) # Asset, Liability, Equity, Income, Expense
+    type = Column(String(50))
     balance = Column(Numeric(15, 4), default=0.0)
     status = Column(String(50), default="ACTIVE")
     createdAt = Column(DateTime, default=datetime.utcnow)
@@ -138,11 +135,10 @@ class FinanceAuditLog(Base):
     __tablename__ = "finance_audit_logs"
     
     id = Column(String(36), primary_key=True, default=generate_uuid)
-    userId = Column(String(36), nullable=True) # ID of user who made change
-    action = Column(String(50)) # CREATE, UPDATE, DELETE
+    userId = Column(String(36), nullable=True)
+    action = Column(String(50))
     tableName = Column(String(100))
     recordId = Column(String(36))
-    oldValue = Column(Text, nullable=True) # JSON string
-    newValue = Column(Text, nullable=True) # JSON string
+    oldValue = Column(Text, nullable=True)
+    newValue = Column(Text, nullable=True)
     timestamp = Column(DateTime, default=datetime.utcnow)
-
