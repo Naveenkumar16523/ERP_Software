@@ -1,5 +1,6 @@
 import time
 from datetime import datetime
+from decimal import Decimal
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.orm import Session
@@ -24,7 +25,7 @@ def update_account_balance(db: Session, account_id: str, amount: float, is_debit
     else:
         balance_change = -amount if is_debit else amount
         
-    account.balance += balance_change
+    account.balance += Decimal(str(balance_change))
     db.commit()
 
 def create_finance_audit(db: Session, user_id: str, action: str, table_name: str, record_id: str, old_value: str = None, new_value: str = None):

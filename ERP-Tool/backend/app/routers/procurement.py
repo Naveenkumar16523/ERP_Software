@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 from pydantic import BaseModel
 from datetime import datetime
+from decimal import Decimal
 
 from app.utils.db import get_db
 from app.middlewares.rbac_middleware import get_current_rbac_user, require_module_access, RBACUser
@@ -118,9 +119,9 @@ async def approve_po(
     if po.budgetId and not po.budgetDeducted:
         budget = db.query(Budget).filter(Budget.id == po.budgetId).first()
         if budget:
-            if budget.spent + po.totalAmount > budget.amount:
+            if float(budget.spent) + float(po.totalAmount) > float(budget.amount):
                 raise HTTPException(status_code=400, detail="Insufficient budget")
-            budget.spent += po.totalAmount
+            budget.spent += Decimal(str(po.totalAmount))
             po.budgetDeducted = True
             
     po.status = "Approved"

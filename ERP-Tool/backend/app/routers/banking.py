@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 from pydantic import BaseModel
 from datetime import datetime
+from decimal import Decimal
 import math
 
 from app.utils.db import get_db
@@ -74,7 +75,7 @@ async def create_transaction(
     # Update balance
     acc = db.query(BankAccount).filter(BankAccount.id == body.accountId).first()
     if acc:
-        acc.balance += body.amount
+        acc.balance += Decimal(str(body.amount))
         
     db.commit()
     db.refresh(tx)
