@@ -29,7 +29,7 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 
 JWT_SECRET = os.getenv("JWT_SECRET", "super-secret-key")
 JWT_ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
+ACCESS_TOKEN_EXPIRE_MINUTES = 1440 # 24 hours for easier testing
 REFRESH_TOKEN_EXPIRE_DAYS = 7
 
 class LoginRequest(BaseModel):
