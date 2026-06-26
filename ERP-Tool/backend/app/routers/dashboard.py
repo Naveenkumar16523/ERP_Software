@@ -64,7 +64,7 @@ async def get_dashboard_metrics(
         for inv in invoices:
             if inv.createdAt:
                 month_key = inv.createdAt.strftime('%b')
-                months_data[month_key] += float(inv.total)
+                months_data[month_key] += float(inv.totalAmount)
                 
         # Format for recharts
         revenue_history = []
