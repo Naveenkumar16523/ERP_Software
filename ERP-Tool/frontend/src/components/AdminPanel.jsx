@@ -434,7 +434,7 @@ export default function AdminPanel() {
       {activeTab === 'permissions' && permissions && (
         <div className="theme-card p-6">
           <h2 className="text-xl font-semibold text-main mb-6">Permission Matrix</h2>
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto custom-scrollbar pb-2">
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-left text-dimmed border-b border-main">
