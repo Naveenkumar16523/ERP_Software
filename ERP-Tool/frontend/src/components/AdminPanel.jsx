@@ -184,7 +184,7 @@ export default function AdminPanel() {
     setLoading(true);
     try {
       const result = await api.admin.createUser(newUser);
-      addToast(`User created successfully! Username: ${result.user.username}, Default Password: ${result.user.password}`, 'success');
+      addToast(`User created successfully! Username: ${result.username}, Default Password: ${result.password}`, 'success');
       setShowCreateModal(false);
       setNewUser({ full_name: '', email: '', department_id: '', role_id: '' });
       fetchUsers();

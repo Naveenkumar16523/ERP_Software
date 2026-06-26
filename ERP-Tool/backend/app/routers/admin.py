@@ -54,45 +54,56 @@ async def list_users(current_user: ERPUser = Depends(require_ceo), db: Session =
 @router.post("/users", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 async def create_user(http_req: Request, user_data: UserCreate, current_user: ERPUser = Depends(require_ceo), db: Session = Depends(get_db)):
     """Create a new user directly (CEO only)"""
-    username = user_data.email.split("@")[0].lower() + str(int(datetime.utcnow().timestamp()) % 10000)
-    import secrets
-    password = secrets.token_urlsafe(8)
-    
-    if db.query(ERPUser).filter(ERPUser.username == username).first():
-        username = username + "x"
+    try:
+        username = user_data.email.split("@")[0].lower() + str(int(datetime.utcnow().timestamp()) % 10000)
+        import secrets
+        password = secrets.token_urlsafe(8)
         
-    if db.query(ERPUser).filter(ERPUser.email == user_data.email).first():
-        raise HTTPException(status_code=400, detail="Email already registered")
-    
-    user = ERPUser(
-        username=username,
-        passwordHash=get_password_hash(password),
-        fullName=user_data.full_name,
-        email=user_data.email,
-        roleId=user_data.role_id,
-        departmentId=user_data.department_id,
-        isActive=True,
-        isCEO=False
-    )
-    
-    db.add(user)
-    db.commit()
-    db.refresh(user)
-    
-    await log_audit_event("USER_CREATE", "User", f"Created user {user.username}", current_user.id, http_req)
-    
-    return {
-        "id": user.id,
-        "username": user.username,
-        "full_name": user.fullName,
-        "email": user.email,
-        "role_name": user.roleId,
-        "department_name": user.departmentId,
-        "is_active": user.isActive,
-        "is_ceo": user.isCEO,
-        "createdAt": user.createdAt,
-        "password": password
-    }
+        if db.query(ERPUser).filter(ERPUser.username == username).first():
+            username = username + "x"
+            
+        if db.query(ERPUser).filter(ERPUser.email == user_data.email).first():
+            raise HTTPException(status_code=400, detail="Email already registered")
+        
+        user = ERPUser(
+            username=username,
+            passwordHash=get_password_hash(password),
+            fullName=user_data.full_name,
+            email=user_data.email,
+            roleId=user_data.role_id,
+            departmentId=user_data.department_id,
+            isActive=True,
+            isCEO=False
+        )
+        
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+        
+        await log_audit_event("USER_CREATE", "User", f"Created user {user.username}", current_user.id, http_req)
+        
+        # We MUST return the dictionary with "user" key wrapper so frontend's result.user.username works
+        # BUT response_model=UserResponse doesn't expect a "user" key.
+        # Oh, the frontend API probably DOES NOT expect UserResponse directly?
+        # Wait, if we return a raw dict, Pydantic will filter it!
+        return {
+            "id": user.id,
+            "username": user.username,
+            "full_name": user.fullName,
+            "email": user.email,
+            "role_name": user.roleId,
+            "department_name": user.departmentId,
+            "is_active": user.isActive,
+            "is_ceo": user.isCEO,
+            "createdAt": user.createdAt,
+            "password": password
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        error_msg = traceback.format_exc()
+        raise HTTPException(status_code=500, detail=error_msg)
 
 @router.put("/users/{user_id}/activate")
 async def activate_user(http_req: Request, user_id: str, current_user: ERPUser = Depends(require_ceo), db: Session = Depends(get_db)):
