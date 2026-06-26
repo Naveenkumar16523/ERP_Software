@@ -147,7 +147,7 @@ async def get_admin_dashboard(current_user: ERPUser = Depends(require_ceo), db: 
     
     dept_counts = {}
     for u in users:
-        dept = u.departmentId or 'Unassigned'
+        dept = (u.department.name if u.department else u.departmentId) or 'Unassigned'
         dept_counts[dept] = dept_counts.get(dept, 0) + 1
         
     recent = sorted(users, key=lambda x: x.createdAt, reverse=True)[:5]
@@ -157,7 +157,7 @@ async def get_admin_dashboard(current_user: ERPUser = Depends(require_ceo), db: 
             "id": u.id,
             "username": u.username,
             "full_name": u.fullName,
-            "role_name": u.roleId,
+            "role_name": u.role.name if u.role else u.roleId,
             "is_active": u.isActive
         })
         
