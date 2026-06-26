@@ -71,7 +71,9 @@ const Dashboard = React.memo(function Dashboard() {
     }
   }, []);
 
-  const revenueExpensesData = dashboardData?.revenueHistory || [];
+  const revenueExpensesData = dashboardData?.revenueHistory?.length > 0 
+    ? dashboardData.revenueHistory 
+    : [{ name: 'No Data', current: 0, previous: 0 }];
 
   const inventoryStatusData = dashboardData ? (
     (dashboardData.inventory?.totalProducts || 0) > 0 ? [
@@ -369,9 +371,6 @@ const Dashboard = React.memo(function Dashboard() {
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--glass-border)" />
                   <XAxis dataKey="name" tick={{ fill: 'hsl(var(--text-secondary))', fontSize: 10, fontWeight: 600 }} axisLine={false} tickLine={false} dy={10} />
                   <YAxis tick={{ fill: 'hsl(var(--text-secondary))', fontSize: 10, fontWeight: 600 }} axisLine={false} tickLine={false} tickFormatter={(v) => `$${v/1000}k`} dx={-10} />
-                  <Tooltip
-                    contentStyle={{ background: 'hsl(var(--bg-primary))', border: '1px solid hsl(var(--border-light))', borderRadius: '8px', fontSize: 12, boxShadow: 'var(--shadow-md)', color: 'hsl(var(--text-primary))' }}
-                  />
                   <Area type="monotone" dataKey="current" stroke="#f43f5e" strokeWidth={3} fillOpacity={1} fill="url(#colorCurrent)" dot={{ r: 4, strokeWidth: 2, fill: '#fff' }} activeDot={{ r: 6 }} />
                   <Area type="monotone" dataKey="previous" stroke="#f59e0b" strokeWidth={3} fillOpacity={1} fill="url(#colorPrevious)" dot={{ r: 4, strokeWidth: 2, fill: '#fff' }} activeDot={{ r: 6 }} />
                 </AreaChart>
