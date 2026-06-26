@@ -15,12 +15,10 @@ from app.routers.rbac_auth import require_ceo, get_password_hash
 router = APIRouter(prefix="/admin", tags=["Admin Operations"])
 
 class UserCreate(BaseModel):
-    fullName: str
+    full_name: str
     email: EmailStr
-    username: str
-    password: str
-    roleId: str
-    departmentId: str
+    role_id: str
+    department_id: str
 
 class UserResponse(BaseModel):
     id: str
@@ -32,6 +30,7 @@ class UserResponse(BaseModel):
     is_active: bool
     is_ceo: bool
     createdAt: datetime
+    password: str = None
 
 @router.get("/users", response_model=List[UserResponse])
 async def list_users(current_user: ERPUser = Depends(require_ceo), db: Session = Depends(get_db)):
@@ -55,19 +54,23 @@ async def list_users(current_user: ERPUser = Depends(require_ceo), db: Session =
 @router.post("/users", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 async def create_user(http_req: Request, user_data: UserCreate, current_user: ERPUser = Depends(require_ceo), db: Session = Depends(get_db)):
     """Create a new user directly (CEO only)"""
-    if db.query(ERPUser).filter(ERPUser.username == user_data.username).first():
-        raise HTTPException(status_code=400, detail="Username already taken")
+    username = user_data.email.split("@")[0].lower() + str(int(datetime.utcnow().timestamp()) % 10000)
+    import secrets
+    password = secrets.token_urlsafe(8)
     
+    if db.query(ERPUser).filter(ERPUser.username == username).first():
+        username = username + "x"
+        
     if db.query(ERPUser).filter(ERPUser.email == user_data.email).first():
         raise HTTPException(status_code=400, detail="Email already registered")
     
     user = ERPUser(
-        username=user_data.username,
-        passwordHash=get_password_hash(user_data.password),
-        fullName=user_data.fullName,
+        username=username,
+        passwordHash=get_password_hash(password),
+        fullName=user_data.full_name,
         email=user_data.email,
-        roleId=user_data.roleId,
-        departmentId=user_data.departmentId,
+        roleId=user_data.role_id,
+        departmentId=user_data.department_id,
         isActive=True,
         isCEO=False
     )
@@ -87,7 +90,8 @@ async def create_user(http_req: Request, user_data: UserCreate, current_user: ER
         "department_name": user.departmentId,
         "is_active": user.isActive,
         "is_ceo": user.isCEO,
-        "createdAt": user.createdAt
+        "createdAt": user.createdAt,
+        "password": password
     }
 
 @router.put("/users/{user_id}/activate")
