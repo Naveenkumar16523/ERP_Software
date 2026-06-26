@@ -73,10 +73,14 @@ const Dashboard = React.memo(function Dashboard() {
 
   const revenueExpensesData = dashboardData?.revenueHistory || [];
 
-  const inventoryStatusData = dashboardData ? [
-    { name: 'In Stock', value: dashboardData.inventory?.totalProducts - dashboardData.inventory?.lowStockProducts || 0 },
-    { name: 'Low Stock', value: dashboardData.inventory?.lowStockProducts || 0 }
-  ] : [];
+  const inventoryStatusData = dashboardData ? (
+    (dashboardData.inventory?.totalProducts || 0) > 0 ? [
+      { name: 'In Stock', value: dashboardData.inventory.totalProducts - (dashboardData.inventory.lowStockProducts || 0) },
+      { name: 'Low Stock', value: dashboardData.inventory.lowStockProducts || 0 }
+    ] : [
+      { name: 'No Data', value: 1 }
+    ]
+  ) : [];
 
   const kpis = dashboardData ? [
     {
