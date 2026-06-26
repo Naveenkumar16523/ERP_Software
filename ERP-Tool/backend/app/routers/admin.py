@@ -9,7 +9,7 @@ from datetime import datetime
 
 from app.utils.db import get_db
 from app.utils.audit import log_audit_event
-from app.models.sql_models import ERPUser
+from app.models.sql_models import ERPUser, ERPRole, ERPDepartment
 from app.routers.rbac_auth import require_ceo, get_password_hash
 
 router = APIRouter(prefix="/admin", tags=["Admin Operations"])
@@ -218,12 +218,14 @@ DEMO_PERMISSIONS = {
 }
 
 @router.get("/departments")
-async def get_departments(current_user: ERPUser = Depends(require_ceo)):
-    return DEMO_DEPARTMENTS
+async def get_departments(current_user: ERPUser = Depends(require_ceo), db: Session = Depends(get_db)):
+    departments = db.query(ERPDepartment).all()
+    return [{"id": d.id, "name": d.name, "code": d.code} for d in departments]
 
 @router.get("/roles")
-async def get_roles(current_user: ERPUser = Depends(require_ceo)):
-    return DEMO_ROLES
+async def get_roles(current_user: ERPUser = Depends(require_ceo), db: Session = Depends(get_db)):
+    roles = db.query(ERPRole).all()
+    return [{"id": r.id, "name": r.name, "description": r.description} for r in roles]
 
 @router.get("/permissions")
 async def get_permissions(current_user: ERPUser = Depends(require_ceo)):
