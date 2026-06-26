@@ -73,11 +73,13 @@ class OEELogCreate(BaseModel):
     timestamp: datetime
 
 class VoucherCreate(BaseModel):
-    voucherNo: str
-    date: datetime
+    voucherType: str
     amount: float
-    description: str
-    accountId: str
+    debitAcc: str
+    creditAcc: str
+    narration: Optional[str] = ""
+    date: Optional[datetime] = None
+    referenceNo: Optional[str] = None
 
 class AccountCreate(BaseModel):
     code: str
@@ -87,23 +89,29 @@ class AccountCreate(BaseModel):
 
 class InvoiceCreate(BaseModel):
     invoiceNo: str
-    customerId: str
-    amount: float
-    dueDate: datetime
-    description: Optional[str] = None
+    customerName: str
+    invoiceDate: str
+    dueDate: str
+    subtotal: float
+    taxRate: float
+    status: str = "PENDING"
 
 class BudgetCreate(BaseModel):
-    departmentId: str
-    fiscalYear: int
-    amount: float
+    budgetName: str
     category: str
+    period: str
+    amount: float
+    spent: float = 0.0
+    year: int
+    month: Optional[int] = None
 
 class ExpenseCreate(BaseModel):
-    amount: float
     description: str
     category: str
-    date: datetime
-    accountId: str
+    amount: float
+    date: str
+    paidBy: str
+    receiptStatus: str = "Pending"
 
 class ApprovalWorkflowCreate(BaseModel):
     name: str

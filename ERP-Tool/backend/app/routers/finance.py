@@ -74,14 +74,13 @@ async def create_account(body: AccountCreate, current_user: RBACUser = Depends(r
 
 @router.post("/voucher", status_code=status.HTTP_201_CREATED)
 async def create_voucher(body: VoucherCreate, req: Request, current_user: RBACUser = Depends(require_module_access("finance")), db: Session = Depends(get_db)):
-    debit_acc = db.query(FinanceAccount).filter(FinanceAccount.id == body.accountId).first()
-    # Mocking credit account since schema only has one accountId
-    credit_acc = db.query(FinanceAccount).filter(FinanceAccount.type == 'Asset').first()
+    debit_acc = db.query(FinanceAccount).filter((FinanceAccount.name == body.debitAcc) | (FinanceAccount.code == body.debitAcc)).first()
+    credit_acc = db.query(FinanceAccount).filter((FinanceAccount.name == body.creditAcc) | (FinanceAccount.code == body.creditAcc)).first()
     
     if not debit_acc or not credit_acc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Debit or Credit account not found.")
 
-    voucher_no = body.voucherNo.strip()
+    voucher_no = (body.referenceNo or f"VCH-{int(time.time())}").strip()
     if db.query(JournalEntry).filter(JournalEntry.voucherNo == voucher_no).first():
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Voucher/Reference number already exists.")
 
@@ -89,7 +88,7 @@ async def create_voucher(body: VoucherCreate, req: Request, current_user: RBACUs
     prev_hash = last_entry.blockHash if last_entry else "0"
     next_index = (last_entry.blockIndex + 1) if last_entry else 1
 
-    date = body.date
+    date = body.date or datetime.utcnow()
 
     block_hash = calculate_block_hash(
         block_index=next_index,
@@ -103,13 +102,13 @@ async def create_voucher(body: VoucherCreate, req: Request, current_user: RBACUs
 
     entry = JournalEntry(
         blockIndex=next_index,
-        voucherType="General",
+        voucherType=body.voucherType,
         voucherNo=voucher_no,
         date=date,
         amount=body.amount,
         debitAcc=debit_acc.name,
         creditAcc=credit_acc.name,
-        narration=body.description or "",
+        narration=body.narration or "",
         prevHash=prev_hash,
         blockHash=block_hash
     )
@@ -227,20 +226,27 @@ async def create_invoice(body: InvoiceCreate, current_user: RBACUser = Depends(r
     if db.query(Invoice).filter(Invoice.invoiceNo == invoice_no).first():
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invoice number already exists.")
 
-    tax_rate = 10.0 # Default fallback
-    tax_amount = body.amount * (tax_rate / 100)
-    total_amount = body.amount + tax_amount
+    tax_rate = body.taxRate
+    tax_amount = body.subtotal * (tax_rate / 100)
+    total_amount = body.subtotal + tax_amount
+
+    # Convert dueDate string to datetime
+    try:
+        due_date = datetime.strptime(body.dueDate, "%Y-%m-%d") if body.dueDate else None
+    except Exception:
+        due_date = None
 
     invoice = Invoice(
         invoiceNo=invoice_no,
-        customerName=body.customerId,
-        subtotal=body.amount,
+        customerName=body.customerName,
+        subtotal=body.subtotal,
         taxRate=tax_rate,
         taxAmount=tax_amount,
         totalAmount=total_amount,
         currency="USD",
-        status="PENDING",
-        dueDate=body.dueDate
+        status=body.status,
+        invoiceDate=body.invoiceDate,
+        dueDate=due_date
     )
     db.add(invoice)
     db.commit()
@@ -275,12 +281,14 @@ async def get_budgets(current_user: RBACUser = Depends(require_module_access("fi
 @router.post("/budgets", status_code=status.HTTP_201_CREATED)
 async def create_budget(body: BudgetCreate, current_user: RBACUser = Depends(require_module_access("finance")), db: Session = Depends(get_db)):
     budget = Budget(
-        budgetName=f"{body.category} Budget",
+        budgetName=body.budgetName,
         category=body.category,
-        costCenter=body.departmentId,
-        period=str(body.fiscalYear),
+        costCenter="Default",  # Fallback if not provided
+        period=body.period,
         amount=body.amount,
-        year=body.fiscalYear
+        spent=body.spent,
+        year=body.year,
+        month=body.month
     )
     db.add(budget)
     db.commit()
@@ -295,12 +303,19 @@ async def get_expenses(current_user: RBACUser = Depends(require_module_access("f
 
 @router.post("/expenses", status_code=status.HTTP_201_CREATED)
 async def create_expense(body: ExpenseCreate, current_user: RBACUser = Depends(require_module_access("finance")), db: Session = Depends(get_db)):
+    # Convert date string to datetime
+    try:
+        exp_date = datetime.strptime(body.date, "%Y-%m-%d") if body.date else datetime.utcnow()
+    except Exception:
+        exp_date = datetime.utcnow()
+
     expense = Expense(
         description=body.description,
         category=body.category,
         amount=body.amount,
-        date=body.date,
-        paidBy=current_user.username,
+        date=exp_date,
+        paidBy=body.paidBy,
+        receiptStatus=body.receiptStatus,
         status="PENDING"
     )
     db.add(expense)
