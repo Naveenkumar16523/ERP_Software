@@ -135,6 +135,21 @@ async def deactivate_user(http_req: Request, user_id: str, current_user: ERPUser
     await log_audit_event("USER_UPDATE", "User", f"Deactivated user {user_id}", current_user.id, http_req)
     
     return {"message": "User deactivated"}
+@router.post("/users/{user_id}/reset-password")
+async def reset_password(http_req: Request, user_id: str, current_user: ERPUser = Depends(require_ceo), db: Session = Depends(get_db)):
+    """Reset a user's password (CEO only)"""
+    user = db.query(ERPUser).filter(ERPUser.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+        
+    import secrets
+    new_password = secrets.token_urlsafe(8)
+    user.passwordHash = get_password_hash(new_password)
+    db.commit()
+    
+    await log_audit_event("USER_UPDATE", "User", f"Reset password for user {user.username}", current_user.id, http_req)
+    
+    return {"message": "Password reset successfully", "new_password": new_password}
 
 @router.get("/dashboard")
 async def get_admin_dashboard(current_user: ERPUser = Depends(require_ceo), db: Session = Depends(get_db)):
