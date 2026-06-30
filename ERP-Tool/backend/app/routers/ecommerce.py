@@ -267,7 +267,6 @@ async def checkout_orders_route(body: OrderPlace, req: Request, db: Session = De
 
 @router.get("/orders")
 async def get_orders(current_user: AuthenticatedUser = Depends(get_current_user), db: Session = Depends(get_db)):
-    raise HTTPException(status_code=500, detail={"error": "Internal Server Error", "message": "Simulated"})
     try:
         orders = db.query(CustomerOrder).order_by(CustomerOrder.createdAt.desc()).all()
         result = []
