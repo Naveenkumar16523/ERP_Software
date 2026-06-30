@@ -6,10 +6,13 @@ import { api } from '../utils/api';
 
 export default function CustomerPortalModule() {
   const addToast = useERPStore(s => s.addToast);
-  const payments = useERPStore(s => s.payments || []);
+  const payments = useERPStore(s => s.payments) || [];
   const addPayment = useERPStore(s => s.addPayment);
-  const { data: ecommerceProducts = [] } = useEcommerceProducts();
-  const { data: ecommerceOrders = [] } = useEcommerceOrders();
+  const { data: rawProducts = [] } = useEcommerceProducts();
+  const { data: rawOrders = [] } = useEcommerceOrders();
+  
+  const ecommerceProducts = Array.isArray(rawProducts) ? rawProducts : [];
+  const ecommerceOrders = Array.isArray(rawOrders) ? rawOrders : [];
   const createEcommerceOrder = useCreateEcommerceOrder();
   const updateEcommerceOrderStatus = useUpdateEcommerceOrderStatus();
 
