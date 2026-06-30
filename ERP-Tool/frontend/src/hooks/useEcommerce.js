@@ -25,4 +25,4 @@ export const useEcommerceOrders = (filters) =>
 export const useCreateEcommerceOrder = () =>
   useOptimisticMutation(['ecommerce', 'orders'], 'post', '/ecommerce/orders');
 export const useUpdateEcommerceOrderStatus = () =>
-  useOptimisticMutation(['ecommerce', 'orders'], 'patch', (p) => \/ecommerce/orders/\/status\);
+  useOptimisticMutation(['ecommerce', 'orders'], 'patch', (p) => `/ecommerce/orders/${p.id}/status`);
