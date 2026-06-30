@@ -24,6 +24,7 @@ import app.models.marketing_sql_models
 import app.models.security_sql_models
 import app.models.assets_sql_models
 import app.models.projects_sql_models
+import app.models.ecommerce_sql_models
 import app.models.automation_sql_models
 import app.models.support_sql_models
 from app.utils.redis_client import connect_redis, cache_get
