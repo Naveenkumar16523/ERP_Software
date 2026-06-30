@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Mail, Lock, User, Key, Shield, Sparkles, ArrowRight, Eye, EyeOff } from 'lucide-react';
-import clarixLogo from '../../assets/clarix_logo.png';
+
 import { useERPStore } from '../../store/useERPStore';
 import { api } from '../../utils/api';
 
@@ -131,7 +131,7 @@ export default function SignIn() {
         {/* Brand Header */}
         <header className="flex flex-col items-center text-center">
           <div className="w-16 h-16 flex items-center justify-center mb-3">
-            <img src={clarixLogo} alt="Logo" className="w-full h-full object-contain drop-shadow-[0_0_15px_rgba(34,211,238,0.2)]" />
+            <img src="/favicon.svg" alt="Logo" className="w-full h-full object-contain drop-shadow-[0_0_15px_rgba(34,211,238,0.2)]" />
           </div>
           <h1 className="text-3xl font-extrabold text-white tracking-tight font-heading">
             CLARIX
