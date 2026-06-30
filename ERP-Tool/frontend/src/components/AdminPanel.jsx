@@ -279,7 +279,7 @@ export default function AdminPanel() {
           onClick={() => setActiveTab('dashboard')}
           className={`px-4 py-2 rounded-lg font-medium transition-colors ${
             activeTab === 'dashboard'
-              ? 'bg-indigo-600 text-white'
+              ? 'bg-primary text-white'
               : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
           }`}
         >
@@ -290,7 +290,7 @@ export default function AdminPanel() {
           onClick={() => setActiveTab('users')}
           className={`px-4 py-2 rounded-lg font-medium transition-colors ${
             activeTab === 'users'
-              ? 'bg-indigo-600 text-white'
+              ? 'bg-primary text-white'
               : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
           }`}
         >
@@ -301,7 +301,7 @@ export default function AdminPanel() {
           onClick={() => setActiveTab('permissions')}
           className={`px-4 py-2 rounded-lg font-medium transition-colors ${
             activeTab === 'permissions'
-              ? 'bg-indigo-600 text-white'
+              ? 'bg-primary text-white'
               : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
           }`}
         >
@@ -316,7 +316,7 @@ export default function AdminPanel() {
           <div className="theme-card p-6">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-main">Total Employees</h3>
-              <Users className="w-8 h-8 text-indigo-400" />
+              <Users className="w-8 h-8 text-primary" />
             </div>
             <p className="text-4xl font-bold text-main">{stats.total_employees}</p>
             <div className="mt-4 flex gap-4 text-sm">
@@ -357,7 +357,7 @@ export default function AdminPanel() {
             <h2 className="text-xl font-semibold text-main">User Management</h2>
             <button
               onClick={() => setShowCreateModal(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+              className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors"
             >
               <Plus className="w-4 h-4" />
               Create User
@@ -508,7 +508,7 @@ export default function AdminPanel() {
                   required
                   value={newUser.full_name}
                   onChange={(e) => setNewUser({ ...newUser, full_name: e.target.value })}
-                  className="w-full px-4 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-white/10 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500"
+                  className="w-full px-4 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-white/10 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:border-primary"
                 />
               </div>
               <div>
@@ -518,7 +518,7 @@ export default function AdminPanel() {
                   required
                   value={newUser.email}
                   onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
-                  className="w-full px-4 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-white/10 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500"
+                  className="w-full px-4 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-white/10 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:border-primary"
                 />
               </div>
               <div>
@@ -527,7 +527,7 @@ export default function AdminPanel() {
                   required
                   value={newUser.department_id}
                   onChange={(e) => setNewUser({ ...newUser, department_id: e.target.value })}
-                  className="w-full px-4 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-white/10 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500"
+                  className="w-full px-4 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-white/10 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:border-primary"
                 >
                   <option value="">Select Department</option>
                   {departments.map((dept) => (
@@ -541,7 +541,7 @@ export default function AdminPanel() {
                   required
                   value={newUser.role_id}
                   onChange={(e) => setNewUser({ ...newUser, role_id: e.target.value })}
-                  className="w-full px-4 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-white/10 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500"
+                  className="w-full px-4 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-white/10 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:border-primary"
                 >
                   <option value="">Select Role</option>
                   {roles.map((role) => (
@@ -552,7 +552,7 @@ export default function AdminPanel() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50"
+                className="w-full px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors disabled:opacity-50"
               >
                 {loading ? 'Creating...' : 'Create User'}
               </button>

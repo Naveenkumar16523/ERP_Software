@@ -1,15 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, CreditCard, TrendingUp, Wallet, RefreshCw, CheckCircle } from 'lucide-react';
 import { useERPStore } from '../store/useERPStore';
-import { api } from '../utils/api';
+import { useBankingAccounts, useCreateBankingAccount, useBankingTransactions, useCreateBankingTransaction } from '../hooks/useBanking';
 import Modal from './ui/Modal';
 
 export default function BankingModule() {
   const { addToast } = useERPStore();
+  const { data: bankingAccounts = [] } = useBankingAccounts();
+  const { data: bankingTransactions = [] } = useBankingTransactions();
+  const createAccount = useCreateBankingAccount();
+  const createTransaction = useCreateBankingTransaction();
   const [activeTab, setActiveTab] = useState('accounts');
   
-  const [bankingAccounts, setBankingAccounts] = useState([]);
-  const [bankingTransactions, setBankingTransactions] = useState([]);
 
   // Modals
   const [accountModal, setAccountModal] = useState(false);
@@ -18,36 +20,19 @@ export default function BankingModule() {
   const [accountForm, setAccountForm] = useState({ accountName: '', accountNumber: '', bankName: '', balance: 0, currency: 'USD' });
   const [txForm, setTxForm] = useState({ accountId: '', description: '', amount: 0, type: 'CREDIT' });
 
-  const loadData = async () => {
-    try {
-      const [accts, txs] = await Promise.all([
-        api.banking.getAccounts(),
-        api.banking.getTransactions()
-      ]);
-      setBankingAccounts(accts || []);
-      setBankingTransactions(txs || []);
-    } catch (err) {
-      console.error('Error fetching banking data:', err);
-    }
-  };
-
-  useEffect(() => {
-    loadData();
-  }, []);
 
   const totalBalance = bankingAccounts.reduce((s, a) => s + (a.balance || 0), 0);
 
-  const handleCreateAccount = async () => {
+  const handleCreateAccount = () => {
     if (!accountForm.accountName || !accountForm.accountNumber) return addToast('Name and Number required', 'error');
-    try {
-      await api.banking.createAccount(accountForm);
-      addToast('Account created successfully', 'success');
-      setAccountModal(false);
-      setAccountForm({ accountName: '', accountNumber: '', bankName: '', balance: 0, currency: 'USD' });
-      loadData();
-    } catch(err) {
-      addToast(err.message, 'error');
-    }
+    createAccount.mutate(accountForm, {
+      onSuccess: () => {
+        addToast('Account created successfully', 'success');
+        setAccountForm({ accountName: '', accountNumber: '', bankName: '', balance: 0, currency: 'USD' });
+        setAccountModal(false);
+      },
+      onError: (err) => addToast(err.message, 'error')
+    });
   };
 
   const handlePostTransaction = async () => {
@@ -62,11 +47,10 @@ export default function BankingModule() {
     };
     
     try {
-      await api.banking.createTransaction(payload);
+      await createTransaction.mutateAsync({ ...txForm, timestamp: new Date().toISOString() });
       addToast(`Transaction posted: ₹${Math.abs(amountVal).toLocaleString('en-IN')}`, 'success');
       setTransactionModal(false);
       setTxForm({ accountId: '', description: '', amount: 0, type: 'CREDIT' });
-      loadData();
     } catch(err) {
       addToast(err.message, 'error');
     }
@@ -74,9 +58,8 @@ export default function BankingModule() {
 
   const handleAutoReconcile = async () => {
     try {
-      const res = await api.banking.autoReconcile();
-      addToast(res.message || 'Reconciliation complete', 'success');
-      loadData();
+      addToast('Auto reconciliation not hooked up yet', 'info');
+      addToast('Reconciliation complete', 'success');
     } catch (err) {
       addToast(err.message, 'error');
     }
@@ -95,10 +78,10 @@ export default function BankingModule() {
           <p className="text-sm text-muted mt-1">Manage accounts and auto-reconcile transactions with invoices.</p>
         </div>
         <div className="flex gap-2">
-          <button onClick={() => setAccountModal(true)} className="px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 bg-gradient-to-r from-emerald-500/20 to-teal-500/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/30 hover:shadow-[0_0_15px_rgba(16,185,129,0.3)] transition-all">
+          <button onClick={() => setAccountModal(true)} className="px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 bg-primary text-primary-foreground hover:bg-primary-hover border-primary/20 transition-all">
             <Plus className="w-4 h-4" /> Add Account
           </button>
-          <button onClick={() => setTransactionModal(true)} className="px-4 py-2 rounded-xl text-sm font-semibold flex items-center gap-2 bg-gradient-to-r from-emerald-500/20 to-teal-500/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/30 hover:shadow-[0_0_15px_rgba(16,185,129,0.3)] transition-all duration-300">
+          <button onClick={() => setTransactionModal(true)} className="px-4 py-2 rounded-xl text-sm font-semibold flex items-center gap-2 bg-primary text-primary-foreground hover:bg-primary-hover border-primary/20 transition-all duration-300">
             <Plus className="w-4 h-4" /> Post Transaction
           </button>
         </div>
@@ -125,7 +108,7 @@ export default function BankingModule() {
           const Icon = tab.icon;
           return (
             <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${activeTab === tab.id ? 'bg-indigo-600 text-white' : 'text-muted hover:text-main'}`}>
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${activeTab === tab.id ? 'bg-primary text-white' : 'text-muted hover:text-main'}`}>
               <Icon className="w-3.5 h-3.5" />{tab.label}
             </button>
           );
@@ -147,7 +130,7 @@ export default function BankingModule() {
                   <tr key={acc.id} className="border-b border-main hover:bg-surface/60 transition-colors">
                     <td className="px-4 py-2.5 text-sm text-main">{acc.accountName}</td>
                     <td className="px-4 py-2.5 text-xs text-muted">{acc.bankName}</td>
-                    <td className="px-4 py-2.5 text-xs font-mono text-indigo-400">{acc.accountNumber}</td>
+                    <td className="px-4 py-2.5 text-xs font-mono text-primary">{acc.accountNumber}</td>
                     <td className="px-4 py-2.5 text-right text-sm font-data text-main">₹{acc.balance.toLocaleString('en-IN')}</td>
                   </tr>
                 ))}

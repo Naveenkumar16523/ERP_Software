@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Sparkles, Send, Bot, User, Loader2, Zap } from 'lucide-react';
+import { Sparkles, Send, Bot, User, Loader2, Zap, Download } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
 import { useERPStore } from '../store/useERPStore';
 
 const QUICK_PROMPTS = [
@@ -11,7 +12,13 @@ const QUICK_PROMPTS = [
 ];
 
 export default function AIModule() {
-  const { aiMessages, addAIMessage, accounts, employees, products, leads, leaveRequests, shipments } = useERPStore();
+  const { addToast, aiMessages, addAIMessage } = useERPStore();
+  const { data: accounts = [] } = useQuery({ queryKey: ['crm', 'accounts'], queryFn: async () => [] });
+  const { data: employees = [] } = useQuery({ queryKey: ['employees'], queryFn: async () => [] });
+  const { data: products = [] } = useQuery({ queryKey: ['inventory', 'products'], queryFn: async () => [] });
+  const { data: leads = [] } = useQuery({ queryKey: ['crm', 'leads'], queryFn: async () => [] });
+  const { data: leaveRequests = [] } = useQuery({ queryKey: ['leaves'], queryFn: async () => [] });
+  const { data: shipments = [] } = useQuery({ queryKey: ['ecommerce', 'orders'], queryFn: async () => [] });
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const messagesEndRef = useRef(null);
@@ -60,6 +67,19 @@ export default function AIModule() {
     }, 900);
   };
 
+  const handleExportChat = () => {
+    if (aiMessages.length === 0) return addToast('No chat history to export', 'error');
+    const text = aiMessages.map(m => `${m.role.toUpperCase()}: ${m.content}`).join('\n\n');
+    const blob = new Blob([text], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `chat_export_${new Date().getTime()}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+    addToast('Chat exported successfully', 'success');
+  };
+
   return (
     <div className="p-6 h-full flex flex-col space-y-4 animate-fade-up">
       <div className="flex items-center gap-2">
@@ -70,8 +90,13 @@ export default function AIModule() {
           <h1 className="text-2xl font-bold text-main">AI Companion</h1>
           <p className="text-xs text-dimmed">Powered by CLARIX Intelligence</p>
         </div>
-        <div className="ml-auto flex items-center gap-1.5 text-xs text-emerald-400 bg-emerald-500/10 px-3 py-1 rounded-full border border-emerald-500/20 font-medium">
-          <Zap className="w-3 h-3 animate-pulse" /> Online
+        <div className="ml-auto flex items-center gap-3">
+          <button onClick={handleExportChat} className="flex items-center gap-1.5 text-xs text-muted hover:text-main bg-surface border border-main px-3 py-1 rounded-full transition-colors">
+            <Download className="w-3 h-3" /> Export Chat
+          </button>
+          <div className="flex items-center gap-1.5 text-xs text-emerald-400 bg-emerald-500/10 px-3 py-1 rounded-full border border-emerald-500/20 font-medium">
+            <Zap className="w-3 h-3 animate-pulse" /> Online
+          </div>
         </div>
       </div>
 
@@ -97,10 +122,10 @@ export default function AIModule() {
         )}
         {aiMessages.map((m, i) => (
           <div key={i} className={`flex items-start gap-3 ${m.role === 'user' ? 'flex-row-reverse' : ''}`}>
-            <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 shadow-sm ${m.role === 'user' ? 'bg-indigo-600 text-white' : 'bg-gradient-to-br from-cyan-500 to-violet-600 text-white'}`}>
+            <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 shadow-sm ${m.role === 'user' ? 'bg-primary text-white' : 'bg-gradient-to-br from-cyan-500 to-violet-600 text-white'}`}>
               {m.role === 'user' ? <User className="w-3.5 h-3.5" /> : <Sparkles className="w-3.5 h-3.5" />}
             </div>
-            <div className={`max-w-[80%] px-4 py-3 rounded-xl text-sm leading-relaxed ${m.role === 'user' ? 'bg-indigo-600 text-white rounded-tr-none' : 'theme-card border border-main text-muted rounded-tl-none shadow-sm bg-surface/30'}`}>
+            <div className={`max-w-[80%] px-4 py-3 rounded-xl text-sm leading-relaxed ${m.role === 'user' ? 'bg-primary text-white rounded-tr-none' : 'theme-card border border-main text-muted rounded-tl-none shadow-sm bg-surface/30'}`}>
               {m.content.split('\n').map((line, li) => (
                 <p key={li} className={line.startsWith('**') ? 'font-semibold text-main' : 'text-muted'} dangerouslySetInnerHTML={{ __html: line.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') }} />
               ))}

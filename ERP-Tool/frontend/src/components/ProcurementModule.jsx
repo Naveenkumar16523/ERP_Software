@@ -3,48 +3,23 @@ import { Plus, FileText, Users, Award, FileCheck, Check, Package, Info } from 'l
 import { useERPStore } from '../store/useERPStore';
 import Modal from './ui/Modal';
 import api from '../utils/api';
+import { useSuppliers, usePurchaseOrders, useCreatePurchaseOrder, useApprovePurchaseOrder, useReceivePOItem } from '../hooks/useProcurement';
+import { useBudgets } from '../hooks/useFinance';
 
 export default function ProcurementModule() {
-  const {
-    suppliers, addSupplier,
-    purchaseOrders, addPurchaseOrder, approvePurchaseOrder,
-    rfqs, addRFQ,
-    rfqResponses, addRFQResponse,
-    vendorEvaluations, addVendorEvaluation,
-    contracts, addContract,
-    addToast,
-    setPurchaseOrders,
-    setSuppliers
-  } = useERPStore();
+  const addToast = useERPStore(s => s.addToast);
+  const { data: suppliers = [] } = useSuppliers();
+  const { data: purchaseOrders = [] } = usePurchaseOrders();
+  const { data: budgets = [] } = useBudgets();
+  const createPurchaseOrderMutation = useCreatePurchaseOrder();
+  const approvePurchaseOrderMutation = useApprovePurchaseOrder();
+  const receivePOItemMutation = useReceivePOItem();
 
   const [activeTab, setActiveTab] = useState('pos');
   const [modal, setModal] = useState(false);
   const [receiveModal, setReceiveModal] = useState(null); // stores the PO being received
   const [receiveForm, setReceiveForm] = useState({});
-  const [budgets, setBudgets] = useState([]);
   const [form, setForm] = useState({ supplierId: '', department: 'IT', budgetId: '', items: [{ itemName: '', quantity: 1, unitPrice: 0 }] });
-
-  useEffect(() => {
-    let active = true;
-    async function loadProcurementData() {
-      try {
-        const [posData, suppliersData, budgetsData] = await Promise.all([
-          api.procurement.getPurchaseOrders(),
-          api.procurement.getSuppliers(),
-          api.finance.getBudgets()
-        ]);
-        if (active) {
-          setPurchaseOrders(posData || []);
-          setSuppliers(suppliersData || []);
-          setBudgets(budgetsData || []);
-        }
-      } catch (err) {
-        console.error("Failed to load procurement data", err);
-      }
-    }
-    loadProcurementData();
-    return () => { active = false; };
-  }, [setPurchaseOrders, setSuppliers]);
 
   const handleAddItem = () => {
     setForm({...form, items: [...form.items, { itemName: '', quantity: 1, unitPrice: 0 }]});
@@ -61,12 +36,9 @@ export default function ProcurementModule() {
     if (form.items.some(i => !i.itemName || i.quantity < 1 || i.unitPrice < 0)) return addToast('Invalid items', 'error');
     
     try {
-      const created = await api.procurement.createPurchaseOrder(form);
+      await createPurchaseOrderMutation.mutateAsync(form);
       addToast('Purchase order created', 'success');
       setModal(false);
-      // Reload POs
-      const pos = await api.procurement.getPurchaseOrders();
-      setPurchaseOrders(pos || []);
     } catch (err) {
       addToast(err.message || 'Failed to create purchase order', 'error');
     }
@@ -74,10 +46,8 @@ export default function ProcurementModule() {
 
   const handleApprove = async (id) => {
     try {
-      await api.procurement.approvePurchaseOrder(id);
+      await approvePurchaseOrderMutation.mutateAsync({ id });
       addToast('PO approved', 'success');
-      const pos = await api.procurement.getPurchaseOrders();
-      setPurchaseOrders(pos || []);
     } catch (err) {
       addToast(err.message || 'Failed to approve purchase order', 'error');
     }
@@ -89,13 +59,11 @@ export default function ProcurementModule() {
       for (const item of receiveModal.items) {
         const qtyToReceive = receiveForm[item.id] || 0;
         if (qtyToReceive > 0) {
-          await api.procurement.receivePOItem(item.id, qtyToReceive);
+          await receivePOItemMutation.mutateAsync({ id: item.id, quantity: qtyToReceive });
         }
       }
       addToast('Items received', 'success');
       setReceiveModal(null);
-      const pos = await api.procurement.getPurchaseOrders();
-      setPurchaseOrders(pos || []);
     } catch(err) {
       addToast(err.message || 'Failed to receive items', 'error');
     }
@@ -126,7 +94,7 @@ export default function ProcurementModule() {
           <h1 className="text-2xl font-bold text-main">Procurement</h1>
           <p className="text-sm text-muted mt-1">Purchase orders, budget deductions & receiving</p>
         </div>
-        <button onClick={() => setModal(true)} className="px-4 py-2 rounded-xl text-sm font-semibold flex items-center gap-2 bg-gradient-to-r from-emerald-500/20 to-teal-500/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/30 hover:shadow-[0_0_15px_rgba(16,185,129,0.3)] transition-all duration-300">
+        <button onClick={() => setModal(true)} className="px-4 py-2 rounded-xl text-sm font-semibold flex items-center gap-2 bg-primary text-primary-foreground hover:bg-primary-hover border-primary/20 transition-all duration-300">
           <Plus className="w-4 h-4" /> New PO
         </button>
       </div>
@@ -151,7 +119,7 @@ export default function ProcurementModule() {
           const Icon = tab.icon;
           return (
             <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${activeTab === tab.id ? 'bg-indigo-600 text-white' : 'text-muted hover:text-main'}`}>
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${activeTab === tab.id ? 'bg-primary text-white' : 'text-muted hover:text-main'}`}>
               <Icon className="w-3.5 h-3.5" />{tab.label}
             </button>
           );
@@ -176,7 +144,7 @@ export default function ProcurementModule() {
               <tbody>
                 {purchaseOrders.map(po => (
                   <tr key={po.id} className="border-b border-main hover:bg-surface/60 transition-colors">
-                    <td className="px-4 py-2.5 text-xs font-mono text-indigo-400">{po.poNumber || po.poNo}</td>
+                    <td className="px-4 py-2.5 text-xs font-mono text-primary">{po.poNumber || po.poNo}</td>
                     <td className="px-4 py-2.5 text-sm text-main">{po.supplierName}</td>
                     <td className="px-4 py-2.5 text-xs text-muted">{po.department || 'N/A'}</td>
                     <td className="px-4 py-2.5 text-right text-sm font-data text-main">₹{(po.totalAmount||0).toLocaleString('en-IN')}</td>
@@ -187,7 +155,7 @@ export default function ProcurementModule() {
                       <span className={`text-xs px-2 py-0.5 rounded-full ${
                         po.status === 'Received' ? 'bg-emerald-500/10 text-emerald-400' :
                         po.status === 'Approved' ? 'bg-sky-500/10 text-sky-400' :
-                        po.status === 'Partially Received' ? 'bg-indigo-500/10 text-indigo-400' :
+                        po.status === 'Partially Received' ? 'bg-primary/10 text-primary' :
                         'bg-amber-500/10 text-amber-400'
                       }`}>{po.status}</span>
                     </td>
@@ -198,7 +166,7 @@ export default function ProcurementModule() {
                         </button>
                       )}
                       {(po.status === 'Approved' || po.status === 'Partially Received') && (
-                        <button onClick={() => openReceiveModal(po)} className="text-xs text-indigo-400 flex items-center gap-1 hover:underline">
+                        <button onClick={() => openReceiveModal(po)} className="text-xs text-primary flex items-center gap-1 hover:underline">
                           <Package className="w-3 h-3" /> Receive
                         </button>
                       )}
@@ -275,7 +243,7 @@ export default function ProcurementModule() {
           <div>
             <label className="form-label mb-2 flex justify-between items-center">
               <span>Items</span>
-              <button onClick={handleAddItem} className="text-xs text-indigo-400 hover:underline flex items-center gap-1">
+              <button onClick={handleAddItem} className="text-xs text-primary hover:underline flex items-center gap-1">
                 <Plus className="w-3 h-3"/> Add Item
               </button>
             </label>
@@ -292,7 +260,7 @@ export default function ProcurementModule() {
 
           <div className="flex gap-2 justify-end pt-2">
             <button onClick={() => setModal(false)} className="px-4 py-2 rounded-lg text-sm font-medium bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 hover:shadow-[0_0_15px_rgba(239,68,68,0.2)] transition-all">Cancel</button>
-            <button onClick={handleAdd} className="btn-primary text-sm bg-indigo-600">Create PO</button>
+            <button onClick={handleAdd} className="btn-primary text-sm bg-primary">Create PO</button>
           </div>
         </div>
       </Modal>

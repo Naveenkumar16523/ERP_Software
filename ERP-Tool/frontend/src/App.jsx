@@ -96,7 +96,12 @@ const ModuleFallback = () => (
 );
 
 export default function App() {
-  const { activeModule, theme, currentUser, token, demoMode, userPermissions, allowedModules, setActiveModule } = useERPStore();
+  const activeModule = useERPStore(s => s.activeModule);
+  const theme = useERPStore(s => s.theme);
+  const currentUser = useERPStore(s => s.currentUser);
+  const token = useERPStore(s => s.token);
+  const demoMode = useERPStore(s => s.demoMode);
+  const userPermissions = useERPStore(s => s.userPermissions);
   const ActiveComponent = MODULE_MAP[activeModule] || Dashboard;
 
   useEffect(() => {
@@ -130,15 +135,15 @@ export default function App() {
     // Admin module is CEO-only
     if (activeModule === 'admin') return false;
     
-    // If no allowed_modules, deny access
-    if (!allowedModules || allowedModules.length === 0) return false;
+    // If no userPermissions, deny access
+    if (!userPermissions || userPermissions.length === 0) return false;
     
-    // If allowed_modules contains "all", allow access
-    if (allowedModules.includes('all')) return true;
+    // If userPermissions contains "all", allow access
+    if (userPermissions.includes('all')) return true;
     
-    // Check if module is in allowed_modules array
+    // Check if module is in userPermissions array
     const moduleKey = MODULE_KEY_MAP[activeModule];
-    return allowedModules.includes(moduleKey);
+    return userPermissions.includes(moduleKey);
   };
 
   // Redirect CEO to admin panel if they try to access dashboard (Disabled to allow CEO to view standard dashboard)

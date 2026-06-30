@@ -14,14 +14,16 @@ export default {
         background: "hsl(var(--bg-primary))",
         foreground: "hsl(var(--text-primary))",
         primary: {
-          DEFAULT: "#c3c0ff",
-          foreground: "#ffffff",
-          hover: "#4f46e5",
-          light: "#4f46e5",
+          DEFAULT: "hsl(var(--primary))",
+          foreground: "hsl(var(--inverse-primary))",
+          hover: "hsl(var(--primary-hover))",
+          light: "hsl(var(--primary-light))",
         },
         secondary: {
-          DEFAULT: "#4cd7f6",
-          foreground: "#dae2fd",
+          DEFAULT: "hsl(var(--secondary))",
+          foreground: "hsl(var(--inverse-primary))",
+          hover: "hsl(var(--secondary-hover))",
+          light: "hsl(var(--secondary-light))",
         },
         destructive: {
           DEFAULT: "#ffb4ab",

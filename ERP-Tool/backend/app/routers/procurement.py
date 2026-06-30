@@ -1,3 +1,4 @@
+import uuid
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List, Optional
@@ -164,3 +165,15 @@ async def receive_po_item(
         
     db.commit()
     return {"message": "Item received updated", "poStatus": po.status}
+
+
+@router.get("/suppliers")
+async def get_suppliers():
+    return [
+        { "id": "SUP-001", "name": "Global Steel Co", "contact": "John Doe", "email": "john@globalsteel.com", "status": "ACTIVE", "rating": 4.8 },
+        { "id": "SUP-002", "name": "TechParts Inc", "contact": "Jane Smith", "email": "jane@techparts.com", "status": "ACTIVE", "rating": 4.5 }
+    ]
+
+@router.post("/suppliers", status_code=status.HTTP_201_CREATED)
+async def create_supplier(body: dict):
+    return { "id": f"SUP-00{uuid.uuid4().hex[:2]}", **body, "status": "ACTIVE" }

@@ -1,42 +1,39 @@
 import React, { useState, useEffect } from 'react';
 import { MessageSquare, Plus, Check, X, Clock, AlertCircle } from 'lucide-react';
 import { useERPStore } from '../store/useERPStore';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { apiClient } from '../api/client';
+import { useSupportTickets, useCreateSupportTicket } from '../hooks/useSupport';
 import Modal from './ui/Modal';
 import api from '../utils/api';
 
 export default function SupportModule() {
-  const { supportTickets, addSupportTicket, updateTicketStatus, addToast, currentUser, setSupportTickets } = useERPStore();
+  const { addToast, currentUser } = useERPStore();
+  const { data: supportTickets = [] } = useSupportTickets();
+  const createTicket = useCreateSupportTicket();
+  const qc = useQueryClient();
+  const updateTicketMutation = useMutation({
+    mutationFn: ({ id, status }) => apiClient.patch(`/support/tickets/${id}/status`, { status }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['support', 'supportTickets'] })
+  });
   const [modal, setModal] = useState(false);
   const [form, setForm] = useState({ title: '', description: '', priority: 'MEDIUM', category: 'Technical' });
   const [filter, setFilter] = useState('ALL');
 
-  useEffect(() => {
-    let active = true;
-    async function loadTickets() {
-      try {
-        const tickets = await api.support.getTickets();
-        if (active) setSupportTickets(tickets);
-      } catch (err) {
-        console.error("Failed to load tickets", err);
-      }
-    }
-    loadTickets();
-    return () => { active = false; };
-  }, [setSupportTickets]);
 
   const handleAdd = async () => {
     if (!form.title) return addToast('Title required', 'error');
     try {
       const ticketPayload = {
         title: form.title,
+        description: form.description,
+        category: form.category,
         customer: currentUser?.fullName || "Self",
         priority: form.priority,
         assignedTo: currentUser?.fullName || null
       };
-      const created = await api.support.createTicket(ticketPayload);
-      if (created && created.id) {
-        addSupportTicket(created);
-      }
+      
+      await createTicket.mutateAsync(ticketPayload);
       addToast('Support ticket created', 'success');
       setForm({ title: '', description: '', priority: 'MEDIUM', category: 'Technical' });
       setModal(false);
@@ -47,8 +44,7 @@ export default function SupportModule() {
 
   const handleUpdateStatus = async (id, status) => {
     try {
-      await api.support.updateTicketStatus(id, status);
-      updateTicketStatus(id, status);
+      await updateTicketMutation.mutateAsync({ id, status });
       addToast(`Ticket status updated to ${status}`, 'success');
     } catch (err) {
       addToast(err.message || 'Failed to update ticket status', 'error');
@@ -71,7 +67,7 @@ export default function SupportModule() {
           <h1 className="text-2xl font-bold text-main">Support Center</h1>
           <p className="text-sm text-muted mt-1">IT helpdesk and support ticket management</p>
         </div>
-        <button onClick={() => setModal(true)} className="px-4 py-2 rounded-xl text-sm font-semibold flex items-center gap-2 bg-gradient-to-r from-emerald-500/20 to-teal-500/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/30 hover:shadow-[0_0_15px_rgba(16,185,129,0.3)] transition-all duration-300"><Plus className="w-4 h-4" /> New Ticket</button>
+        <button onClick={() => setModal(true)} className="px-4 py-2 rounded-xl text-sm font-semibold flex items-center gap-2 bg-primary text-primary-foreground hover:bg-primary-hover border-primary/20 transition-all duration-300"><Plus className="w-4 h-4" /> New Ticket</button>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -91,7 +87,7 @@ export default function SupportModule() {
       <div className="flex gap-1 bg-surface p-1 rounded-xl w-fit flex-wrap">
         {STATUSES.map(s => (
           <button key={s} onClick={() => setFilter(s)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${filter === s ? 'bg-indigo-600 text-white shadow-sm' : 'text-muted hover:text-main'}`}>
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${filter === s ? 'bg-primary text-white shadow-sm' : 'text-muted hover:text-main'}`}>
             {s}
           </button>
         ))}
@@ -108,7 +104,7 @@ export default function SupportModule() {
             <tbody>
               {filtered.map(t => (
                 <tr key={t.id} className="border-b border-main/50 hover:bg-surface/50 transition-colors">
-                  <td className="px-4 py-2.5 text-xs font-mono text-indigo-400">{t.ticketNo}</td>
+                  <td className="px-4 py-2.5 text-xs font-mono text-primary">{t.ticketNo}</td>
                   <td className="px-4 py-2.5">
                     <p className="text-sm text-main">{t.title}</p>
                     {t.description && <p className="text-xs text-dimmed mt-0.5 max-w-xs truncate">{t.description}</p>}

@@ -1,37 +1,25 @@
 import React, { useState, useEffect } from 'react';
 import { Plus } from 'lucide-react';
 import { useERPStore } from '../store/useERPStore';
-import { api } from '../utils/api';
+import { useAssets, useCreateAsset } from '../hooks/useAssets';
 import Modal from './ui/Modal';
 
 const CATEGORIES = ['Machinery', 'IT Equipment', 'Vehicles', 'Buildings', 'Furniture', 'Other'];
 
 export default function AssetModule() {
-  const { assets, setAssets, addAsset, addToast } = useERPStore();
+  const { addToast } = useERPStore();
+  const { data: assets = [] } = useAssets();
+  const createAsset = useCreateAsset();
   const [modal, setModal] = useState(false);
   const [form, setForm] = useState({
     name: '', category: '', purchaseCost: 0, depreciationRate: 10, location: '', assignedTo: ''
   });
 
   // Fetch assets from DB on mount
-  useEffect(() => {
-    let active = true;
-    const fetchAssets = async () => {
-      try {
-        const data = await api.assets.getAssets();
-        if (active && Array.isArray(data)) setAssets(data);
-      } catch (err) {
-        console.error('Error fetching assets:', err);
-      }
-    };
-    fetchAssets();
-    return () => { active = false; };
-  }, [setAssets]);
-
   const totalValue = assets.reduce((s, a) => s + (a.currentValue || 0), 0);
   const totalCost = assets.reduce((s, a) => s + (a.purchaseCost || 0), 0);
 
-  const handleAdd = async () => {
+  const handleAdd = () => {
     if (!form.name || !form.category) return addToast('Name and category required', 'error');
     const payload = {
       ...form,
@@ -39,16 +27,14 @@ export default function AssetModule() {
       currentValue: parseFloat(form.purchaseCost) || 0,
       depreciationRate: parseFloat(form.depreciationRate) || 10,
     };
-    try {
-      const saved = await api.assets.addAsset(payload);
-      addAsset(saved || payload);
-      addToast('Asset registered successfully', 'success');
-    } catch {
-      addAsset(payload);
-      addToast('Asset saved locally', 'info');
-    }
-    setForm({ name: '', category: '', purchaseCost: 0, depreciationRate: 10, location: '', assignedTo: '' });
-    setModal(false);
+    createAsset.mutate(payload, {
+      onSuccess: () => {
+        addToast('Asset registered successfully', 'success');
+        setModal(false);
+        setForm({ name: '', category: 'Hardware', purchaseCost: '', purchaseDate: '', depreciationRate: '' });
+      },
+      onError: (err) => addToast(err.message || 'Failed to create asset', 'error')
+    });
   };
 
   return (

@@ -3,6 +3,8 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 from app.utils.db import get_db
 from app.middlewares.rbac_middleware import get_current_rbac_user, RBACUser
+from app.utils.redis_client import cache_get, cache_set
+import json
 
 from app.models.hr_sql_models import Employee
 from app.models.finance_sql_models import FinanceAccount, Invoice
@@ -19,6 +21,14 @@ async def get_dashboard_metrics(
     import logging
     logger = logging.getLogger(__name__)
     
+    cache_key = "dashboard:metrics"
+    cached_data = cache_get(cache_key)
+    if cached_data:
+        try:
+            return json.loads(cached_data)
+        except Exception as e:
+            logger.warning(f"Failed to parse cached metrics: {e}")
+            
     try:
         # HR Metrics
         total_employees = db.query(Employee).count()
@@ -75,7 +85,7 @@ async def get_dashboard_metrics(
             for k, v in months_data.items():
                 revenue_history.append({"name": k, "current": v, "previous": v * 0.8}) # Approximate previous for comparison
         
-        return {
+        result = {
             "hr": {
                 "totalEmployees": total_employees,
                 "activeEmployees": active_employees
@@ -114,6 +124,8 @@ async def get_dashboard_metrics(
             "revenueHistory": revenue_history,
             "recentActivity": recent_activity
         }
+        cache_set(cache_key, json.dumps(result), expiry_seconds=60)
+        return result
     except Exception as e:
         logger.error(f"Dashboard metrics error: {e}")
         return {

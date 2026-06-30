@@ -39,13 +39,13 @@
   --border-light: 214 32% 91%;      /* #e2e8f0 */
   --border-medium: 215 16% 80%;     /* #cbd5e1 */
 
-  --primary: 244 76% 59%;           /* #4f46e5 (Indigo) */
-  --primary-hover: 244 76% 50%;     /* #4338ca */
-  --primary-light: 244 76% 95%;     /* #e0e7ff */
+  --primary: 207 44% 49%;           /* #4682B4 (Steel Blue) */
+  --primary-hover: 207 44% 42%;     
+  --primary-light: 207 44% 95%;     
   --inverse-primary: 0 0% 100%;
 
-  --secondary: 191 97% 42%;         /* #0284c7 (Sky) */
-  --secondary-hover: 191 91% 35%;   
+  --secondary: 120 61% 50%;         /* #32CD32 (Lime Green) */
+  --secondary-hover: 120 61% 43%;   
   
   --success: 154 100% 30%;          /* #059669 (Emerald) */
   --success-light: 154 100% 95%;    

@@ -1,17 +1,56 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Plus, Users, UserCheck, Calendar, Clock, Edit2, Check, X, FileText } from 'lucide-react';
+import { Plus, Users, UserCheck, Calendar, Clock, Edit2, Check, X, FileText, Network } from 'lucide-react';
 import { useEmployees, useAddEmployee, useUpdateEmployee, useLeaves, useAddLeave, useUpdateLeave } from '../hooks/useHR';
 import { useERPStore } from '../store/useERPStore';
 import Modal from './ui/Modal';
 
+const OrgChartNode = ({ employee, allEmployees }) => {
+  const reports = allEmployees.filter(e => e.managerId === employee.id);
+  
+  return (
+    <div className="flex flex-col items-center">
+      <div className="theme-card p-3 border-t-2 border-primary min-w-[150px] shadow text-center z-10 bg-surface">
+        <h4 className="text-sm font-bold text-main truncate">{employee.fullName || employee.firstName}</h4>
+        <p className="text-xs text-dimmed">{employee.designation || employee.jobTitle}</p>
+      </div>
+      
+      {reports.length > 0 && (
+        <div className="relative pt-6 mt-2 flex justify-center">
+          {/* Main vertical line from parent */}
+          <div className="absolute top-[-8px] left-1/2 w-px h-7 bg-primary/40 -translate-x-1/2"></div>
+          
+          {/* Horizontal connection line if multiple reports */}
+          {reports.length > 1 && (
+            <div className="absolute top-[20px] h-px bg-primary/40" 
+                 style={{ 
+                   left: 'calc(50% / ' + reports.length + ')', 
+                   right: 'calc(50% / ' + reports.length + ')' 
+                 }}>
+            </div>
+          )}
+          
+          <div className="flex gap-6">
+            {reports.map((report) => (
+              <div key={report.id} className="relative flex flex-col items-center pt-2">
+                 <div className="absolute top-0 left-1/2 w-px h-2 bg-primary/40 -translate-x-1/2"></div>
+                 <OrgChartNode employee={report} allEmployees={allEmployees} />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 export default function HRModule() {
   const {
-    jobPostings, addJobPosting,
-    applicants, addApplicant, updateApplicantStatus,
-    performanceReviews, addPerformanceReview, updateReviewStatus,
-    onboardingChecklists, addOnboardingChecklist, updateOnboardingTask,
-    attendanceLogs, addAttendanceLog,
+    jobPostings,
+    applicants,
+    performanceReviews,
+    onboardingChecklists, updateOnboardingTask,
+    attendanceLogs,
     dbLive,
     addToast
   } = useERPStore();
@@ -30,14 +69,14 @@ export default function HRModule() {
   const [empModalOpen, setEmpModalOpen] = useState(false);
   const [leaveModalOpen, setLeaveModalOpen] = useState(false);
   const [leaveApprovalModal, setLeaveApprovalModal] = useState(null);
-  const [newEmp, setNewEmp] = useState({ firstName: '', lastName: '', email: '', department: '', jobTitle: '', baseSalary: 0 });
+  const [newEmp, setNewEmp] = useState({ firstName: '', lastName: '', email: '', department: '', jobTitle: '', baseSalary: 0, managerId: '' });
   const [newLeave, setNewLeave] = useState({ employeeId: '', leaveType: 'CASUAL', startDate: '', endDate: '', reason: '' });
 
   const fetchDocs = async (empId) => {
     if (!empId) return;
     try {
       const { api } = await import('../utils/api');
-      const docs = await api.hr.getDocuments(empId);
+      
       setDocuments(docs || []);
     } catch (e) {}
   };
@@ -58,6 +97,7 @@ export default function HRModule() {
       departmentId: newEmp.department,
       jobTitle: newEmp.jobTitle || 'Staff',
       baseSalary: parseFloat(newEmp.baseSalary) || 50000,
+      managerId: newEmp.managerId || null
     };
 
     try {
@@ -136,6 +176,7 @@ export default function HRModule() {
 
   const TABS = [
     { id: 'employees', label: 'Employee Directory', icon: Users },
+    { id: 'orgchart', label: 'Org Chart', icon: Network },
     { id: 'leaves', label: 'Leave Management', icon: Calendar },
     { id: 'recruitment', label: 'Recruitment', icon: UserCheck },
     { id: 'performance', label: 'Performance', icon: Edit2 },
@@ -154,6 +195,14 @@ export default function HRModule() {
           <p className="text-sm text-muted mt-1">Employee management, leaves, and attendance</p>
         </div>
       </div>
+
+      {/* Preview Mode Banner for non-persistent tabs */}
+      {['recruitment', 'performance', 'onboarding', 'attendance'].includes(activeTab) && (
+        <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3 text-amber-400 text-sm flex items-center gap-2 mb-4">
+          <span className="font-bold uppercase tracking-wider bg-amber-500/20 px-2 py-1 rounded text-xs">Preview Mode</span>
+          <span>This module lacks backend persistence. Data shown is client-only mock data.</span>
+        </div>
+      )}
 
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -176,7 +225,7 @@ export default function HRModule() {
           const Icon = tab.icon;
           return (
             <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${activeTab === tab.id ? 'bg-indigo-600 text-white' : 'text-muted hover:text-main'}`}>
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${activeTab === tab.id ? 'bg-primary text-white' : 'text-muted hover:text-main'}`}>
               <Icon className="w-3.5 h-3.5" />{tab.label}
             </button>
           );
@@ -187,7 +236,7 @@ export default function HRModule() {
         <div className="theme-card overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3 border-b border-main">
             <h3 className="text-sm font-semibold text-main">Employee Directory ({employees.length})</h3>
-            <button onClick={() => setEmpModalOpen(true)} className="px-4 py-2 rounded-xl text-sm font-semibold flex items-center gap-2 bg-gradient-to-r from-emerald-500/20 to-teal-500/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/30 hover:shadow-[0_0_15px_rgba(16,185,129,0.3)] transition-all duration-300">
+            <button onClick={() => setEmpModalOpen(true)} className="px-4 py-2 rounded-xl text-sm font-semibold flex items-center gap-2 bg-primary text-primary-foreground hover:bg-primary-hover border-primary/20 transition-all duration-300">
               <Plus className="w-3.5 h-3.5" /> Add Employee
             </button>
           </div>
@@ -207,7 +256,7 @@ export default function HRModule() {
                   <tr key={emp.id} className="border-b border-main hover:bg-surface/60 transition-colors">
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 rounded-full bg-indigo-500/20 flex items-center justify-center text-indigo-400 text-xs font-bold">
+                        <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-primary text-xs font-bold">
                           {emp.firstName[0]}{emp.lastName[0]}
                         </div>
                         <div>
@@ -397,7 +446,7 @@ export default function HRModule() {
         <div className="theme-card overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3 border-b border-main">
             <h3 className="text-sm font-semibold text-main">Leave Requests ({leaveRequests.length})</h3>
-            <button onClick={() => setLeaveModalOpen(true)} className="px-4 py-2 rounded-xl text-sm font-semibold flex items-center gap-2 bg-gradient-to-r from-emerald-500/20 to-teal-500/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/30 hover:shadow-[0_0_15px_rgba(16,185,129,0.3)] transition-all duration-300">
+            <button onClick={() => setLeaveModalOpen(true)} className="px-4 py-2 rounded-xl text-sm font-semibold flex items-center gap-2 bg-primary text-primary-foreground hover:bg-primary-hover border-primary/20 transition-all duration-300">
               <Plus className="w-3.5 h-3.5" /> New Request
             </button>
           </div>
@@ -468,7 +517,7 @@ export default function HRModule() {
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 {documents.map(doc => (
                   <div key={doc.id} className="p-3 border border-main rounded-lg bg-surface/50">
-                    <FileText className="w-6 h-6 text-indigo-400 mb-2" />
+                    <FileText className="w-6 h-6 text-primary mb-2" />
                     <p className="text-xs font-semibold text-main truncate">{doc.documentName}</p>
                     <p className="text-[10px] text-muted">{new Date(doc.uploadedAt).toLocaleDateString()}</p>
                   </div>
@@ -476,6 +525,19 @@ export default function HRModule() {
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {activeTab === 'orgchart' && (
+        <div className="theme-card overflow-x-auto min-h-[500px] p-8 flex justify-center items-start bg-slate-900/50">
+          {employees.filter(e => !e.managerId).map(rootEmp => (
+            <div key={rootEmp.id} className="mx-8">
+              <OrgChartNode employee={rootEmp} allEmployees={employees} />
+            </div>
+          ))}
+          {employees.filter(e => !e.managerId).length === 0 && (
+            <p className="text-muted italic">No employees found or no root managers (employees without a manager) exist.</p>
+          )}
         </div>
       )}
 
@@ -495,7 +557,17 @@ export default function HRModule() {
           <div><label className="form-label">Email</label><input className="form-input" type="email" value={newEmp.email} onChange={e => setNewEmp({...newEmp, email: e.target.value})} /></div>
           <div><label className="form-label">Department</label><input className="form-input" value={newEmp.department} onChange={e => setNewEmp({...newEmp, department: e.target.value})} /></div>
           <div><label className="form-label">Job Title</label><input className="form-input" value={newEmp.jobTitle} onChange={e => setNewEmp({...newEmp, jobTitle: e.target.value})} /></div>
-          <div><label className="form-label">Base Salary (₹)</label><input type="number" className="form-input" value={newEmp.baseSalary} onChange={e => setNewEmp({...newEmp, baseSalary: e.target.value})} /></div>
+          
+          <div className="grid grid-cols-2 gap-3">
+            <div><label className="form-label">Base Salary (₹)</label><input type="number" className="form-input" value={newEmp.baseSalary} onChange={e => setNewEmp({...newEmp, baseSalary: e.target.value})} /></div>
+            <div>
+              <label className="form-label">Manager</label>
+              <select className="form-input" value={newEmp.managerId} onChange={e => setNewEmp({...newEmp, managerId: e.target.value})}>
+                <option value="">None (Top Level)</option>
+                {employees.map(e => <option key={e.id} value={e.id}>{e.firstName} {e.lastName}</option>)}
+              </select>
+            </div>
+          </div>
           <div className="flex gap-2 justify-end pt-2">
             <button onClick={() => setEmpModalOpen(false)} className="px-4 py-2 rounded-lg text-sm font-medium bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 hover:shadow-[0_0_15px_rgba(239,68,68,0.2)] transition-all">Cancel</button>
             <button onClick={handleAddEmployee} className="btn-primary text-sm">Add Employee</button>

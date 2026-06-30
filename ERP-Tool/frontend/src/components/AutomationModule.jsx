@@ -177,7 +177,7 @@ export default function AutomationModule() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-main flex items-center gap-2">
-            <Cpu className="w-6 h-6 text-indigo-400" /> RPA Automation Hub
+            <Cpu className="w-6 h-6 text-primary" /> RPA Automation Hub
           </h1>
           <p className="text-sm text-muted mt-1">Robotic process automation — bots that work while you sleep</p>
         </div>
@@ -186,6 +186,12 @@ export default function AutomationModule() {
             <Activity className="w-3 h-3" /> {Object.values(runningBots).filter(Boolean).length} running
           </span>
         </div>
+      </div>
+
+      {/* Preview Mode Banner for non-persistent modules */}
+      <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3 text-amber-400 text-sm flex items-center gap-2 mb-4">
+        <span className="font-bold uppercase tracking-wider bg-amber-500/20 px-2 py-1 rounded text-xs">Preview Mode</span>
+        <span>This module lacks backend persistence. Data shown is client-only mock data.</span>
       </div>
 
       {/* Stats */}
@@ -218,7 +224,7 @@ export default function AutomationModule() {
                 key={bot.id}
                 whileHover={{ scale: 1.01 }}
                 onClick={() => setSelectedBot(bot.id)}
-                className={`theme-card p-4 cursor-pointer transition-all ${isSelected ? 'ring-1 ring-indigo-500/50' : ''}`}
+                className={`theme-card p-4 cursor-pointer transition-all ${isSelected ? 'ring-1 ring-primary/50' : ''}`}
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-start gap-3 flex-1 min-w-0">
@@ -250,7 +256,7 @@ export default function AutomationModule() {
                     ) : (
                       <button
                         onClick={(e) => { e.stopPropagation(); runBot(bot.id); }}
-                        className="p-1.5 rounded-lg bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20 transition-colors"
+                        className="p-1.5 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
                       >
                         <Play className="w-3.5 h-3.5" />
                       </button>
@@ -263,12 +269,12 @@ export default function AutomationModule() {
                   <div className="mt-3">
                     <div className="h-0.5 bg-surface rounded-full overflow-hidden">
                       <motion.div
-                        className="h-full bg-gradient-to-r from-indigo-500 to-violet-500 rounded-full"
+                        className="h-full bg-gradient-to-r from-primary to-violet-500 rounded-full"
                         animate={{ width: ['0%', '100%'] }}
                         transition={{ duration: (BOT_SCRIPTS[bot.id]?.length || 10) * 0.5, ease: 'linear' }}
                       />
                     </div>
-                    <p className="text-xs text-indigo-400 mt-1 flex items-center gap-1">
+                    <p className="text-xs text-primary mt-1 flex items-center gap-1">
                       <Activity className="w-3 h-3 animate-pulse" /> Running...
                     </p>
                   </div>
@@ -322,7 +328,7 @@ export default function AutomationModule() {
               ) : (
                 <button
                   onClick={() => runBot(selectedBot)}
-                  className="px-2.5 py-1 text-xs rounded-lg bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20 transition-colors flex items-center gap-1"
+                  className="px-2.5 py-1 text-xs rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors flex items-center gap-1"
                 >
                   <Play className="w-3 h-3" /> Run
                 </button>
@@ -342,7 +348,7 @@ export default function AutomationModule() {
                 <p className="text-xs opacity-50">Select a bot and click Run to see output</p>
                 <button
                   onClick={() => runBot(selectedBot)}
-                  className="px-4 py-2 text-xs rounded-lg bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20 transition-colors flex items-center gap-2 border border-indigo-500/20"
+                  className="px-4 py-2 text-xs rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors flex items-center gap-2 border border-primary/20"
                 >
                   <Play className="w-3 h-3" /> Run {activeBot?.name}
                 </button>
@@ -357,7 +363,7 @@ export default function AutomationModule() {
                     transition={{ duration: 0.2 }}
                     className="flex items-start gap-2 mb-1"
                   >
-                    <span className="text-indigo-500 opacity-50 flex-shrink-0 select-none">$</span>
+                    <span className="text-primary opacity-50 flex-shrink-0 select-none">$</span>
                     <span className={
                       line.warn ? 'text-amber-400' :
                       line?.text?.includes('[COMPLETE]') ? 'text-emerald-400 font-semibold' :
@@ -376,7 +382,7 @@ export default function AutomationModule() {
                     transition={{ duration: 0.8, repeat: Infinity }}
                     className="flex items-center gap-2"
                   >
-                    <span className="text-indigo-500 opacity-50">$</span>
+                    <span className="text-primary opacity-50">$</span>
                     <span className="inline-block w-2 h-3.5 bg-green-400/80 rounded-sm" />
                   </motion.div>
                 )}
@@ -393,7 +399,7 @@ export default function AutomationModule() {
               </span>
               <button
                 onClick={() => runBot(selectedBot)}
-                className="flex items-center gap-1 text-indigo-400 hover:text-indigo-300 transition-colors"
+                className="flex items-center gap-1 text-primary hover:text-indigo-300 transition-colors"
               >
                 <RefreshCw className="w-3 h-3" /> Run again
               </button>
@@ -405,7 +411,7 @@ export default function AutomationModule() {
       {/* Automation Stats Chart */}
       <div className="theme-card p-5">
         <div className="flex items-center gap-2 mb-4">
-          <BarChart3 className="w-4 h-4 text-indigo-400" />
+          <BarChart3 className="w-4 h-4 text-primary" />
           <h3 className="text-sm font-semibold text-main">Bot Performance Overview</h3>
         </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -417,7 +423,7 @@ export default function AutomationModule() {
               </div>
               <div className="h-1.5 bg-surface rounded-full overflow-hidden">
                 <motion.div
-                  className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-emerald-500"
+                  className="h-full rounded-full bg-gradient-to-r from-primary to-emerald-500"
                   initial={{ width: 0 }}
                   animate={{ width: `${bot.successRate}%` }}
                   transition={{ duration: 1, delay: 0.2 }}

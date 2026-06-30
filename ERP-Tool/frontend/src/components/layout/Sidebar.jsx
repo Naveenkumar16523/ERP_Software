@@ -26,7 +26,7 @@ import {
   Lock
 } from 'lucide-react';
 import { useERPStore } from '../../store/useERPStore';
-import { RainbowButton } from '../ui/RainbowButton';
+
 
 const MODULES_CONFIG = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, color: 'text-indigo-400', moduleKey: 'dashboard' },
@@ -55,20 +55,16 @@ const MODULES_CONFIG = [
 ];
 
 export default function Sidebar() {
-  const {
-    activeModule,
-    setActiveModule,
-    sidebarCollapsed,
-    toggleSidebar,
-    mobileSidebarOpen,
-    setMobileSidebar,
-    demoMode,
-    currentUser,
-    userPermissions,
-    logout,
-  } = useERPStore();
-  
-  const allowedModules = currentUser?.allowed_modules || [];
+  const activeModule = useERPStore(s => s.activeModule);
+  const setActiveModule = useERPStore(s => s.setActiveModule);
+  const sidebarCollapsed = useERPStore(s => s.sidebarCollapsed);
+  const toggleSidebar = useERPStore(s => s.toggleSidebar);
+  const mobileSidebarOpen = useERPStore(s => s.mobileSidebarOpen);
+  const setMobileSidebar = useERPStore(s => s.setMobileSidebar);
+  const demoMode = useERPStore(s => s.demoMode);
+  const currentUser = useERPStore(s => s.currentUser);
+  const userPermissions = useERPStore(s => s.userPermissions);
+  const logout = useERPStore(s => s.logout);
 
   const handleNavClick = (moduleId) => {
     setActiveModule(moduleId);
@@ -99,11 +95,11 @@ export default function Sidebar() {
     // Support, AI Companion, and Security are always accessible for all users
     if (['support', 'ai', 'security'].includes(mod.id)) return true;
     
-    // If allowed_modules contains "all", show all modules (shouldn't happen for non-CEO but safe fallback)
-    if (allowedModules.includes('all')) return true;
+    // If userPermissions contains "all", show all modules (shouldn't happen for non-CEO but safe fallback)
+    if (userPermissions?.includes('all')) return true;
     
-    // Check if module is in allowed_modules array
-    return allowedModules.includes(mod.moduleKey);
+    // Check if module is in userPermissions array
+    return userPermissions?.includes(mod.moduleKey);
   });
 
 
@@ -130,8 +126,8 @@ export default function Sidebar() {
           }`}
         >
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shadow-lg shadow-indigo-500/30 flex-shrink-0">
-              <Sparkles className="w-4 h-4 text-white" />
+            <div className="w-8 h-8 flex-shrink-0 flex items-center justify-center">
+              <img src="/favicon.svg" alt="Logo" className="w-full h-full object-contain drop-shadow-md" />
             </div>
             {!sidebarCollapsed && (
               <motion.div
@@ -186,14 +182,14 @@ export default function Sidebar() {
 
         {/* Footer actions */}
         <div className={`sidebar-footer flex-col items-stretch gap-2 !p-4 ${sidebarCollapsed ? '!px-2' : ''}`}>
-          <RainbowButton
+          <button
             onClick={logout}
-            className={`w-full flex items-center gap-3 p-2 ${sidebarCollapsed ? 'justify-center !px-2' : ''}`}
+            className={`w-full flex items-center gap-3 p-2 rounded-xl transition-all duration-200 border border-transparent hover:bg-rose-500/10 hover:border-rose-500/20 group ${sidebarCollapsed ? 'justify-center !px-2' : ''}`}
             title="Logout"
           >
             <LogOut className="w-5 h-5 flex-shrink-0 text-rose-400 group-hover:text-rose-300" />
             {!sidebarCollapsed && <span className="text-sm font-medium text-rose-400 group-hover:text-rose-300">Logout</span>}
-          </RainbowButton>
+          </button>
         </div>
       </aside>
     </>

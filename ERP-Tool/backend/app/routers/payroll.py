@@ -4,6 +4,10 @@ from typing import List, Optional
 from pydantic import BaseModel
 from datetime import datetime
 import calendar
+import uuid
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
 from app.utils.db import get_db
 from app.middlewares.rbac_middleware import get_current_rbac_user, require_module_access, RBACUser
@@ -154,3 +158,66 @@ async def generate_payroll(
         db.refresh(r)
         
     return {"message": f"Successfully generated payroll for {len(records)} employees", "records": records}
+
+
+import uuid
+from datetime import datetime
+
+@router.get("/payrolls")
+async def get_payrolls():
+    return [
+        { "id": "PR-001", "employeeId": "E-001", "employeeName": "John Doe", "month": 5, "year": 2026, "baseSalary": 50000, "taxDeduction": 5000, "netPay": 45000, "status": "Processed" }
+    ]
+
+@router.post("/payrolls", status_code=status.HTTP_201_CREATED)
+async def create_payroll(body: dict):
+    return { "id": f"PR-00{uuid.uuid4().hex[:2]}", **body, "status": "Draft" }
+
+@router.get("/structures")
+async def get_structures():
+    return [
+        { "id": "ST-001", "role": "Software Engineer", "baseSalary": 80000, "allowances": 20000 }
+    ]
+
+@router.post("/structures", status_code=status.HTTP_201_CREATED)
+async def create_structure(body: dict):
+    return { "id": f"ST-00{uuid.uuid4().hex[:2]}", **body }
+
+@router.get("/payslips")
+async def get_payslips():
+    return []
+
+@router.post("/payslips", status_code=status.HTTP_201_CREATED)
+async def create_payslip(body: dict):
+    return { "id": f"PS-00{uuid.uuid4().hex[:2]}", **body }
+
+@router.post("/payslips/{payroll_id}/send-payslip")
+async def send_payslip(payroll_id: str, db: Session = Depends(get_db)):
+    # Mock sending an email for a given payslip
+    sender_email = "erp-system@demo.com"
+    receiver_email = "employee@demo.com" # In reality, fetched from Employee model
+    
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = f"Your Payslip - {payroll_id}"
+    msg["From"] = sender_email
+    msg["To"] = receiver_email
+    
+    html = f"""
+    <html>
+      <body>
+        <h2>Hello,</h2>
+        <p>Your payslip <strong>{payroll_id}</strong> has been generated.</p>
+        <p>Please log in to the ERP portal to view the full details.</p>
+        <br>
+        <p>Best regards,<br>ERP Payroll Team</p>
+      </body>
+    </html>
+    """
+    
+    part = MIMEText(html, "html")
+    msg.attach(part)
+    
+    # Mocking SMTP send
+    print(f"[MOCK SMTP] Sending email to {receiver_email}:\n{msg.as_string()}")
+    
+    return {"status": "success", "message": f"Payslip sent successfully"}

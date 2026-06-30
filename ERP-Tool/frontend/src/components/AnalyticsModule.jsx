@@ -4,21 +4,15 @@ import {
   CartesianGrid, BarChart, Bar, Cell, LineChart, Line
 } from 'recharts';
 import { useERPStore } from '../store/useERPStore';
-import { api } from '../utils/api';
+import { useKpis } from '../hooks/useAnalytics';
 
 const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#f43f5e', '#06b6d4', '#8b5cf6'];
 
 export default function AnalyticsModule() {
-  const { employees, leads } = useERPStore();
-  const [logisticsKpis, setLogisticsKpis] = useState(null);
-
-  useEffect(() => {
-    const fetchKpis = async () => {
-      const data = await api.analytics.getLogisticsKpis();
-      if (data) setLogisticsKpis(data);
-    };
-    fetchKpis();
-  }, []);
+  const { addToast } = useERPStore();
+  const employees = [];
+  const leads = [];
+  const { data: logisticsKpis } = useKpis();
 
   const revenueByMonth = logisticsKpis?.revenueByMonth || [];
 
@@ -67,7 +61,7 @@ export default function AnalyticsModule() {
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
         <div className="theme-card p-5">
           <h3 className="text-sm font-semibold text-main mb-4">Revenue Trend (YTD)</h3>
-          <ResponsiveContainer width="100%" height={200}>
+          <ResponsiveContainer width="100%" height={200} minWidth={1} minHeight={1}>
             <AreaChart data={revenueByMonth}>
               <defs>
                 <linearGradient id="rev-grad" x1="0" y1="0" x2="0" y2="1">
@@ -108,6 +102,12 @@ export default function AnalyticsModule() {
       {logisticsKpis && (
         <div className="space-y-4">
           <h2 className="text-lg font-bold text-main mt-4">Supply Chain & Logistics KPIs</h2>
+          
+          <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3 text-amber-400 text-sm flex items-center gap-2 mb-4">
+            <span className="font-bold uppercase tracking-wider bg-amber-500/20 px-2 py-1 rounded text-xs">Preview Mode</span>
+            <span>This module lacks backend persistence. Data shown is client-only mock data.</span>
+          </div>
+
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
             {[
               { label: 'OTIF Delivery', value: `${logisticsKpis.otifRate}%`, color: 'text-indigo-400' },
@@ -126,7 +126,7 @@ export default function AnalyticsModule() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="theme-card p-5">
               <h3 className="text-sm font-semibold text-main mb-4">Shipments Trend</h3>
-              <ResponsiveContainer width="100%" height={200}>
+              <ResponsiveContainer width="100%" height={200} minWidth={1} minHeight={1}>
                 <LineChart data={logisticsKpis.monthlyTrend}>
                   <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />
                   <XAxis dataKey="month" tick={{ fill: chartTextColor, fontSize: 11 }} axisLine={false} tickLine={false} />
@@ -139,7 +139,7 @@ export default function AnalyticsModule() {
             
             <div className="theme-card p-5">
               <h3 className="text-sm font-semibold text-main mb-4">Headcount by Department</h3>
-              <ResponsiveContainer width="100%" height={200}>
+              <ResponsiveContainer width="100%" height={200} minWidth={1} minHeight={1}>
                 <BarChart data={deptData}>
                   <XAxis dataKey="name" tick={{ fill: chartTextColor, fontSize: 10 }} axisLine={false} tickLine={false} />
                   <YAxis tick={{ fill: chartTextColor, fontSize: 10 }} axisLine={false} tickLine={false} allowDecimals={false} />

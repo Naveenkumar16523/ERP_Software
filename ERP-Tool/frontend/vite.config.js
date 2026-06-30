@@ -27,5 +27,18 @@ export default defineConfig(({ mode }) => {
       setupFiles: './src/setupTests.js',
       css: true,
     },
+    build: {
+      target: 'esnext',
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            vendor: ['react', 'react-dom', 'react-router-dom'],
+            ui: ['lucide-react', 'framer-motion', 'recharts'],
+            query: ['@tanstack/react-query', 'axios'],
+            state: ['zustand']
+          }
+        }
+      }
+    }
   };
 });

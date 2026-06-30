@@ -1,15 +1,23 @@
 import React, { useState } from 'react';
 import { Plus, Truck, ClipboardList, AlertCircle, Wrench, ShieldAlert, CheckCircle, Clock, Calendar } from 'lucide-react';
 import { useERPStore } from '../store/useERPStore';
+import {
+  useMachines, useCreateMachine, useUpdateMachineStatus,
+  useWorkOrders, useCreateWorkOrder, useUpdateWorkOrderStatus,
+  useDowntimeLogs, useCreateDowntimeLog
+} from '../hooks/useManufacturing';
 import Modal from './ui/Modal';
 
 export default function FleetAndOperationsModule() {
-  const {
-    workOrders, addWorkOrder, updateWorkOrderStatus,
-    machines, addMachine, updateMachineStatus,
-    downtimeLogs, addDowntimeLog,
-    addToast
-  } = useERPStore();
+  const addToast = useERPStore(s => s.addToast);
+  const { data: machines = [] } = useMachines();
+  const { data: workOrders = [] } = useWorkOrders();
+  const { data: downtimeLogs = [] } = useDowntimeLogs();
+  const createMachine = useCreateMachine();
+  const updateMachineStatus = useUpdateMachineStatus();
+  const createWorkOrder = useCreateWorkOrder();
+  const updateWorkOrderStatus = useUpdateWorkOrderStatus();
+  const createDowntimeLog = useCreateDowntimeLog();
 
   const [activeTab, setActiveTab] = useState('machines');
   const [modal, setModal] = useState(false);
@@ -34,18 +42,22 @@ export default function FleetAndOperationsModule() {
     setModal(true);
   };
 
-  const handleAddMachine = () => {
+  const handleAddMachine = async () => {
     if (!machineForm.name || !machineForm.location) {
       return addToast('Name and location are required', 'error');
     }
-    addMachine({
-      ...machineForm,
-      capacity: machineForm.capacity || 'N/A',
-      currentLoad: machineForm.currentLoad || '0',
-      efficiency: machineForm.status === 'RUNNING' ? 95 : 0
-    });
-    addToast('New vehicle/machinery registered', 'success');
-    setModal(false);
+    try {
+      await createMachine.mutateAsync({
+        ...machineForm,
+        capacity: machineForm.capacity || 'N/A',
+        currentLoad: machineForm.currentLoad || '0',
+        efficiency: machineForm.status === 'RUNNING' ? 95 : 0
+      });
+      addToast('New vehicle/machinery registered', 'success');
+      setModal(false);
+    } catch (err) {
+      addToast('Failed to register machinery', 'error');
+    }
   };
 
   const handleAddWorkOrder = () => {
@@ -53,7 +65,7 @@ export default function FleetAndOperationsModule() {
       return addToast('Vehicle/Machinery and Description are required', 'error');
     }
     const machineObj = machines.find(m => m.id === workOrderForm.machineId);
-    addWorkOrder({
+    createWorkOrder.mutate({
       orderNumber: `WO-MAIN-${Date.now().toString().slice(-4)}`,
       productId: workOrderForm.machineId,
       productName: machineObj?.name || 'Unknown',
@@ -67,26 +79,29 @@ export default function FleetAndOperationsModule() {
     setModal(false);
   };
 
-  const handleAddDowntime = () => {
+  const handleAddDowntime = async () => {
     if (!downtimeForm.machineId || !downtimeForm.reason || !downtimeForm.duration) {
       return addToast('Vehicle, reason, and duration are required', 'error');
     }
-    addDowntimeLog({
-      machineId: downtimeForm.machineId,
-      startTime: downtimeForm.startTime || new Date().toISOString(),
-      endTime: new Date(new Date(downtimeForm.startTime || new Date()).getTime() + parseFloat(downtimeForm.duration) * 3600000).toISOString(),
-      duration: parseFloat(downtimeForm.duration) || 0,
-      reason: downtimeForm.reason,
-      type: downtimeForm.type
-    });
-    // Set vehicle status to breakdown if unplanned breakdown
-    if (downtimeForm.type === 'UNPLANNED') {
-      updateMachineStatus(downtimeForm.machineId, 'BREAKDOWN');
-    } else {
-      updateMachineStatus(downtimeForm.machineId, 'MAINTENANCE');
+    try {
+      await createDowntimeLog.mutateAsync({
+        machineId: downtimeForm.machineId,
+        startTime: downtimeForm.startTime || new Date().toISOString(),
+        endTime: new Date(new Date(downtimeForm.startTime || new Date()).getTime() + parseFloat(downtimeForm.duration) * 3600000).toISOString(),
+        duration: parseFloat(downtimeForm.duration) || 0,
+        reason: downtimeForm.reason,
+        type: downtimeForm.type
+      });
+      if (downtimeForm.type === 'UNPLANNED') {
+        await updateMachineStatus.mutateAsync({ id: downtimeForm.machineId, status: 'BREAKDOWN' });
+      } else {
+        await updateMachineStatus.mutateAsync({ id: downtimeForm.machineId, status: 'MAINTENANCE' });
+      }
+      addToast('Downtime event logged', 'success');
+      setModal(false);
+    } catch (err) {
+      addToast('Failed to log downtime event', 'error');
     }
-    addToast('Downtime event logged', 'success');
-    setModal(false);
   };
 
   const TABS = [
@@ -128,7 +143,7 @@ export default function FleetAndOperationsModule() {
           const Icon = tab.icon;
           return (
             <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-medium transition-all ${activeTab === tab.id ? 'bg-indigo-600 text-white' : 'text-muted hover:text-main'}`}>
+              className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-medium transition-all ${activeTab === tab.id ? 'bg-primary text-white' : 'text-muted hover:text-main'}`}>
               <Icon className="w-3.5 h-3.5" />{tab.label}
             </button>
           );
@@ -139,10 +154,10 @@ export default function FleetAndOperationsModule() {
       {activeTab === 'machines' && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {machines.map(machine => (
-            <div key={machine.id} className="theme-card p-5 hover:border-indigo-500/30 transition-all relative overflow-hidden group">
+            <div key={machine.id} className="theme-card p-5 hover:border-primary/30 transition-all relative overflow-hidden group">
               <div className="flex justify-between items-start mb-3">
                 <div>
-                  <h4 className="text-sm font-semibold text-main group-hover:text-indigo-400 transition-colors">{machine.name}</h4>
+                  <h4 className="text-sm font-semibold text-main group-hover:text-primary transition-colors">{machine.name}</h4>
                   <span className="text-xs text-muted font-mono">{machine.type}</span>
                 </div>
                 <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
@@ -159,13 +174,13 @@ export default function FleetAndOperationsModule() {
               </div>
               <div className="flex gap-2 mt-4 pt-3 border-t border-main/20 justify-end">
                 {machine.status !== 'RUNNING' && (
-                  <button onClick={() => { updateMachineStatus(machine.id, 'RUNNING'); addToast(`${machine.name} status updated to RUNNING`, 'success'); }}
+                  <button onClick={() => { updateMachineStatus.mutate({ id: machine.id, status: 'RUNNING' }); addToast(`${machine.name} status updated to RUNNING`, 'success'); }}
                     className="text-xs px-2 py-1 bg-emerald-500/10 text-emerald-400 rounded hover:bg-emerald-500/20 transition-all">
                     Set Running
                   </button>
                 )}
                 {machine.status !== 'MAINTENANCE' && (
-                  <button onClick={() => { updateMachineStatus(machine.id, 'MAINTENANCE'); addToast(`${machine.name} sent to MAINTENANCE`, 'info'); }}
+                  <button onClick={() => { updateMachineStatus.mutate({ id: machine.id, status: 'MAINTENANCE' }); addToast(`${machine.name} sent to MAINTENANCE`, 'info'); }}
                     className="text-xs px-2 py-1 bg-amber-500/10 text-amber-400 rounded hover:bg-amber-500/20 transition-all">
                     Send to Service
                   </button>
@@ -198,7 +213,7 @@ export default function FleetAndOperationsModule() {
               <tbody>
                 {workOrders.map(wo => (
                   <tr key={wo.id} className="border-b border-main hover:bg-surface/40 transition-colors">
-                    <td className="px-4 py-3 text-xs font-mono text-indigo-400">{wo.orderNumber}</td>
+                    <td className="px-4 py-3 text-xs font-mono text-primary">{wo.orderNumber}</td>
                     <td className="px-4 py-3 text-sm text-main font-semibold">{wo.productName}</td>
                     <td className="px-4 py-3 text-xs text-muted max-w-xs truncate" title={wo.description || wo.notes}>{wo.description || 'Routine maintenance check'}</td>
                     <td className="px-4 py-3">
@@ -220,18 +235,18 @@ export default function FleetAndOperationsModule() {
                     </td>
                     <td className="px-4 py-3 text-xs">
                       {wo.status === 'PENDING' && (
-                        <button onClick={() => { updateWorkOrderStatus(wo.id, 'IN_PROGRESS'); addToast('Service order started', 'info'); }}
-                          className="text-indigo-400 hover:underline flex items-center gap-0.5">
+                        <button onClick={() => { updateWorkOrderStatus.mutate({ id: wo.id, status: 'IN_PROGRESS' }); addToast('Service order started', 'info'); }}
+                          className="text-primary hover:underline flex items-center gap-0.5">
                           <Clock className="w-3 h-3" /> Start Service
                         </button>
                       )}
                       {wo.status === 'IN_PROGRESS' && (
                         <button onClick={() => { 
-                          updateWorkOrderStatus(wo.id, 'COMPLETED');
+                          updateWorkOrderStatus.mutate({ id: wo.id, status: 'COMPLETED' });
                           // Also restore machine back to running
                           const order = workOrders.find(o => o.id === wo.id);
                           if (order && order.productId) {
-                            updateMachineStatus(order.productId, 'RUNNING');
+                            updateMachineStatus.mutate({ id: order.productId, status: 'RUNNING' });
                           }
                           addToast('Service order marked completed. Vehicle is back in service.', 'success'); 
                         }}

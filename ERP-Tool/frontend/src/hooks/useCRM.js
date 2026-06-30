@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useOptimisticMutation } from './useOptimisticMutation';
 import { apiClient } from '../api/client';
 
 export const useLeads = () => {
@@ -6,17 +7,19 @@ export const useLeads = () => {
     queryKey: ['leads'],
     queryFn: async () => {
       const { data } = await apiClient.get('/crm/leads');
-      return data.data;
+      return data?.data ?? data ?? [];
     }
   });
 };
 
-export const useAddLead = () => {
+export const useAddLead = () => useOptimisticMutation(['leads'], 'post', '/crm/leads');
+
+export const useUpdateLead = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (lead) => {
-      const { data } = await apiClient.post('/crm/leads', lead);
-      return data.data;
+    mutationFn: async ({ id, ...lead }) => {
+      const { data } = await apiClient.put(`/crm/leads/${id}`, lead);
+      return data?.data ?? data ?? [];
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['leads'] });
@@ -24,12 +27,12 @@ export const useAddLead = () => {
   });
 };
 
-export const useUpdateLead = () => {
+export const useUpdateLeadStatus = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, ...lead }) => {
-      const { data } = await apiClient.put(`/crm/leads/${id}`, lead);
-      return data.data;
+    mutationFn: async ({ id, status }) => {
+      const { data } = await apiClient.patch(`/crm/leads/${id}/status`, { status });
+      return data?.data ?? data ?? [];
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['leads'] });
@@ -42,46 +45,24 @@ export const useDeals = () => {
     queryKey: ['deals'],
     queryFn: async () => {
       const { data } = await apiClient.get('/crm/deals');
-      return data.data;
+      return data?.data ?? data ?? [];
     }
   });
 };
 
-export const useAddDeal = () => {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (deal) => {
-      const { data } = await apiClient.post('/crm/deals', deal);
-      return data.data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['deals'] });
-    }
-  });
-};
+export const useAddDeal = () => useOptimisticMutation(['deals'], 'post', '/crm/deals');
 
 export const useContacts = () => {
   return useQuery({
     queryKey: ['contacts'],
     queryFn: async () => {
       const { data } = await apiClient.get('/crm/contacts');
-      return data.data;
+      return data?.data ?? data ?? [];
     }
   });
 };
 
-export const useAddContact = () => {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (contact) => {
-      const { data } = await apiClient.post('/crm/contacts', contact);
-      return data.data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['contacts'] });
-    }
-  });
-};
+export const useAddContact = () => useOptimisticMutation(['contacts'], 'post', '/crm/contacts');
 
 export const useCustomers = () => {
   return useQuery({

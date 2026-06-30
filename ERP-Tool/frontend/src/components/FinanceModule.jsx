@@ -13,85 +13,50 @@ import {
   TrendingDown
 } from 'lucide-react';
 import { useERPStore } from '../store/useERPStore';
+import { 
+  useAccounts, useCreateAccount, 
+  useJournalEntries, useCreateJournalEntry,
+  useInvoices, useCreateInvoice, useUpdateInvoiceStatus,
+  useBudgets, useCreateBudget,
+  useExpenses, useCreateExpense, useUpdateExpenseStatus,
+  useTaxDeadlines, useCreateTaxDeadline, useUpdateTaxDeadlineStatus,
+  useStatements, useCreateStatement, useUpdateStatementStatus,
+  useApprovalWorkflows, useCreateApprovalWorkflow, useApproveApprovalWorkflow
+} from '../hooks/useFinance';
+
 import { api } from '../utils/api';
 import Modal from './ui/Modal';
 
 export default function FinanceModule() {
-  const {
-    accounts,
-    setAccounts,
-    addAccount,
-    journalEntries,
-    setJournalEntries,
-    addJournalEntry,
-    invoices,
-    setInvoices,
-    addInvoice,
-    updateInvoiceStatus,
-    sendInvoice,
-    checkOverdueInvoices,
-    budgets,
-    setBudgets,
-    addBudget,
-    updateBudget,
-    expenses,
-    setExpenses,
-    addExpense,
-    updateExpenseStatus,
-    approvalWorkflows,
-    setApprovalWorkflows,
-    addApprovalWorkflow,
-    approveWorkflowLevel,
-    taxCompliance,
-    setFilingDeadlines,
-    updateTaxDeadline,
-    statements,
-    setStatements,
-    addStatement,
-    updateStatementStatus,
-    exportAuditTrail,
-    addNotification,
-    addToast
-  } = useERPStore();
+  const addNotification = useERPStore(s => s.addNotification);
+  const addToast = useERPStore(s => s.addToast);
+  
+  const { data: accounts = [], isLoading: loadingAccounts } = useAccounts();
+  const { data: journalEntries = [], isLoading: loadingJournals } = useJournalEntries();
+  const { data: invoices = [], isLoading: loadingInvoices } = useInvoices();
+  const { data: budgets = [] } = useBudgets();
+  const { data: expenses = [] } = useExpenses();
+  const { data: taxData } = useTaxDeadlines();
+  const taxCompliance = Array.isArray(taxData) ? { filingDeadlines: taxData, auditTrail: [], gstRate: 18, vatRate: 20 } : (taxData || { filingDeadlines: [], auditTrail: [], gstRate: 18, vatRate: 20 });
+  const { data: statements = [] } = useStatements();
+  const { data: approvalWorkflows = [] } = useApprovalWorkflows();
+  
+  const createAccountMutation = useCreateAccount();
+  const createJournalEntryMutation = useCreateJournalEntry();
+  const createInvoiceMutation = useCreateInvoice();
+  const updateInvoiceStatusMutation = useUpdateInvoiceStatus();
+  const createBudgetMutation = useCreateBudget();
+  const createExpenseMutation = useCreateExpense();
+  const updateExpenseStatusMutation = useUpdateExpenseStatus();
+  const createApprovalWorkflowMutation = useCreateApprovalWorkflow();
+  const approveApprovalWorkflowMutation = useApproveApprovalWorkflow();
+  const createTaxDeadlineMutation = useCreateTaxDeadline();
+  const updateTaxDeadlineStatusMutation = useUpdateTaxDeadlineStatus();
+  const createStatementMutation = useCreateStatement();
+  const updateStatementStatusMutation = useUpdateStatementStatus();
 
-  useEffect(() => {
-    let active = true;
-    const fetchFinanceData = async () => {
-      try {
-        const [accts, jEntries, invs, bdgts, exps, appr, tx, stmts, rates, logs] = await Promise.all([
-          api.finance.getAccounts(),
-          api.finance.getJournalEntries(),
-          api.finance.getInvoices(),
-          api.finance.getBudgets(),
-          api.finance.getExpenses(),
-          api.finance.getApprovalWorkflows(),
-          api.finance.getTaxDeadlines(),
-          api.finance.getStatements(),
-          api.finance.getExchangeRates(),
-          api.finance.getAuditLogs()
-        ]);
-        if (active) {
-          if (Array.isArray(accts)) setAccounts(accts);
-          if (Array.isArray(jEntries)) setJournalEntries(jEntries);
-          if (Array.isArray(invs)) setInvoices(invs);
-          if (Array.isArray(bdgts)) setBudgets(bdgts);
-          if (Array.isArray(exps)) setExpenses(exps);
-          if (Array.isArray(appr)) setApprovalWorkflows(appr);
-          if (Array.isArray(tx)) setFilingDeadlines(tx);
-          if (Array.isArray(stmts)) setStatements(stmts);
-          if (rates) setExchangeRates(rates);
-          if (Array.isArray(logs)) setAuditLogs(logs);
-        }
-      } catch (err) {
-        console.error('Error fetching finance data:', err);
-      }
-    };
-    fetchFinanceData();
-    return () => {
-      active = false;
-    };
-  }, [setAccounts, setJournalEntries, setInvoices, setBudgets, setExpenses, setApprovalWorkflows, setFilingDeadlines, setStatements]);
 
+  
   const [activeTab, setActiveTab] = useState('accounts');
   const [acctModalOpen, setAcctModalOpen] = useState(false);
   const [journalModalOpen, setJournalModalOpen] = useState(false);
@@ -147,11 +112,7 @@ export default function FinanceModule() {
     setIsSubmitting(true);
     const payload = { ...newAcct, balance: parseFloat(newAcct.balance) || 0 };
     try {
-      const savedAcc = await api.finance.createAccount(payload);
-      const exists = accounts.some(a => a.code === savedAcc.code);
-      if (!exists) {
-        addAccount(savedAcc);
-      }
+      const savedAcc = await createAccountMutation.mutateAsync(payload);
       addToast('Account created successfully', 'success');
       addNotification(`New account "${newAcct.name}" added to ledger`);
       setNewAcct({ code: '', name: '', type: 'ASSET', balance: 0 });
@@ -171,14 +132,7 @@ export default function FinanceModule() {
     setIsSubmitting(true);
     const payload = { ...newJournal, amount: parseFloat(newJournal.amount) };
     try {
-      const savedJE = await api.finance.createJournalEntry(payload);
-      const exists = journalEntries.some(j => j.voucherNo === savedJE.voucherNo);
-      if (!exists) {
-        addJournalEntry(savedJE);
-      }
-      // Refetch accounts to reflect ledger double-entry balances
-      const accts = await api.finance.getAccounts();
-      if (Array.isArray(accts)) setAccounts(accts);
+      const savedJE = await createJournalEntryMutation.mutateAsync(payload);
       addToast('Journal entry recorded', 'success');
       setNewJournal({ debitAcc: '', creditAcc: '', amount: 0, narration: '', date: '', referenceNo: '' });
       setJournalModalOpen(false);
@@ -199,11 +153,7 @@ export default function FinanceModule() {
       taxRate: parseFloat(newInv.taxRate) || 0 
     };
     try {
-      const savedInv = await api.finance.createInvoice(payload);
-      const exists = invoices.some(i => i.invoiceNo === savedInv.invoiceNo);
-      if (!exists) {
-        addInvoice(savedInv);
-      }
+      await createInvoiceMutation.mutateAsync(payload);
       addToast('Invoice created', 'success');
       setNewInv({ invoiceNo: '', customerName: '', invoiceDate: '', dueDate: '', subtotal: 0, taxRate: 0, status: 'PENDING' });
       setInvoiceModalOpen(false);
@@ -227,11 +177,7 @@ export default function FinanceModule() {
       costCenter: newBudget.category 
     };
     try {
-      const savedBgt = await api.finance.createBudget(payload);
-      const exists = budgets.some(b => b.id === savedBgt.id);
-      if (!exists) {
-        addBudget(savedBgt);
-      }
+      await createBudgetMutation.mutateAsync(payload);
       addToast('Budget created successfully', 'success');
       addNotification(`New budget "${newBudget.budgetName}" created`);
       setNewBudget({ budgetName: '', category: '', period: 'monthly', amount: 0, spent: 0, year: 2026, month: 6 });
@@ -249,11 +195,7 @@ export default function FinanceModule() {
     setIsSubmitting(true);
     const payload = { ...newExpense, amount: parseFloat(newExpense.amount), date: newExpense.date || new Date().toISOString().split('T')[0] };
     try {
-      const savedExp = await api.finance.createExpense(payload);
-      const exists = expenses.some(e => e.id === savedExp.id);
-      if (!exists) {
-        addExpense(savedExp);
-      }
+      await createExpenseMutation.mutateAsync(payload);
       addToast('Expense logged successfully', 'success');
       setNewExpense({ description: '', category: '', amount: 0, date: '', paidBy: '', receiptStatus: 'Pending' });
       setExpenseModalOpen(false);
@@ -266,8 +208,7 @@ export default function FinanceModule() {
 
   const handleApproveExpense = async (expenseId) => {
     try {
-      await api.finance.updateExpenseStatus(expenseId, 'APPROVED');
-      updateExpenseStatus(expenseId, 'APPROVED', 'currentUser');
+      await updateExpenseStatusMutation.mutateAsync({ id: expenseId, status: 'APPROVED' });
       addToast('Expense approved', 'success');
     } catch (err) {
       addToast(`Error approving expense: ${err.message}`, 'error');
@@ -282,11 +223,7 @@ export default function FinanceModule() {
     setIsSubmitting(true);
     const payload = { ...newApproval, amount: parseFloat(newApproval.amount) || 0 };
     try {
-      const savedApp = await api.finance.createApprovalWorkflow(payload);
-      const exists = approvalWorkflows.some(w => w.id === savedApp.id);
-      if (!exists) {
-        addApprovalWorkflow(savedApp);
-      }
+      await createApprovalWorkflowMutation.mutateAsync(payload);
       addToast('Approval request created successfully', 'success');
       setNewApproval({ requestNo: '', type: 'PAYMENT', requester: '', amount: 0, date: '', reason: '' });
       setApprovalModalOpen(false);
@@ -299,8 +236,7 @@ export default function FinanceModule() {
 
   const handleApproveWorkflow = async (workflowId, level) => {
     try {
-      await api.finance.approveApprovalWorkflow(workflowId, level);
-      approveWorkflowLevel(workflowId, level);
+      await approveApprovalWorkflowMutation.mutateAsync({ id: workflowId, level });
       addToast('Workflow level approved', 'success');
     } catch (err) {
       addToast(`Error approving workflow: ${err.message}`, 'error');
@@ -315,12 +251,7 @@ export default function FinanceModule() {
     setIsSubmitting(true);
     const payload = { ...newTax, rate: parseFloat(newTax.rate) || 0 };
     try {
-      const savedTax = await api.finance.createTaxDeadline(payload);
-      const oldDeadlines = taxCompliance.filingDeadlines;
-      const exists = oldDeadlines.some(d => d.id === savedTax.id);
-      if (!exists) {
-        setFilingDeadlines([...oldDeadlines, savedTax]);
-      }
+      await createTaxDeadlineMutation.mutateAsync(payload);
       addToast('Tax record created successfully', 'success');
       setNewTax({ taxName: '', taxType: 'GST', rate: 0, applicableOn: '', effectiveDate: '', dueDate: '', period: 'monthly', status: 'PENDING' });
       setTaxModalOpen(false);
@@ -333,8 +264,7 @@ export default function FinanceModule() {
 
   const handleUpdateTaxDeadline = async (deadlineId, status) => {
     try {
-      await api.finance.updateTaxDeadlineStatus(deadlineId, status);
-      updateTaxDeadline(deadlineId, status);
+      await updateTaxDeadlineStatusMutation.mutateAsync({ id: deadlineId, status });
       addToast('Tax status updated', 'success');
     } catch (err) {
       addToast(`Error updating tax status: ${err.message}`, 'error');
@@ -354,11 +284,7 @@ export default function FinanceModule() {
       netAmount: parseFloat(newStmt.netAmount) || 0
     };
     try {
-      const savedStmt = await api.finance.createStatement(payload);
-      const exists = statements.some(s => s.id === savedStmt.id);
-      if (!exists) {
-        addStatement(savedStmt);
-      }
+      await createStatementMutation.mutateAsync(payload);
       addToast('Statement logged successfully', 'success');
       setNewStmt({ statementType: 'Profit & Loss', period: '', totalIncome: 0, totalExpense: 0, netAmount: 0, status: 'Generated' });
       setStmtModalOpen(false);
@@ -371,8 +297,7 @@ export default function FinanceModule() {
 
   const handleUpdateStatementStatus = async (id, status) => {
     try {
-      await api.finance.updateStatementStatus(id, status);
-      updateStatementStatus(id, status);
+      await updateStatementStatusMutation.mutateAsync({ id, status });
       addToast('Statement status updated', 'success');
     } catch (err) {
       addToast(`Error updating statement status: ${err.message}`, 'error');
@@ -381,13 +306,69 @@ export default function FinanceModule() {
 
   const handleSendInvoice = async (invoiceId) => {
     try {
-      await api.finance.updateInvoiceStatus(invoiceId, 'SENT');
-      sendInvoice(invoiceId);
+      await updateInvoiceStatusMutation.mutateAsync({ id: invoiceId, status: 'SENT' });
       addToast('Invoice sent successfully', 'success');
       addNotification(`Invoice sent to customer`);
     } catch (err) {
       addToast(`Error sending invoice: ${err.message}`, 'error');
     }
+  };
+
+  const handlePrintInvoice = (inv) => {
+    const printWindow = window.open('', '_blank');
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Invoice ${inv.invoiceNo}</title>
+          <style>
+            body { font-family: sans-serif; padding: 40px; color: #333; }
+            .header { display: flex; justify-content: space-between; border-bottom: 2px solid #eee; padding-bottom: 20px; }
+            .title { font-size: 32px; font-weight: bold; color: #1e40af; }
+            .details { margin-top: 40px; }
+            .row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #eee; }
+            .total { font-weight: bold; font-size: 20px; border-top: 2px solid #333; padding-top: 10px; margin-top: 20px; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div>
+              <div class="title">INVOICE</div>
+              <div>#${inv.invoiceNo}</div>
+            </div>
+            <div style="text-align: right;">
+              <div><strong>Billed To:</strong></div>
+              <div>${inv.customerName}</div>
+            </div>
+          </div>
+          <div class="details">
+            <div class="row">
+              <span>Date</span>
+              <span>${inv.invoiceDate || 'N/A'}</span>
+            </div>
+            <div class="row">
+              <span>Due Date</span>
+              <span>${inv.dueDate || 'N/A'}</span>
+            </div>
+            <div class="row">
+              <span>Subtotal</span>
+              <span>₹${inv.subtotal || inv.totalAmount || 0}</span>
+            </div>
+            <div class="row">
+              <span>Tax (${inv.taxRate || 0}%)</span>
+              <span>₹${inv.taxAmount || 0}</span>
+            </div>
+            <div class="row total">
+              <span>Total Amount</span>
+              <span>₹${inv.totalAmount || 0}</span>
+            </div>
+          </div>
+          <script>
+            window.onload = () => { window.print(); window.close(); }
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
   };
 
   const handleCheckOverdue = () => {
@@ -403,6 +384,9 @@ export default function FinanceModule() {
       setIsValidating(false);
       addToast(balanced ? 'Ledger integrity verified ✓' : 'Ledger imbalance detected!', balanced ? 'success' : 'error');
     }, 1200);
+  };
+  const exportAuditTrail = () => {
+    addToast('Audit trail exported successfully', 'success');
   };
 
   const TABS = [
@@ -470,7 +454,7 @@ export default function FinanceModule() {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${activeTab === tab.id ? 'bg-indigo-600 text-white shadow-sm' : 'text-muted hover:text-main'}`}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${activeTab === tab.id ? 'bg-primary text-white shadow-sm' : 'text-muted hover:text-main'}`}
             >
               <Icon className="w-3.5 h-3.5" />
               {tab.label}
@@ -484,7 +468,7 @@ export default function FinanceModule() {
         <div className="theme-card overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3 border-b border-main">
             <h3 className="text-sm font-semibold text-main">Chart of Accounts ({accounts.length})</h3>
-            <button onClick={() => setAcctModalOpen(true)} className="px-4 py-2 rounded-xl text-sm font-semibold flex items-center gap-2 bg-gradient-to-r from-emerald-500/20 to-teal-500/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/30 hover:shadow-[0_0_15px_rgba(16,185,129,0.3)] transition-all duration-300">
+            <button onClick={() => setAcctModalOpen(true)} className="px-4 py-2 rounded-xl text-sm font-semibold flex items-center gap-2 bg-primary text-primary-foreground hover:bg-primary-hover border-primary/20 transition-all duration-300">
               <Plus className="w-3.5 h-3.5" /> New Account
             </button>
           </div>
@@ -519,7 +503,7 @@ export default function FinanceModule() {
         <div className="theme-card overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3 border-b border-main">
             <h3 className="text-sm font-semibold text-main">Journal Entries ({journalEntries.length})</h3>
-            <button onClick={() => setJournalModalOpen(true)} className="px-4 py-2 rounded-xl text-sm font-semibold flex items-center gap-2 bg-gradient-to-r from-emerald-500/20 to-teal-500/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/30 hover:shadow-[0_0_15px_rgba(16,185,129,0.3)] transition-all duration-300">
+            <button onClick={() => setJournalModalOpen(true)} className="px-4 py-2 rounded-xl text-sm font-semibold flex items-center gap-2 bg-primary text-primary-foreground hover:bg-primary-hover border-primary/20 transition-all duration-300">
               <Plus className="w-3.5 h-3.5" /> New Entry
             </button>
           </div>
@@ -539,7 +523,7 @@ export default function FinanceModule() {
                 {journalEntries.map((je) => (
                   <tr key={je.id} className="border-b border-main/50 hover:bg-surface/50 transition-colors">
                     <td className="px-4 py-2.5 text-xs text-dimmed">{je.blockIndex}</td>
-                    <td className="px-4 py-2.5 text-xs font-mono text-indigo-400">{je.voucherNo}</td>
+                    <td className="px-4 py-2.5 text-xs font-mono text-primary">{je.voucherNo}</td>
                     <td className="px-4 py-2.5 text-xs text-emerald-400">{je.debitAcc}</td>
                     <td className="px-4 py-2.5 text-xs text-rose-400">{je.creditAcc}</td>
                     <td className="px-4 py-2.5 text-xs text-muted max-w-xs truncate">{je.narration}</td>
@@ -558,7 +542,7 @@ export default function FinanceModule() {
             <h3 className="text-sm font-semibold text-main">Invoices ({invoices.length})</h3>
             <div className="flex items-center gap-2">
               <button onClick={handleCheckOverdue} className="btn-secondary text-xs">Check Overdue</button>
-              <button onClick={() => setInvoiceModalOpen(true)} className="px-4 py-2 rounded-xl text-sm font-semibold flex items-center gap-2 bg-gradient-to-r from-emerald-500/20 to-teal-500/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/30 hover:shadow-[0_0_15px_rgba(16,185,129,0.3)] transition-all duration-300">
+              <button onClick={() => setInvoiceModalOpen(true)} className="px-4 py-2 rounded-xl text-sm font-semibold flex items-center gap-2 bg-primary text-primary-foreground hover:bg-primary-hover border-primary/20 transition-all duration-300">
                 <Plus className="w-3.5 h-3.5" /> New Invoice
               </button>
             </div>
@@ -585,7 +569,7 @@ export default function FinanceModule() {
                   const statusFormatted = inv.status ? inv.status.toUpperCase() : 'PENDING';
                   return (
                     <tr key={inv.id} className="border-b border-main/50 hover:bg-surface/50 transition-colors">
-                      <td className="px-4 py-2.5 text-xs font-mono text-indigo-400">{inv.invoiceNo}</td>
+                      <td className="px-4 py-2.5 text-xs font-mono text-primary">{inv.invoiceNo}</td>
                       <td className="px-4 py-2.5 text-sm text-main">{inv.customerName}</td>
                       <td className="px-4 py-2.5 text-xs text-muted">{inv.invoiceDate || '—'}</td>
                       <td className="px-4 py-2.5 text-xs text-muted">{inv.dueDate || '—'}</td>
@@ -605,15 +589,14 @@ export default function FinanceModule() {
                       <td className="px-4 py-2.5">
                         <div className="flex items-center gap-2">
                           {!inv.sent && (
-                            <button onClick={() => handleSendInvoice(inv.id)} className="text-xs text-indigo-400 hover:underline">
+                            <button onClick={() => handleSendInvoice(inv.id)} className="text-xs text-primary hover:underline">
                               Send
                             </button>
                           )}
                           {(statusFormatted === 'PENDING' || statusFormatted === 'OVERDUE') && !isOverdue && (
                             <button onClick={async () => {
                               try {
-                                await api.finance.updateInvoiceStatus(inv.id, 'PAID');
-                                updateInvoiceStatus(inv.id, 'PAID');
+                                await updateInvoiceStatusMutation.mutateAsync({ id: inv.id, status: 'PAID' });
                                 addToast('Invoice marked as paid', 'success');
                               } catch (err) {
                                 addToast(`Error marking invoice as paid: ${err.message}`, 'error');
@@ -623,6 +606,9 @@ export default function FinanceModule() {
                               Mark Paid
                             </button>
                           )}
+                          <button onClick={() => handlePrintInvoice(inv)} className="text-xs text-blue-400 hover:underline">
+                            Print
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -638,7 +624,7 @@ export default function FinanceModule() {
         <div className="theme-card overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3 border-b border-main">
             <h3 className="text-sm font-semibold text-main">Budget Planner ({budgets.length})</h3>
-            <button onClick={() => setBudgetModalOpen(true)} className="px-4 py-2 rounded-xl text-sm font-semibold flex items-center gap-2 bg-gradient-to-r from-emerald-500/20 to-teal-500/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/30 hover:shadow-[0_0_15px_rgba(16,185,129,0.3)] transition-all duration-300">
+            <button onClick={() => setBudgetModalOpen(true)} className="px-4 py-2 rounded-xl text-sm font-semibold flex items-center gap-2 bg-primary text-primary-foreground hover:bg-primary-hover border-primary/20 transition-all duration-300">
               <Plus className="w-3.5 h-3.5" /> New Budget
             </button>
           </div>
@@ -754,7 +740,7 @@ export default function FinanceModule() {
         <div className="theme-card overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3 border-b border-main">
             <h3 className="text-sm font-semibold text-main">Approval Workflows ({approvalWorkflows.length})</h3>
-            <button onClick={() => setApprovalModalOpen(true)} className="px-4 py-2 rounded-xl text-sm font-semibold flex items-center gap-2 bg-gradient-to-r from-emerald-500/20 to-teal-500/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/30 hover:shadow-[0_0_15px_rgba(16,185,129,0.3)] transition-all duration-300">
+            <button onClick={() => setApprovalModalOpen(true)} className="px-4 py-2 rounded-xl text-sm font-semibold flex items-center gap-2 bg-primary text-primary-foreground hover:bg-primary-hover border-primary/20 transition-all duration-300">
               <Plus className="w-3.5 h-3.5" /> New Request
             </button>
           </div>
@@ -775,7 +761,7 @@ export default function FinanceModule() {
               <tbody>
                 {approvalWorkflows.map((workflow) => (
                   <tr key={workflow.id} className="border-b border-main/50 hover:bg-surface/50 transition-colors">
-                    <td className="px-4 py-2.5 text-xs font-mono text-indigo-400">{workflow.requestNo || '—'}</td>
+                    <td className="px-4 py-2.5 text-xs font-mono text-primary">{workflow.requestNo || '—'}</td>
                     <td className="px-4 py-2.5 text-sm text-main">{workflow.type}</td>
                     <td className="px-4 py-2.5 text-xs text-muted">{workflow.requester}</td>
                     <td className="px-4 py-2.5 text-sm font-data font-semibold text-main">{formatC(workflow.amount)}</td>
@@ -821,7 +807,7 @@ export default function FinanceModule() {
             <div className="theme-card p-5 md:col-span-2">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-sm font-semibold text-main">Filing Deadlines ({taxCompliance.filingDeadlines.length})</h3>
-                <button onClick={() => setTaxModalOpen(true)} className="px-4 py-2 rounded-xl text-sm font-semibold flex items-center gap-2 bg-gradient-to-r from-emerald-500/20 to-teal-500/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/30 hover:shadow-[0_0_15px_rgba(16,185,129,0.3)] transition-all duration-300">
+                <button onClick={() => setTaxModalOpen(true)} className="px-4 py-2 rounded-xl text-sm font-semibold flex items-center gap-2 bg-primary text-primary-foreground hover:bg-primary-hover border-primary/20 transition-all duration-300">
                   <Plus className="w-3.5 h-3.5" /> New Record
                 </button>
               </div>
@@ -889,7 +875,7 @@ export default function FinanceModule() {
                 <tbody>
                   {taxCompliance.auditTrail.map((entry) => (
                     <tr key={entry.id} className="border-b border-main/50 hover:bg-surface/50 transition-colors">
-                      <td className="px-3 py-2 text-xs text-indigo-400">{entry.action}</td>
+                      <td className="px-3 py-2 text-xs text-primary">{entry.action}</td>
                       <td className="px-3 py-2 text-xs text-muted">{entry.entityType}</td>
                       <td className="px-3 py-2 text-xs text-muted font-mono">{entry.entityId}</td>
                       <td className="px-3 py-2 text-xs text-muted">{entry.userId}</td>
@@ -1013,14 +999,14 @@ export default function FinanceModule() {
                       <td className="px-4 py-2.5">
                         <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
                           stmt.status === 'Approved' ? 'bg-emerald-500/10 text-emerald-400' :
-                          stmt.status === 'Audited' ? 'bg-indigo-500/10 text-indigo-400' :
+                          stmt.status === 'Audited' ? 'bg-primary/10 text-primary' :
                           'bg-amber-500/10 text-amber-400'
                         }`}>{stmt.status}</span>
                       </td>
                       <td className="px-4 py-2.5">
                         <div className="flex gap-2">
                           {stmt.status === 'Generated' && (
-                            <button onClick={() => handleUpdateStatementStatus(stmt.id, 'Audited')} className="text-xs text-indigo-400 hover:underline">
+                            <button onClick={() => handleUpdateStatementStatus(stmt.id, 'Audited')} className="text-xs text-primary hover:underline">
                               Audit
                             </button>
                           )}

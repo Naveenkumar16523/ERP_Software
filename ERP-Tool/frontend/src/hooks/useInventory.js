@@ -1,70 +1,54 @@
+import { useOptimisticCreate } from './useOptimisticCreate';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../api/client';
 
-export const useProducts = () => {
-  return useQuery({
-    queryKey: ['products'],
-    queryFn: async () => {
-      const { data } = await apiClient.get('/inventory/products');
-      return data.data;
-    }
-  });
-};
 
-export const useAddProduct = () => {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (product) => {
-      const { data } = await apiClient.post('/inventory/products', product);
-      return data.data;
+
+
+export const useProducts = (filters) =>
+  useQuery({
+    queryKey: ['inventory', 'products', filters],
+    queryFn: async () => {
+      const { data } = await apiClient.get('/inventory/products', { params: filters });
+      return data?.data ?? data ?? [];
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['products'] });
-    }
+    staleTime: 60_000,
   });
-};
 
-export const useTransactions = () => {
-  return useQuery({
-    queryKey: ['stock-transactions'],
+export const useCreateProduct = () => useOptimisticCreate(['inventory', 'products'], '/inventory/products');
+
+export const useWarehouses = (filters) =>
+  useQuery({
+    queryKey: ['inventory', 'warehouses', filters],
     queryFn: async () => {
-      const { data } = await apiClient.get('/inventory/stock-transactions');
-      return data.data;
-    }
-  });
-};
-
-export const useAddTransaction = () => {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (transaction) => {
-      const { data } = await apiClient.post('/inventory/stock-transactions', transaction);
-      return data.data;
+      const { data } = await apiClient.get('/inventory/warehouses', { params: filters });
+      return data?.data ?? data ?? [];
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['stock-transactions'] });
-      // Updating a stock transaction probably affects products
-      queryClient.invalidateQueries({ queryKey: ['products'] });
-    }
+    staleTime: 60_000,
   });
-};
 
-export const useWarehouses = () => {
-  return useQuery({
-    queryKey: ['warehouses'],
-    queryFn: async () => {
-      const { data } = await apiClient.get('/inventory/warehouses');
-      return data.data || data;
-    }
-  });
-};
+export const useCreateWarehouse = () => useOptimisticCreate(['inventory', 'warehouses'], '/inventory/warehouses');
 
-export const useBatches = () => {
-  return useQuery({
-    queryKey: ['inventory-batches'],
+export const useStockMovements = (filters) =>
+  useQuery({
+    queryKey: ['inventory', 'stockMovements', filters],
     queryFn: async () => {
-      const { data } = await apiClient.get('/inventory/batches');
-      return data.data || data;
-    }
+      const { data } = await apiClient.get('/inventory/stock-transactions', { params: filters });
+      return data?.data ?? data ?? [];
+    },
+    staleTime: 60_000,
   });
-};
+
+export const useCreateStockMovement = () => useOptimisticCreate(['inventory', 'stockMovements'], '/inventory/stock-transactions');
+
+export const useInventoryBatches = (filters) =>
+  useQuery({
+    queryKey: ['inventory', 'inventoryBatches', filters],
+    queryFn: async () => {
+      const { data } = await apiClient.get('/inventory/batches', { params: filters });
+      return data?.data ?? data ?? [];
+    },
+    staleTime: 60_000,
+  });
+
+export const useCreateInventoryBatche = () => useOptimisticCreate(['inventory', 'inventoryBatches'], '/inventory/batches');

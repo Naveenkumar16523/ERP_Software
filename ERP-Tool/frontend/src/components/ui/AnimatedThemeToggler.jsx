@@ -228,7 +228,7 @@ export default function AnimatedThemeToggler({
         transition={{ duration: 0.2 }}
         className="absolute"
       >
-        <Moon className="w-4 h-4 text-indigo-400" />
+        <Moon className="w-4 h-4 text-primary" />
       </motion.div>
       <span className="sr-only">Toggle theme</span>
     </button>

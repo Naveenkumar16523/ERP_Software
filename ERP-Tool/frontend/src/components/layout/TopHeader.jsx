@@ -172,7 +172,7 @@ export default function TopHeader() {
                         className={`px-4 py-3 border-b border-main hover:bg-surface/50 cursor-pointer transition-colors ${notif.read ? 'opacity-50' : ''}`}
                       >
                         <div className="flex items-start gap-2">
-                          {!notif.read && <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 mt-1.5 flex-shrink-0" />}
+                          {!notif.read && <div className="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 flex-shrink-0" />}
                           <p className="text-xs text-muted leading-relaxed">{notif.message}</p>
                         </div>
                       </div>
@@ -190,7 +190,7 @@ export default function TopHeader() {
 
           {/* User Avatar */}
           {currentUser && (
-            <div className="w-9 h-9 rounded-full bg-indigo-500/15 flex items-center justify-center text-indigo-400 text-sm font-bold border border-indigo-500/30 ml-1">
+            <div className="w-9 h-9 rounded-full bg-primary/15 flex items-center justify-center text-primary text-sm font-bold border border-primary/30 ml-1">
               {currentUser.name?.charAt(0) || 'U'}
             </div>
           )}

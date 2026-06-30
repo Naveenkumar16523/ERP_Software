@@ -16,6 +16,7 @@ from app.models.hr_sql_models import (
     OnboardingTask, OnboardingChecklist,
     AttendanceRecord, Shift, HRDocument
 )
+from app.routers.realtime import manager
 
 router = APIRouter(prefix="/hr", tags=["Human Resources"])
 
@@ -162,6 +163,18 @@ async def list_employees(
         logging.getLogger(__name__).error(f"Error fetching employees: {e}")
         return []
 
+@router.get("/org-chart")
+async def get_org_chart(
+    current_user: RBACUser = Depends(require_module_access("hr")),
+    db: Session = Depends(get_db)
+):
+    try:
+        employees = db.query(Employee).all()
+        # Create a simple hierarchy dictionary if needed, but returning flat list allows frontend to handle it flexibly
+        return employees
+    except Exception as e:
+        return []
+
 
 @router.post("/employees", status_code=status.HTTP_201_CREATED)
 async def create_employee(
@@ -194,6 +207,10 @@ async def create_employee(
     db.add(employee)
     db.commit()
     db.refresh(employee)
+    
+    import asyncio
+    asyncio.create_task(manager.broadcast({"type": "employee_added", "payload": {"employeeId": emp_id}}))
+    
     return employee
 
 

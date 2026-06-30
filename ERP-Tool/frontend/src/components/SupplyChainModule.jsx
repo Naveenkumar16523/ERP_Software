@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Plus, Truck, Map as MapIcon, PenTool, CheckCircle, Package } from 'lucide-react';
 import { useERPStore } from '../store/useERPStore';
+import { useOrders, useCreateOrder, useShipments, useCreateShipment, useCarriers, useCreateCarrier, useUpdateShipmentStatus, useUpdateShipmentPod } from '../hooks/useSupplyChain';
 import Modal from './ui/Modal';
 import api from '../utils/api';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
@@ -25,10 +26,14 @@ const STATUS_COLORS = {
 
 export default function SupplyChainModule() {
   const { addToast } = useERPStore();
+  const { data: shipments = [] } = useShipments();
+  const { data: vehicles = [] } = useCarriers();
+  const createShipment = useCreateShipment();
+  const createCarrier = useCreateCarrier();
+  const updateShipmentStatus = useUpdateShipmentStatus();
+  const updateShipmentPod = useUpdateShipmentPod();
   const [activeTab, setActiveTab] = useState('shipments');
   
-  const [vehicles, setVehicles] = useState([]);
-  const [shipments, setShipments] = useState([]);
 
   // Modals
   const [vehicleModal, setVehicleModal] = useState(false);
@@ -42,46 +47,28 @@ export default function SupplyChainModule() {
   const canvasRef = useRef(null);
   const [isDrawing, setIsDrawing] = useState(false);
 
-  const loadData = async () => {
-    try {
-      const [v, s] = await Promise.all([
-        api.supplyChain.getVehicles(),
-        api.supplyChain.getShipments()
-      ]);
-      setVehicles(v || []);
-      setShipments(s || []);
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  useEffect(() => {
-    loadData();
-  }, []);
 
   const handleAddVehicle = async () => {
     if (!newVehicle.registrationNumber) return addToast('Registration required', 'error');
     try {
-      await api.supplyChain.createVehicle(newVehicle);
+      await createCarrier.mutateAsync(newVehicle);
       addToast('Vehicle added', 'success');
       setVehicleModal(false);
       setNewVehicle({ registrationNumber: '', vehicleType: 'Truck' });
-      loadData();
     } catch (err) {
-      addToast(err.message, 'error');
+      addToast(err.message || 'Failed to add vehicle', 'error');
     }
   };
 
   const handleAddShipment = async () => {
     if (!newShipment.trackingNumber || !newShipment.origin || !newShipment.destination) return addToast('All fields required', 'error');
     try {
-      await api.supplyChain.createShipment(newShipment);
+      await createShipment.mutateAsync(newShipment);
       addToast('Shipment created', 'success');
       setShipModal(false);
       setNewShipment({ trackingNumber: '', origin: '', destination: '', vehicleId: '' });
-      loadData();
     } catch (err) {
-      addToast(err.message, 'error');
+      addToast(err.message || 'Failed to create shipment', 'error');
     }
   };
 
@@ -92,11 +79,10 @@ export default function SupplyChainModule() {
       return;
     }
     try {
-      await api.supplyChain.updateShipmentStatus(id, status);
+      await updateShipmentStatus.mutateAsync({ id, status });
       addToast(`Status updated to ${status}`, 'success');
-      loadData();
     } catch (err) {
-      addToast(err.message, 'error');
+      addToast(err.message || 'Failed to update status', 'error');
     }
   };
 
@@ -160,13 +146,12 @@ export default function SupplyChainModule() {
     }
     
     try {
-      await api.supplyChain.updateShipmentPod(selectedShipmentForPod, dataUrl);
+      await updateShipmentPod.mutateAsync({ id: selectedShipmentForPod, signatureData: dataUrl });
       addToast('POD submitted successfully', 'success');
       setPodModal(false);
       setSelectedShipmentForPod(null);
-      loadData();
     } catch(err) {
-      addToast(err.message, 'error');
+      addToast(err.message || 'Failed to submit POD', 'error');
     }
   };
 
@@ -184,10 +169,10 @@ export default function SupplyChainModule() {
           <p className="text-sm text-muted mt-1">Live tracking, shipments, and fleet management</p>
         </div>
         <div className="flex gap-2">
-          <button onClick={() => setVehicleModal(true)} className="px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 bg-gradient-to-r from-sky-500/20 to-indigo-500/20 text-sky-300 border border-sky-500/30 hover:bg-sky-500/30 hover:shadow-[0_0_15px_rgba(14,165,233,0.3)] transition-all">
+          <button onClick={() => setVehicleModal(true)} className="px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 bg-primary text-primary-foreground hover:bg-primary-hover border-primary/20 transition-all">
             <Plus className="w-4 h-4" /> New Vehicle
           </button>
-          <button onClick={() => setShipModal(true)} className="px-4 py-2 rounded-xl text-sm font-semibold flex items-center gap-2 bg-gradient-to-r from-emerald-500/20 to-teal-500/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/30 hover:shadow-[0_0_15px_rgba(16,185,129,0.3)] transition-all duration-300">
+          <button onClick={() => setShipModal(true)} className="px-4 py-2 rounded-xl text-sm font-semibold flex items-center gap-2 bg-primary text-primary-foreground hover:bg-primary-hover border-primary/20 transition-all duration-300">
             <Plus className="w-4 h-4" /> New Shipment
           </button>
         </div>
@@ -213,7 +198,7 @@ export default function SupplyChainModule() {
           const Icon = tab.icon;
           return (
             <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${activeTab === tab.id ? 'bg-indigo-600 text-white' : 'text-muted hover:text-main'}`}>
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${activeTab === tab.id ? 'bg-primary text-white' : 'text-muted hover:text-main'}`}>
               <Icon className="w-3.5 h-3.5" />{tab.label}
             </button>
           );
@@ -239,7 +224,7 @@ export default function SupplyChainModule() {
                   const vehicle = vehicles.find(v => v.id === s.vehicleId);
                   return (
                     <tr key={s.id} className="border-b border-main hover:bg-surface/60 transition-colors">
-                      <td className="px-4 py-2.5 text-xs font-mono text-indigo-400">{s.trackingNumber}</td>
+                      <td className="px-4 py-2.5 text-xs font-mono text-primary">{s.trackingNumber}</td>
                       <td className="px-4 py-2.5 text-xs text-muted">{s.origin} → {s.destination}</td>
                       <td className="px-4 py-2.5 text-xs text-main">{vehicle ? vehicle.registrationNumber : '—'}</td>
                       <td className="px-4 py-2.5">

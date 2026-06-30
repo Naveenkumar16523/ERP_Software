@@ -87,3 +87,18 @@ async def get_logistics_kpis(
     
     return response_data
 
+@router.get("/kpis")
+async def get_kpis(current_user: RBACUser = Depends(require_module_access("analytics"))):
+    return []
+
+@router.post("/kpis")
+async def create_kpi(data: dict, current_user: RBACUser = Depends(require_module_access("analytics"))):
+    return data
+
+@router.get("/reports")
+async def get_reports(current_user: RBACUser = Depends(require_module_access("analytics"))):
+    return []
+
+@router.post("/reports")
+async def create_report(data: dict, current_user: RBACUser = Depends(require_module_access("analytics"))):
+    return data

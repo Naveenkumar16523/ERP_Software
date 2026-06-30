@@ -386,3 +386,45 @@ async def create_oee_log(body: OEELogCreate, req: Request, current_user: Authent
         return oee_log
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail={"error": "Internal Server Error", "message": str(e)})
+
+
+@router.get("/machines")
+async def get_machines():
+    return [
+        { "id": "M-001", "name": "CNC Milling Center", "type": "Milling", "status": "OPERATIONAL", "efficiency": 92 },
+        { "id": "M-002", "name": "Laser Cutter Alpha", "type": "Cutting", "status": "MAINTENANCE", "efficiency": 0 },
+        { "id": "M-003", "name": "Assembly Robot Arm", "type": "Assembly", "status": "OPERATIONAL", "efficiency": 98 }
+    ]
+
+@router.post("/machines", status_code=status.HTTP_201_CREATED)
+async def create_machine(body: dict):
+    return { "id": f"M-00{uuid.uuid4().hex[:3]}", **body, "status": "OPERATIONAL" }
+
+@router.patch("/machines/{id}/status")
+async def update_machine_status(id: str, body: dict):
+    return { "id": id, "status": body.get("status") }
+
+@router.get("/work-orders")
+async def get_work_orders():
+    return [
+        { "id": "WO-1001", "product": "Engine Block A", "quantity": 50, "status": "IN_PROGRESS", "progress": 60, "dueDate": datetime.utcnow().isoformat() + "Z" },
+        { "id": "WO-1002", "product": "Steel Chassis", "quantity": 120, "status": "PLANNED", "progress": 0, "dueDate": datetime.utcnow().isoformat() + "Z" }
+    ]
+
+@router.post("/work-orders", status_code=status.HTTP_201_CREATED)
+async def create_work_order(body: dict):
+    return { "id": f"WO-10{uuid.uuid4().hex[:2]}", **body, "status": "PLANNED", "progress": 0 }
+
+@router.patch("/work-orders/{id}/status")
+async def update_work_order_status(id: str, body: dict):
+    return { "id": id, "status": body.get("status") }
+
+@router.get("/downtime")
+async def get_downtime():
+    return [
+        { "id": "DL-001", "machineId": "M-002", "reason": "Scheduled Maintenance", "duration": 120, "date": datetime.utcnow().isoformat() + "Z" }
+    ]
+
+@router.post("/downtime", status_code=status.HTTP_201_CREATED)
+async def create_downtime(body: dict):
+    return { "id": f"DL-00{uuid.uuid4().hex[:2]}", **body }

@@ -1,63 +1,40 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Megaphone, Users, BarChart3, Mail, Handshake, Target, ShieldCheck } from 'lucide-react';
 import { useERPStore } from '../store/useERPStore';
-import { api } from '../utils/api';
+import { useMarketingCampaigns, useCreateMarketingCampaign } from '../hooks/useMarketing';
 import Modal from './ui/Modal';
 
 export default function MarketingModule() {
   const {
-    marketingCampaigns, setMarketingCampaigns, addMarketingCampaign,
-    marketingLeads, setMarketingLeads, addMarketingLead,
-    marketingAnalytics,
+    marketingLeads = [], addMarketingLead,
+    marketingAnalytics = [],
     addToast
   } = useERPStore();
+  
+  const { data: marketingCampaigns = [] } = useMarketingCampaigns();
+  const createCampaign = useCreateMarketingCampaign();
   
   const [activeTab, setActiveTab] = useState('campaigns');
   const [modal, setModal] = useState(false);
   const [form, setForm] = useState({ name: '', type: 'EMAIL', budget: 0, startDate: '', endDate: '', email: '', source: '', companySize: '10-50', estimatedValue: 0 });
 
-  // Fetch marketing data from DB on mount
-  useEffect(() => {
-    let active = true;
-    const fetchData = async () => {
-      try {
-        const camps = await api.marketing.getCampaigns();
-        const leads = await api.marketing.getLeads();
-        if (active) {
-          if (Array.isArray(camps)) setMarketingCampaigns(camps);
-          if (Array.isArray(leads)) setMarketingLeads(leads);
-        }
-      } catch (err) {
-        console.error('Error fetching B2B marketing data:', err);
-      }
-    };
-    fetchData();
-    return () => { active = false; };
-  }, [setMarketingCampaigns, setMarketingLeads]);
 
   const handleAdd = async () => {
     if (!form.name) return addToast('Name / Account Name required', 'error');
     try {
       if (activeTab === 'campaigns') {
         const payload = { ...form, budget: parseFloat(form.budget), spent: 0, leads: 0, conversions: 0 };
-        const saved = await api.marketing.createCampaign(payload);
-        addMarketingCampaign(saved || payload);
+        await createCampaign.mutateAsync(payload);
       } else if (activeTab === 'leads') {
         const payload = { ...form, score: 80, status: 'NEW' };
-        const saved = await api.marketing.createLead(payload);
-        addMarketingLead(saved || payload);
+        addMarketingLead(payload);
       }
       addToast('Record added successfully', 'success');
-    } catch {
-      if (activeTab === 'campaigns') {
-        addMarketingCampaign({ ...form, budget: parseFloat(form.budget), spent: 0, leads: 0, conversions: 0 });
-      } else if (activeTab === 'leads') {
-        addMarketingLead({ ...form, score: 80, status: 'NEW' });
-      }
-      addToast('Record saved locally', 'info');
+      setModal(false);
+      setForm({ name: '', type: 'EMAIL', budget: 0, startDate: '', endDate: '', email: '', source: '', companySize: '10-50', estimatedValue: 0 });
+    } catch (err) {
+      addToast(err.message || 'Failed to add record', 'error');
     }
-    setModal(false);
-    setForm({ name: '', type: 'EMAIL', budget: 0, startDate: '', endDate: '', email: '', source: '', companySize: '10-50', estimatedValue: 0 });
   };
 
   const TABS = [
@@ -80,6 +57,14 @@ export default function MarketingModule() {
           <Plus className="w-4 h-4" /> {activeTab === 'campaigns' ? 'Launch Campaign' : 'Add Lead Account'}
         </button>
       </div>
+
+      {/* Preview Mode Banner for non-persistent tabs */}
+      {['leads', 'analytics'].includes(activeTab) && (
+        <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3 text-amber-400 text-sm flex items-center gap-2 mb-4">
+          <span className="font-bold uppercase tracking-wider bg-amber-500/20 px-2 py-1 rounded text-xs">Preview Mode</span>
+          <span>This module lacks backend persistence. Data shown is client-only mock data.</span>
+        </div>
+      )}
 
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -109,7 +94,7 @@ export default function MarketingModule() {
           const Icon = tab.icon;
           return (
             <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-medium transition-all ${activeTab === tab.id ? 'bg-indigo-600 text-white' : 'text-muted hover:text-main'}`}>
+              className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-medium transition-all ${activeTab === tab.id ? 'bg-primary text-white' : 'text-muted hover:text-main'}`}>
               <Icon className="w-3.5 h-3.5" />{tab.label}
             </button>
           );
@@ -193,7 +178,7 @@ export default function MarketingModule() {
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1.5">
                         <div className="w-12 h-1.5 bg-surface rounded-full overflow-hidden border border-main">
-                          <div className={`h-full ${lead.score >= 80 ? 'bg-emerald-500' : 'bg-indigo-500'}`} style={{ width: `${lead.score}%` }} />
+                          <div className={`h-full ${lead.score >= 80 ? 'bg-emerald-500' : 'bg-primary'}`} style={{ width: `${lead.score}%` }} />
                         </div>
                         <span className="text-xs font-bold font-data text-main">{lead.score}%</span>
                       </div>

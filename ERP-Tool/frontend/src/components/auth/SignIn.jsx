@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Mail, Lock, User, Key, Shield, Sparkles, ArrowRight, Eye, EyeOff } from 'lucide-react';
+import clarixLogo from '../../assets/clarix_logo.png';
 import { useERPStore } from '../../store/useERPStore';
 import { api } from '../../utils/api';
 
 export default function SignIn() {
-  const { setToken, setCurrentUser, setDemoMode, addToast, theme, setUserPermissions, setAllowedModules, setActiveModule } = useERPStore();
+  const { setToken, setCurrentUser, setDemoMode, addToast, theme, setUserPermissions, setActiveModule } = useERPStore();
 
   const [authView, setAuthView] = useState('login');
   const [email, setEmail] = useState('');
@@ -57,11 +58,8 @@ export default function SignIn() {
 
       setCurrentUser(userObj);
 
-      const permissions = data.permissions || data.user?.permissions;
-      if (permissions) setUserPermissions(permissions);
-
-      const allowedModules = data.user?.allowed_modules || [];
-      if (allowedModules.length > 0) setAllowedModules(allowedModules);
+      const permissions = data.permissions || data.user?.permissions || [];
+      setUserPermissions(permissions);
 
       setDemoMode(false);
       addToast(`Welcome back, ${userObj.fullName || userObj.name || 'User'}!`, 'success');
@@ -125,15 +123,15 @@ export default function SignIn() {
       <div className="gradient-bg"></div>
 
       {/* Decorative Blur Orbs */}
-      <div className="absolute top-20 -right-20 w-[400px] h-[400px] blur-[120px] bg-indigo-500/10 rounded-full mix-blend-screen pointer-events-none"></div>
+      <div className="absolute top-20 -right-20 w-[400px] h-[400px] blur-[120px] bg-primary/10 rounded-full mix-blend-screen pointer-events-none"></div>
       <div className="absolute -bottom-20 -left-20 w-[400px] h-[400px] blur-[120px] bg-violet-600/10 rounded-full mix-blend-screen pointer-events-none"></div>
 
       <main className="w-full max-w-[440px] px-6 z-10 flex flex-col gap-6 animate-fade-up">
         
         {/* Brand Header */}
         <header className="flex flex-col items-center text-center">
-          <div className="w-14 h-14 bg-gradient-to-br from-indigo-500 to-violet-600 rounded-2xl flex items-center justify-center mb-3 shadow-lg shadow-indigo-500/25 border border-indigo-400/20">
-            <Sparkles className="w-6 h-6 text-white animate-pulse" />
+          <div className="w-16 h-16 flex items-center justify-center mb-3">
+            <img src={clarixLogo} alt="Logo" className="w-full h-full object-contain drop-shadow-[0_0_15px_rgba(34,211,238,0.2)]" />
           </div>
           <h1 className="text-3xl font-extrabold text-white tracking-tight font-heading">
             CLARIX
@@ -146,7 +144,7 @@ export default function SignIn() {
         {/* Auth Panel Card */}
         <div className="glass-panel p-8 rounded-2xl border border-white/5 bg-slate-950/60 backdrop-blur-xl shadow-2xl relative overflow-hidden">
           {/* Subtle top accent */}
-          <div className="absolute top-0 inset-x-0 h-[1.5px] bg-gradient-to-r from-indigo-500/0 via-indigo-500 to-indigo-500/0" />
+          <div className="absolute top-0 inset-x-0 h-[1.5px] bg-gradient-to-r from-primary/0 via-primary to-primary/0" />
 
           {/* Title Header */}
           <div className="flex flex-col gap-1 mb-6">
@@ -167,7 +165,7 @@ export default function SignIn() {
               <div className="grid grid-cols-2 gap-3">
                 <div className="flex flex-col gap-1.5">
                   <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider">First Name</label>
-                  <div className="relative border border-white/10 focus-within:border-indigo-500 rounded-lg bg-black/20 overflow-hidden transition-all duration-200">
+                  <div className="relative border border-white/10 focus-within:border-primary rounded-lg bg-black/20 overflow-hidden transition-all duration-200">
                     <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
                     <input 
                       type="text" 
@@ -181,7 +179,7 @@ export default function SignIn() {
                 </div>
                 <div className="flex flex-col gap-1.5">
                   <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Last Name</label>
-                  <div className="relative border border-white/10 focus-within:border-indigo-500 rounded-lg bg-black/20 overflow-hidden transition-all duration-200">
+                  <div className="relative border border-white/10 focus-within:border-primary rounded-lg bg-black/20 overflow-hidden transition-all duration-200">
                     <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
                     <input 
                       type="text" 
@@ -200,7 +198,7 @@ export default function SignIn() {
               <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider" htmlFor="email">
                 {authView === 'login' ? 'Username / Email' : 'Email Address'}
               </label>
-              <div className="relative border border-white/10 focus-within:border-indigo-500 rounded-lg bg-black/20 overflow-hidden transition-all duration-200">
+              <div className="relative border border-white/10 focus-within:border-primary rounded-lg bg-black/20 overflow-hidden transition-all duration-200">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
                 <input
                   type="text"
@@ -218,7 +216,7 @@ export default function SignIn() {
               <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider" htmlFor="password">
                 {authView === 'login' ? 'Access Key' : 'Choose Password'}
               </label>
-              <div className="relative border border-white/10 focus-within:border-indigo-500 rounded-lg bg-black/20 overflow-hidden transition-all duration-200">
+              <div className="relative border border-white/10 focus-within:border-primary rounded-lg bg-black/20 overflow-hidden transition-all duration-200">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
                 <input 
                   type={showPassword ? 'text' : 'password'} 
@@ -232,7 +230,7 @@ export default function SignIn() {
                 <button 
                   type="button" 
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-indigo-400 transition-colors bg-transparent border-0 cursor-pointer flex items-center justify-center p-0"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-primary transition-colors bg-transparent border-0 cursor-pointer flex items-center justify-center p-0"
                 >
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
@@ -257,7 +255,7 @@ export default function SignIn() {
 
             <div className="flex items-center justify-between py-1 text-xs text-slate-400">
               <label className="flex items-center gap-1.5 cursor-pointer select-none">
-                <input className="w-3.5 h-3.5 rounded border-white/10 bg-black/30 text-indigo-600 focus:ring-0" type="checkbox"/>
+                <input className="w-3.5 h-3.5 rounded border-white/10 bg-black/30 text-primary focus:ring-0" type="checkbox"/>
                 <span>Remember console</span>
               </label>
 
@@ -269,7 +267,7 @@ export default function SignIn() {
                     setAuthError('');
                     setAuthSuccess('');
                   }}
-                  className="text-indigo-400 hover:text-indigo-300 transition-colors bg-transparent border-0 cursor-pointer p-0 font-medium"
+                  className="text-primary hover:text-primary-hover transition-colors bg-transparent border-0 cursor-pointer p-0 font-medium"
                 >
                   {authView === 'login' ? 'Create Account' : 'Back to Login'}
                 </button>
@@ -277,33 +275,13 @@ export default function SignIn() {
             </div>
 
             <button 
-              className="w-full bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-semibold py-2.5 rounded-lg shadow-lg shadow-indigo-600/10 hover:shadow-indigo-600/20 active:scale-[0.98] transition-all duration-200 flex items-center justify-center gap-2 border border-white/10 cursor-pointer text-sm" 
+              className="w-full bg-primary hover:bg-primary-hover text-primary-foreground font-semibold py-2.5 rounded-lg shadow-lg shadow-primary/10 hover:shadow-primary/20 active:scale-[0.98] transition-all duration-200 flex items-center justify-center gap-2 border border-white/10 cursor-pointer text-sm" 
               type="submit"
               disabled={authLoading}
             >
               <span>{authLoading ? 'Verifying Session...' : (authView === 'login' ? 'Initialize Session' : 'Register Operator')}</span>
               {!authLoading && <ArrowRight className="w-4 h-4" />}
             </button>
-            {authView === 'login' && (
-              <button 
-                className="w-full bg-transparent hover:bg-white/5 text-slate-300 border border-white/10 font-semibold py-2 rounded-lg transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer text-xs mt-2" 
-                type="button"
-                onClick={() => {
-                  setToken('demo-fallback-token');
-                  setCurrentUser({
-                    id: 'ceo-fallback', username: 'ceo', name: 'CEO (Demo Mode)', fullName: 'CEO (Demo Mode)',
-                    firstName: 'CEO', lastName: '', email: 'ceo@company.com', role: 'Superadmin',
-                    roleId: 'role_superadmin', avatar: null, isCEO: true, allowed_modules: ['all']
-                  });
-                  setAllowedModules(['all']);
-                  setDemoMode(true);
-                  addToast('Signed in via Local Demo Mode.', 'info');
-                  setActiveModule('admin');
-                }}
-              >
-                <span>Local Demo Mode (Sandbox Bypass)</span>
-              </button>
-            )}
           </form>
 
 
@@ -312,7 +290,7 @@ export default function SignIn() {
         {/* Footer Info */}
         <footer className="text-center">
           <p className="text-[10px] text-slate-500 leading-normal">
-            Authorized admin access only. All sessions audited under security standard <span className="text-indigo-400/80 font-mono">AETHER-SEC-09</span>.
+            Authorized admin access only. All sessions audited under security standard <span className="text-primary/80 font-mono">AETHER-SEC-09</span>.
           </p>
         </footer>
       </main>

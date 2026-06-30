@@ -37,7 +37,7 @@ export default function AccessDenied() {
           <div className="flex flex-col gap-3">
             <button
               onClick={handleGoHome}
-              className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-medium transition-colors border border-indigo-500/30"
+              className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg bg-primary hover:bg-primary text-white font-medium transition-colors border border-primary/30"
             >
               <Home className="w-4 h-4" />
               Go to Dashboard

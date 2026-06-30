@@ -27,6 +27,7 @@ class Employee(Base):
     departmentId    = Column(String(36), nullable=True)
     departmentName  = Column(String(100), nullable=True)
     designation     = Column(String(100))
+    managerId       = Column(String(36), nullable=True)
     employeeType    = Column(String(50), default="Full-Time")   # Full-Time, Part-Time, Contract
     status          = Column(String(50), default="Active")       # Active, Inactive, Terminated
     dateOfJoining   = Column(Date, nullable=True)

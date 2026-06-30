@@ -40,7 +40,7 @@ class Invoice(Base):
     
     id = Column(String(36), primary_key=True, default=generate_uuid)
     invoiceNo = Column(String(100), unique=True, index=True)
-    customerName = Column(String(255))
+    customerName = Column(String(255), index=True)
     subtotal = Column(Numeric(15, 4))
     taxRate = Column(Numeric(15, 4))
     taxAmount = Column(Numeric(15, 4))

@@ -1,14 +1,18 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Package, CreditCard, FileText, Send, Truck, ArrowRight, CheckCircle2, User, MapPin } from 'lucide-react';
 import { useERPStore } from '../store/useERPStore';
+import { useEcommerceProducts, useEcommerceOrders, useCreateEcommerceOrder, useUpdateEcommerceOrderStatus } from '../hooks/useEcommerce';
 import { api } from '../utils/api';
 
 export default function CustomerPortalModule() {
-  const {
-    ecommerceOrders, setEcommerceOrders, addEcommerceOrder, updateEcommerceOrderStatus,
-    payments, addPayment,
-    addToast
-  } = useERPStore();
+  const addToast = useERPStore(s => s.addToast);
+  const payments = useERPStore(s => s.payments || []);
+  const addPayment = useERPStore(s => s.addPayment);
+  const { data: ecommerceProducts = [] } = useEcommerceProducts();
+  const { data: ecommerceOrders = [] } = useEcommerceOrders();
+  const createEcommerceOrder = useCreateEcommerceOrder();
+  const updateEcommerceOrderStatus = useUpdateEcommerceOrderStatus();
+
 
   const [activeTab, setActiveTab] = useState('book');
   
@@ -25,24 +29,13 @@ export default function CustomerPortalModule() {
     shippingSpeed: 'STANDARD'
   });
 
-  const [fareCalculation, setFareCalculation] = useState(0);
-
-  // Auto-calculate fare when weight or speed changes
-  useEffect(() => {
+  const fareCalculation = useMemo(() => {
     const w = parseFloat(bookingForm.weight) || 0;
-    if (w <= 0) {
-      setFareCalculation(0);
-      return;
-    }
-    
-    // Base fee: ₹500
-    // Weight multiplier: ₹100 per kg
-    // Speed multiplier: Express x1.5, Overnight x2.5
+    if (w <= 0) return 0;
     let base = 500 + (w * 100);
     if (bookingForm.shippingSpeed === 'EXPRESS') base *= 1.5;
     if (bookingForm.shippingSpeed === 'OVERNIGHT') base *= 2.5;
-    
-    setFareCalculation(Math.round(base));
+    return Math.round(base);
   }, [bookingForm.weight, bookingForm.shippingSpeed]);
 
   const handleBookShipment = async (e) => {
@@ -74,28 +67,11 @@ export default function CustomerPortalModule() {
     };
 
     try {
-      // Sync with e-commerce checkout endpoint if online
-      if (api.ecommerce?.checkout) {
-        await api.ecommerce.checkout({
-          customerName: bookingForm.senderName,
-          customerEmail: bookingForm.senderEmail,
-          shippingAddress: bookingForm.receiverAddress,
-          items: [{ productId: 'freight-service', quantity: 1 }],
-          customData: {
-            origin: bookingForm.origin,
-            destination: bookingForm.destination,
-            weight: weightNum,
-            cargoType: bookingForm.cargoType,
-            totalAmount: fareCalculation
-          }
-        });
-      }
+      await createEcommerceOrder.mutateAsync(payload);
     } catch (err) {
-      console.warn('API sync failed. Booking saved locally.');
+      addToast(err.message || 'Failed to book shipment', 'error');
+      return;
     }
-
-    // Save order in Zustand state
-    addEcommerceOrder(payload);
     
     // Record successful payment for this shipment booking
     addPayment({
@@ -164,7 +140,7 @@ export default function CustomerPortalModule() {
           const Icon = tab.icon;
           return (
             <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-medium transition-all ${activeTab === tab.id ? 'bg-indigo-600 text-white' : 'text-muted hover:text-main'}`}>
+              className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-medium transition-all ${activeTab === tab.id ? 'bg-primary text-white' : 'text-muted hover:text-main'}`}>
               <Icon className="w-3.5 h-3.5" />{tab.label}
             </button>
           );
@@ -175,11 +151,11 @@ export default function CustomerPortalModule() {
       {activeTab === 'book' && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <form onSubmit={handleBookShipment} className="lg:col-span-2 theme-card p-6 space-y-4">
-            <h3 className="text-sm font-semibold text-main mb-4 flex items-center gap-1.5"><Package className="w-4 h-4 text-indigo-400" /> Freight Shipment Details</h3>
+            <h3 className="text-sm font-semibold text-main mb-4 flex items-center gap-1.5"><Package className="w-4 h-4 text-primary" /> Freight Shipment Details</h3>
             
             {/* Sender / Corporate Account Details */}
             <div className="bg-surface/50 p-4 rounded-xl border border-main/30 space-y-3">
-              <span className="text-xs font-bold text-indigo-400 flex items-center gap-1"><User className="w-3 h-3" /> Consignor (Sender)</span>
+              <span className="text-xs font-bold text-primary flex items-center gap-1"><User className="w-3 h-3" /> Consignor (Sender)</span>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div>
                   <label className="form-label">Company / Sender Name</label>
@@ -194,7 +170,7 @@ export default function CustomerPortalModule() {
 
             {/* Receiver / Consignee Details */}
             <div className="bg-surface/50 p-4 rounded-xl border border-main/30 space-y-3">
-              <span className="text-xs font-bold text-indigo-400 flex items-center gap-1"><MapPin className="w-3 h-3" /> Consignee (Receiver)</span>
+              <span className="text-xs font-bold text-primary flex items-center gap-1"><MapPin className="w-3 h-3" /> Consignee (Receiver)</span>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div>
                   <label className="form-label">Receiver Name / Company</label>
@@ -209,7 +185,7 @@ export default function CustomerPortalModule() {
 
             {/* Cargo / Dimensions */}
             <div className="bg-surface/50 p-4 rounded-xl border border-main/30 space-y-3">
-              <span className="text-xs font-bold text-indigo-400 flex items-center gap-1"><Truck className="w-3 h-3" /> Cargo & Logistics Specifications</span>
+              <span className="text-xs font-bold text-primary flex items-center gap-1"><Truck className="w-3 h-3" /> Cargo & Logistics Specifications</span>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 <div>
                   <label className="form-label">Origin City</label>
@@ -312,7 +288,7 @@ export default function CustomerPortalModule() {
               <tbody>
                 {ecommerceOrders.map(o => (
                   <tr key={o.id} className="border-b border-main hover:bg-surface/40 transition-colors">
-                    <td className="px-4 py-3 text-xs font-mono text-indigo-400 font-bold">{o.orderNumber}</td>
+                    <td className="px-4 py-3 text-xs font-mono text-primary font-bold">{o.orderNumber}</td>
                     <td className="px-4 py-3 text-sm text-main font-semibold">
                       <div>{o.customerName}</div>
                       <div className="text-[10px] text-muted font-normal">{o.customerEmail}</div>
@@ -345,11 +321,11 @@ export default function CustomerPortalModule() {
                     </td>
                     <td className="px-4 py-3 text-xs">
                       {o.status === 'PROCESSING' && (
-                        <button onClick={() => { updateEcommerceOrderStatus(o.id, 'SHIPPED'); addToast('Cargo dispatched and in transit', 'info'); }}
-                          className="text-indigo-400 hover:underline">Dispatch Cargo</button>
+                        <button onClick={() => { updateEcommerceOrderStatus.mutate({ id: o.id, status: 'SHIPPED' }); addToast('Cargo dispatched and in transit', 'info'); }}
+                          className="text-primary hover:underline">Dispatch Cargo</button>
                       )}
                       {o.status === 'SHIPPED' && (
-                        <button onClick={() => { updateEcommerceOrderStatus(o.id, 'DELIVERED'); addToast('Cargo delivered successfully', 'success'); }}
+                        <button onClick={() => { updateEcommerceOrderStatus.mutate({ id: o.id, status: 'DELIVERED' }); addToast('Cargo delivered successfully', 'success'); }}
                           className="text-emerald-400 hover:underline">Mark Delivered</button>
                       )}
                     </td>
@@ -382,10 +358,10 @@ export default function CustomerPortalModule() {
               <tbody>
                 {payments.map(payment => (
                   <tr key={payment.id} className="border-b border-main hover:bg-surface/40 transition-colors">
-                    <td className="px-4 py-3 text-xs font-mono text-indigo-400 font-bold">{payment.orderNumber}</td>
+                    <td className="px-4 py-3 text-xs font-mono text-primary font-bold">{payment.orderNumber}</td>
                     <td className="px-4 py-3 text-right text-sm font-data text-emerald-400 font-bold">₹{payment.amount?.toLocaleString('en-IN')}</td>
                     <td className="px-4 py-3 text-xs text-muted font-semibold">{payment.method}</td>
-                    <td className="px-4 py-3 text-xs font-mono text-indigo-400">{payment.transactionId}</td>
+                    <td className="px-4 py-3 text-xs font-mono text-primary">{payment.transactionId}</td>
                     <td className="px-4 py-3">
                       <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-emerald-500/10 text-emerald-400">
                         CLEARED

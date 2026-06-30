@@ -1,16 +1,21 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Handshake, Target, Activity, Ticket, IndianRupee } from 'lucide-react';
+import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
+import { Plus, Handshake, Target, Activity, Ticket, IndianRupee, Mail, Building, Phone } from 'lucide-react';
 import { useERPStore } from '../store/useERPStore';
+import { useLeads, useAddLead, useUpdateLeadStatus } from '../hooks/useCRM';
+import { useSupportTickets, useCreateSupportTicket, useUpdateSupportTicketStatus } from '../hooks/useSupport';
+import { useQueryClient, useMutation } from '@tanstack/react-query';
+import { apiClient } from '../api/client';
 import Modal from './ui/Modal';
 import api from '../utils/api';
 
 const STAGES = ['New', 'Contacted', 'Qualified', 'Won', 'Lost'];
 const STAGE_COLORS = {
-  New: 'text-sky-400 bg-sky-500/10',
-  Contacted: 'text-blue-400 bg-blue-500/10',
-  Qualified: 'text-violet-400 bg-violet-500/10',
-  Won: 'text-emerald-400 bg-emerald-500/10',
-  Lost: 'text-rose-400 bg-rose-500/10',
+  New: 'border-sky-500',
+  Contacted: 'border-blue-500',
+  Qualified: 'border-violet-500',
+  Won: 'border-emerald-500',
+  Lost: 'border-rose-500',
 };
 
 const TICKET_STATUS_COLORS = {
@@ -20,11 +25,20 @@ const TICKET_STATUS_COLORS = {
 };
 
 export default function CRMModule() {
-  const { addToast } = useERPStore();
+  const addToast = useERPStore(s => s.addToast);
 
-  const [leads, setLeads] = useState([]);
-  const [tickets, setTickets] = useState([]);
-
+  const { data: leads = [] } = useLeads();
+  const addLeadMutation = useAddLead();
+  const updateLeadStatusMutation = useUpdateLeadStatus();
+  
+  const { data: tickets = [] } = useSupportTickets();
+  const createTicket = useCreateSupportTicket();
+  const qc = useQueryClient();
+  const updateTicketMutation = useMutation({
+    mutationFn: ({ id, status }) => apiClient.patch(`/crm/tickets/${id}/status`, { status }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['support', 'supportTickets'] })
+  });
+  
   const [activeTab, setActiveTab] = useState('pipeline');
   const [leadModal, setLeadModal] = useState(false);
   const [ticketModal, setTicketModal] = useState(false);
@@ -32,47 +46,31 @@ export default function CRMModule() {
   const [newLead, setNewLead] = useState({ name: '', company: '', email: '', phone: '', expectedRevenue: 0 });
   const [newTicket, setNewTicket] = useState({ title: '', description: '', leadId: '', priority: 'Medium' });
 
-  const loadData = async () => {
-    try {
-      const [leadsData, ticketsData] = await Promise.all([
-        api.crm.getLeads(),
-        api.crm.getTickets()
-      ]);
-      setLeads(leadsData || []);
-      setTickets(ticketsData || []);
-    } catch (err) {
-      console.error(err);
-    }
-  };
 
-  useEffect(() => {
-    loadData();
-  }, []);
 
   const handleAddLead = async () => {
-    if (!newLead.name || !newLead.email) return addToast('Name and email required', 'error');
+    if (!newLead.name || !newLead.company) return addToast('Name and Company required', 'error');
     try {
-      await api.crm.createLead({
-        name: newLead.name,
-        company: newLead.company,
-        email: newLead.email,
-        phone: newLead.phone,
-        expectedRevenue: parseFloat(newLead.expectedRevenue) || 0
-      });
-      addToast('Lead added to pipeline', 'success');
+      await addLeadMutation.mutateAsync(newLead);
+      addToast('Lead added successfully', 'success');
       setNewLead({ name: '', company: '', email: '', phone: '', expectedRevenue: 0 });
       setLeadModal(false);
-      loadData();
     } catch (err) {
       addToast(err.message || 'Failed to add lead', 'error');
     }
   };
 
-  const handleUpdateLeadStage = async (id, stage) => {
+  const onDragEnd = async (result) => {
+    const { destination, source, draggableId } = result;
+    if (!destination) return;
+    if (destination.droppableId === source.droppableId && destination.index === source.index) return;
+    
+    const newStage = destination.droppableId;
+    
+    // The useOptimisticMutation will automatically handle optimistic updates for 'leads'
     try {
-      await api.crm.updateLeadStatus(id, stage);
+      await updateLeadStatusMutation.mutateAsync({ id: draggableId, status: newStage });
       addToast('Lead stage updated', 'success');
-      loadData();
     } catch (err) {
       addToast(err.message || 'Failed to update lead stage', 'error');
     }
@@ -81,16 +79,15 @@ export default function CRMModule() {
   const handleAddTicket = async () => {
     if (!newTicket.title) return addToast('Title required', 'error');
     try {
-      await api.crm.createTicket({
+      await createTicket.mutateAsync({
         title: newTicket.title,
         description: newTicket.description,
         leadId: newTicket.leadId || null,
         priority: newTicket.priority
       });
-      addToast('Support ticket created', 'success');
+      addToast('Ticket created', 'success');
       setNewTicket({ title: '', description: '', leadId: '', priority: 'Medium' });
       setTicketModal(false);
-      loadData();
     } catch (err) {
       addToast(err.message || 'Failed to create ticket', 'error');
     }
@@ -98,9 +95,8 @@ export default function CRMModule() {
 
   const handleUpdateTicketStatus = async (id, status) => {
     try {
-      await api.crm.updateTicketStatus(id, status);
+      await updateTicketMutation.mutateAsync({ id, status });
       addToast('Ticket status updated', 'success');
-      loadData();
     } catch (err) {
       addToast(err.message || 'Failed to update ticket status', 'error');
     }
@@ -116,28 +112,28 @@ export default function CRMModule() {
     .reduce((s, l) => s + (l.expectedRevenue || 0), 0);
 
   const TABS = [
-    { id: 'pipeline', label: 'Lead Pipeline', icon: Handshake },
+    { id: 'pipeline', label: 'Kanban Pipeline', icon: Target },
     { id: 'tickets', label: 'Support Tickets', icon: Ticket }
   ];
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="p-6 space-y-6 h-full flex flex-col">
+      <div className="flex items-center justify-between shrink-0">
         <div>
-          <h1 className="text-2xl font-bold text-main">CRM & Support</h1>
+          <h1 className="text-2xl font-bold text-main">CRM & Pipeline</h1>
           <p className="text-sm text-muted mt-1">Lead management and ticketing</p>
         </div>
         <div className="flex gap-2">
-          <button onClick={() => setTicketModal(true)} className="px-4 py-2 rounded-xl text-sm font-semibold flex items-center gap-2 bg-gradient-to-r from-emerald-500/20 to-teal-500/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/30 hover:shadow-[0_0_15px_rgba(16,185,129,0.3)] transition-all duration-300">
+          <button onClick={() => setTicketModal(true)} className="px-4 py-2 rounded-xl text-sm font-semibold flex items-center gap-2 bg-primary text-primary-foreground hover:bg-primary-hover border-primary/20 transition-all duration-300">
             <Plus className="w-4 h-4" /> New Ticket
           </button>
-          <button onClick={() => setLeadModal(true)} className="px-4 py-2 rounded-xl text-sm font-semibold flex items-center gap-2 bg-gradient-to-r from-emerald-500/20 to-teal-500/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/30 hover:shadow-[0_0_15px_rgba(16,185,129,0.3)] transition-all duration-300">
+          <button onClick={() => setLeadModal(true)} className="px-4 py-2 rounded-xl text-sm font-semibold flex items-center gap-2 bg-primary text-primary-foreground hover:bg-primary-hover border-primary/20 transition-all duration-300">
             <Plus className="w-4 h-4" /> Add Lead
           </button>
         </div>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 shrink-0">
         {[
           { label: 'Total Leads', value: leads.length, color: 'text-indigo-400', icon: Handshake },
           { label: 'Pipeline Value (Qualified)', value: `₹${pipelineValue.toLocaleString('en-IN')}`, color: 'text-emerald-400', icon: IndianRupee },
@@ -153,12 +149,12 @@ export default function CRMModule() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 bg-surface p-1 rounded-xl w-fit border border-main">
+      <div className="flex gap-1 bg-surface p-1 rounded-xl w-fit border border-main shrink-0">
         {TABS.map(tab => {
           const Icon = tab.icon;
           return (
             <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${activeTab === tab.id ? 'bg-indigo-600 text-white' : 'text-muted hover:text-main'}`}>
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${activeTab === tab.id ? 'bg-primary text-white' : 'text-muted hover:text-main'}`}>
               <Icon className="w-3.5 h-3.5" />{tab.label}
             </button>
           );
@@ -166,54 +162,63 @@ export default function CRMModule() {
       </div>
 
       {activeTab === 'pipeline' && (
-        <div className="theme-card overflow-hidden">
-          <div className="px-4 py-3 border-b border-main">
-            <h3 className="text-sm font-semibold text-main">Sales Pipeline — {leads.length} leads</h3>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="text-left text-xs text-dimmed border-b border-main">
-                  <th className="px-4 py-2.5">Lead</th>
-                  <th className="px-4 py-2.5">Company</th>
-                  <th className="px-4 py-2.5">Stage</th>
-                  <th className="px-4 py-2.5 text-right">Expected Revenue</th>
-                  <th className="px-4 py-2.5">Move</th>
-                </tr>
-              </thead>
-              <tbody>
-                {leads.map(lead => (
-                  <tr key={lead.id} className="border-b border-main hover:bg-surface/60 transition-colors">
-                    <td className="px-4 py-2.5">
-                      <p className="text-sm text-main">{lead.name}</p>
-                      <p className="text-xs text-dimmed">{lead.email}</p>
-                    </td>
-                    <td className="px-4 py-2.5 text-sm text-muted">{lead.company}</td>
-                    <td className="px-4 py-2.5">
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STAGE_COLORS[lead.status] || 'text-muted bg-surface'}`}>
-                        {lead.status}
-                      </span>
-                    </td>
-                    <td className="px-4 py-2.5 text-right text-sm font-data text-main">₹{(lead.expectedRevenue || 0).toLocaleString('en-IN')}</td>
-                    <td className="px-4 py-2.5">
-                      <select
-                        className="form-input text-xs py-1 px-2"
-                        value={lead.status}
-                        onChange={e => handleUpdateLeadStage(lead.id, e.target.value)}
-                      >
-                        {STAGES.map(s => <option key={s} value={s}>{s}</option>)}
-                      </select>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+        <div className="flex-1 overflow-x-auto pb-4">
+          <DragDropContext onDragEnd={onDragEnd}>
+            <div className="flex gap-4 min-w-max h-[500px]">
+              {STAGES.map(stage => {
+                const stageLeads = leads.filter(l => l.status === stage);
+                return (
+                  <div key={stage} className="w-[300px] flex flex-col bg-surface rounded-xl border border-main overflow-hidden shadow-lg">
+                    <div className={`px-4 py-3 border-b border-main bg-black/20 flex justify-between items-center border-t-2 ${STAGE_COLORS[stage]}`}>
+                      <h3 className="text-sm font-semibold text-main">{stage}</h3>
+                      <span className="text-xs font-mono bg-black/40 text-muted px-2 py-0.5 rounded-full">{stageLeads.length}</span>
+                    </div>
+                    
+                    <Droppable droppableId={stage}>
+                      {(provided, snapshot) => (
+                        <div
+                          ref={provided.innerRef}
+                          {...provided.droppableProps}
+                          className={`flex-1 p-3 overflow-y-auto space-y-3 transition-colors ${snapshot.isDraggingOver ? 'bg-primary/5' : ''}`}
+                        >
+                          {stageLeads.map((lead, index) => (
+                            <Draggable key={lead.id} draggableId={lead.id} index={index}>
+                              {(provided, snapshot) => (
+                                <div
+                                  ref={provided.innerRef}
+                                  {...provided.draggableProps}
+                                  {...provided.dragHandleProps}
+                                  className={`theme-card p-3 shadow-md border-l-4 ${STAGE_COLORS[stage]} transition-all ${snapshot.isDragging ? 'shadow-xl scale-[1.02] rotate-1 ring-1 ring-primary/50' : 'hover:border-primary'}`}
+                                >
+                                  <div className="flex justify-between items-start mb-2">
+                                    <h4 className="text-sm font-bold text-main leading-tight">{lead.name}</h4>
+                                    <span className="text-xs font-data font-bold text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded">
+                                      ₹{(lead.expectedRevenue || 0).toLocaleString('en-IN')}
+                                    </span>
+                                  </div>
+                                  <div className="space-y-1.5 mt-3">
+                                    <p className="text-xs text-muted flex items-center gap-1.5"><Building className="w-3 h-3 text-dimmed"/> {lead.company}</p>
+                                    <p className="text-[10px] text-dimmed flex items-center gap-1.5"><Mail className="w-3 h-3"/> {lead.email}</p>
+                                    <p className="text-[10px] text-dimmed flex items-center gap-1.5"><Phone className="w-3 h-3"/> {lead.phone}</p>
+                                  </div>
+                                </div>
+                              )}
+                            </Draggable>
+                          ))}
+                          {provided.placeholder}
+                        </div>
+                      )}
+                    </Droppable>
+                  </div>
+                );
+              })}
+            </div>
+          </DragDropContext>
         </div>
       )}
 
       {activeTab === 'tickets' && (
-        <div className="theme-card overflow-hidden">
+        <div className="theme-card overflow-hidden shrink-0">
           <div className="px-4 py-3 border-b border-main">
             <h3 className="text-sm font-semibold text-main">Support Tickets ({tickets.length})</h3>
           </div>

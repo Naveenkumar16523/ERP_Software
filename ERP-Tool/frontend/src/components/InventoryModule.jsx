@@ -1,15 +1,28 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import { AlertTriangle, Package, Warehouse, Scan, BarChart3, Layers } from 'lucide-react';
-import { useProducts, useWarehouses, useBatches, useTransactions } from '../hooks/useInventory';
+import { useProducts, useWarehouses, useInventoryBatches, useStockMovements } from '../hooks/useInventory';
 import { useERPStore } from '../store/useERPStore';
+
+const Barcode = ({ value }) => {
+  if (!value) return null;
+  // Simple deterministic hash to binary for visual barcode simulation
+  const bits = Array.from(value).map(c => c.charCodeAt(0).toString(2).padStart(8, '0')).join('').split('');
+  return (
+    <svg height="24" width="80" xmlns="http://www.w3.org/2000/svg" className="inline-block opacity-80" viewBox="0 0 80 24" preserveAspectRatio="none">
+      {bits.map((bit, i) => (
+        bit === '1' && <rect key={i} x={i} y="0" width="1.2" height="24" fill="currentColor" />
+      ))}
+    </svg>
+  );
+};
 
 const InventoryModule = React.memo(function InventoryModule() {
   const { addToast } = useERPStore();
 
   const { data: products = [] } = useProducts();
   const { data: warehouses = [] } = useWarehouses();
-  const { data: inventoryBatches = [] } = useBatches();
-  const { data: stockMovements = [] } = useTransactions();
+  const { data: inventoryBatches = [] } = useInventoryBatches();
+  const { data: stockMovements = [] } = useStockMovements();
 
   const [activeTab, setActiveTab] = useState('products');
   const [search, setSearch] = useState('');
@@ -81,7 +94,7 @@ const InventoryModule = React.memo(function InventoryModule() {
           const Icon = tab.icon;
           return (
             <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${activeTab === tab.id ? 'bg-indigo-600 text-white' : 'text-muted hover:text-main'}`}>
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${activeTab === tab.id ? 'bg-primary text-white' : 'text-muted hover:text-main'}`}>
               <Icon className="w-3.5 h-3.5" />{tab.label}
             </button>
           );
@@ -125,6 +138,7 @@ const InventoryModule = React.memo(function InventoryModule() {
                 <thead>
                   <tr className="text-left text-xs text-dimmed border-b border-main">
                     <th className="px-4 py-2.5">SKU</th>
+                    <th className="px-4 py-2.5">Barcode</th>
                     <th className="px-4 py-2.5">Product Name</th>
                     <th className="px-4 py-2.5">Category</th>
                     <th className="px-4 py-2.5 text-right">Stock</th>
@@ -139,6 +153,10 @@ const InventoryModule = React.memo(function InventoryModule() {
                     return (
                       <tr key={p.id} className="border-b border-main hover:bg-surface/60 transition-colors">
                         <td className="px-4 py-2.5 text-xs font-mono text-dimmed">{p.sku}</td>
+                        <td className="px-4 py-2.5 text-main">
+                          <Barcode value={p.barcode || p.sku} />
+                          <p className="text-[9px] font-mono mt-0.5 opacity-50">{p.barcode || p.sku}</p>
+                        </td>
                         <td className="px-4 py-2.5 text-sm text-main">{p.name}</td>
                         <td className="px-4 py-2.5 text-xs text-muted">{p.category}</td>
                         <td className="px-4 py-2.5 text-right text-sm font-data font-semibold text-main">
@@ -193,7 +211,7 @@ const InventoryModule = React.memo(function InventoryModule() {
                   const isExpiring = batch.expiryDate && new Date(batch.expiryDate) < new Date(Date.now() + 90 * 24 * 60 * 60 * 1000);
                   return (
                     <tr key={batch.id} className="border-b border-main hover:bg-surface/60 transition-colors">
-                      <td className="px-4 py-2.5 text-xs font-mono text-indigo-400">{batch.batchNumber}</td>
+                      <td className="px-4 py-2.5 text-xs font-mono text-primary">{batch.batchNumber}</td>
                       <td className="px-4 py-2.5 text-sm text-main">{product?.name || 'Unknown'}</td>
                       <td className="px-4 py-2.5 text-sm font-data text-main">{batch.quantity}</td>
                       <td className="px-4 py-2.5 text-xs text-muted">{batch.manufactureDate}</td>
@@ -231,7 +249,7 @@ const InventoryModule = React.memo(function InventoryModule() {
               <tbody>
                 {warehouses.map(wh => (
                   <tr key={wh.id} className="border-b border-main hover:bg-surface/60 transition-colors">
-                    <td className="px-4 py-2.5 text-xs font-mono text-indigo-400">{wh.id}</td>
+                    <td className="px-4 py-2.5 text-xs font-mono text-primary">{wh.id}</td>
                     <td className="px-4 py-2.5 text-sm text-main">{wh.name}</td>
                     <td className="px-4 py-2.5 text-xs text-muted">{wh.location}</td>
                     <td className="px-4 py-2.5 text-right text-sm font-data text-main">{wh.capacity.toLocaleString()}</td>

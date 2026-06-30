@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ShieldAlert, ShieldCheck, Activity, FileCheck, Users, ClipboardCheck } from 'lucide-react';
 import { useERPStore } from '../store/useERPStore';
-import { api } from '../utils/api';
+import { useSecurityThreats, useCreateSecurityThreat, useSecurityAuditLog } from '../hooks/useSecurity';
 
 const SEVERITY_STYLES = {
   CRITICAL: 'bg-rose-500/20 text-rose-400 border-rose-500/30',
@@ -11,35 +11,13 @@ const SEVERITY_STYLES = {
 };
 
 export default function SecurityModule() {
-  const {
-    accessLogs, setAccessLogs, addAccessLog,
-    securityAlerts, setSecurityAlerts, addSecurityAlert,
-    userActivity, addUserActivity,
-    complianceTracking, addComplianceTracking,
-    addToast
-  } = useERPStore();
+  const { addToast } = useERPStore();
+  const accessLogs = [];
+  const securityAlerts = [];
+  const userActivity = [];
+  const complianceTracking = [];
   const [activeTab, setActiveTab] = useState('alerts');
 
-  // Fetch security data from DB on mount
-  useEffect(() => {
-    let active = true;
-    const fetchData = async () => {
-      try {
-        const [events, incidents] = await Promise.all([
-          api.security.getEvents(),
-          api.security.getIncidents()
-        ]);
-        if (active) {
-          if (Array.isArray(events)) setSecurityAlerts(events);
-          if (Array.isArray(incidents)) setAccessLogs(incidents);
-        }
-      } catch (err) {
-        console.error('Error fetching security data:', err);
-      }
-    };
-    fetchData();
-    return () => { active = false; };
-  }, [setSecurityAlerts, setAccessLogs]);
 
   const TABS = [
     { id: 'alerts', label: 'Security Alerts', icon: ShieldAlert },
@@ -67,6 +45,12 @@ export default function SecurityModule() {
         </div>
       </div>
 
+      {/* Preview Mode Banner for non-persistent modules */}
+      <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3 text-amber-400 text-sm flex items-center gap-2 mb-4">
+        <span className="font-bold uppercase tracking-wider bg-amber-500/20 px-2 py-1 rounded text-xs">Preview Mode</span>
+        <span>This module lacks backend persistence. Data shown is client-only mock data.</span>
+      </div>
+
       {/* Stats */}
       <div className="grid grid-cols-4 gap-3">
         {[
@@ -88,7 +72,7 @@ export default function SecurityModule() {
           const Icon = tab.icon;
           return (
             <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${activeTab === tab.id ? 'bg-indigo-600 text-white' : 'text-muted hover:text-main'}`}>
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${activeTab === tab.id ? 'bg-primary text-white' : 'text-muted hover:text-main'}`}>
               <Icon className="w-3.5 h-3.5" />{tab.label}
             </button>
           );
@@ -113,7 +97,7 @@ export default function SecurityModule() {
               <tbody>
                 {securityAlerts.map(alert => (
                   <tr key={alert.id} className="border-b border-main hover:bg-surface/60 transition-colors">
-                    <td className="px-4 py-2.5 text-xs font-mono text-indigo-400">{alert.type}</td>
+                    <td className="px-4 py-2.5 text-xs font-mono text-primary">{alert.type}</td>
                     <td className="px-4 py-2.5">
                       <span className={`text-xs px-2 py-0.5 rounded-full font-medium border ${SEVERITY_STYLES[alert.severity] || ''}`}>
                         {alert.severity}
@@ -154,7 +138,7 @@ export default function SecurityModule() {
                 {accessLogs.map(log => (
                   <tr key={log.id} className="border-b border-main hover:bg-surface/60 transition-colors">
                     <td className="px-4 py-2.5 text-sm text-main">{log.username}</td>
-                    <td className="px-4 py-2.5 text-xs font-mono text-indigo-400">{log.action}</td>
+                    <td className="px-4 py-2.5 text-xs font-mono text-primary">{log.action}</td>
                     <td className="px-4 py-2.5 text-xs text-muted">{log.timestamp}</td>
                     <td className="px-4 py-2.5 text-xs font-mono text-dimmed">{log.ipAddress}</td>
                     <td className="px-4 py-2.5 text-xs text-muted">{log.device}</td>
@@ -189,7 +173,7 @@ export default function SecurityModule() {
                 {userActivity.map(activity => (
                   <tr key={activity.id} className="border-b border-main hover:bg-surface/60 transition-colors">
                     <td className="px-4 py-2.5 text-sm text-main">{activity.username}</td>
-                    <td className="px-4 py-2.5 text-xs font-mono text-indigo-400">{activity.action}</td>
+                    <td className="px-4 py-2.5 text-xs font-mono text-primary">{activity.action}</td>
                     <td className="px-4 py-2.5 text-xs text-muted">{activity.module}</td>
                     <td className="px-4 py-2.5 text-xs text-muted">{activity.timestamp}</td>
                     <td className="px-4 py-2.5 text-right text-sm font-data text-main">{activity.duration}</td>

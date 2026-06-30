@@ -1,19 +1,23 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Check, FileText, Clock, Settings } from 'lucide-react';
 import { useERPStore } from '../store/useERPStore';
+import { usePayrolls, useCreatePayroll, useSalaryStructures, useTaxRules, useCreateTaxRule, useGeneratePayroll, useProcessPayroll, useSendPayslip } from '../hooks/usePayroll';
+import { useEmployees } from '../hooks/useHR';
 import Modal from './ui/Modal';
 import api from '../utils/api';
 
 export default function PayrollModule() {
   const {
-    employees, payrolls, addPayrollEntry, processPayroll,
-    salaryStructures, addSalaryStructure,
-    payslips, generatePayslip,
-    attendanceLogs,
     addToast,
-    setPayrolls,
-    setEmployees
+    attendanceLogs = []
   } = useERPStore();
+
+  const { data: payrolls = [] } = usePayrolls();
+  const { data: taxRules = [] } = useTaxRules();
+  const generatePayroll = useGeneratePayroll();
+  const createTaxRule = useCreateTaxRule();
+  const processPayroll = useProcessPayroll();
+  const sendPayslip = useSendPayslip();
 
   const [activeTab, setActiveTab] = useState('payslips');
   const [modal, setModal] = useState(false);
@@ -23,64 +27,40 @@ export default function PayrollModule() {
     year: new Date().getFullYear(),
   });
   const [newRule, setNewRule] = useState({ region: 'Default', minSalary: 0, maxSalary: '', taxPercent: 0 });
-  const [taxRules, setTaxRules] = useState([]);
 
-  useEffect(() => {
-    let active = true;
-    async function loadData() {
-      try {
-        const [payrollData, employeeData, rulesData] = await Promise.all([
-          api.payroll.getRecords(),
-          api.hr.getEmployees(),
-          api.payroll.getRules()
-        ]);
-        if (active) {
-          setPayrolls(payrollData || []);
-          setEmployees(employeeData || []);
-          setTaxRules(rulesData || []);
-        }
-      } catch (err) {
-        console.error("Failed to load payroll data", err);
-      }
-    }
-    loadData();
-    return () => { active = false; };
-  }, []);
 
   const handleGenerateSlip = async () => {
     try {
-      const result = await api.payroll.generate(form.month, form.year);
-      addToast(result.message || 'Payslips generated', 'success');
-      
-      const payrollData = await api.payroll.getRecords();
-      setPayrolls(payrollData || []);
+      generatePayroll.mutate({ month: form.month, year: form.year });
+      addToast('Payslips generation initiated', 'success');
     } catch (err) {
       addToast(err.message || 'Failed to generate payslips', 'error');
     }
     setModal(false);
   };
 
-  const handleAddRule = async () => {
-    try {
-      const payload = { ...newRule, maxSalary: newRule.maxSalary ? parseFloat(newRule.maxSalary) : null };
-      await api.payroll.createRule(payload);
-      addToast('Tax rule added', 'success');
-      const rules = await api.payroll.getRules();
-      setTaxRules(rules || []);
-      setRuleModal(false);
-    } catch(e) {
-      addToast('Failed to add tax rule', 'error');
-    }
+  const handleAddRule = () => {
+    const payload = {
+      region: newRule.region,
+      min_salary: Number(newRule.minSalary),
+      max_salary: newRule.maxSalary ? Number(newRule.maxSalary) : null,
+      tax_percent: Number(newRule.taxPercent)
+    };
+    createTaxRule.mutate(payload, {
+      onSuccess: () => {
+        addToast('Tax rule added', 'success');
+        setRuleModal(false);
+        setNewRule({ region: 'Default', minSalary: 0, maxSalary: '', taxPercent: 0 });
+      },
+      onError: (err) => addToast(err.message || 'Failed to add rule', 'error')
+    });
   };
 
-  const handleProcessPayroll = async (id) => {
-    try {
-      await api.payroll.processPayroll(id);
-      processPayroll(id);
-      addToast('Payslip processed & paid', 'success');
-    } catch (err) {
-      addToast(err.message || 'Failed to process payroll', 'error');
-    }
+  const handleProcessPayroll = (id) => {
+    processPayroll.mutate(id, {
+      onSuccess: () => addToast('Payroll processed successfully', 'success'),
+      onError: (err) => addToast(err.message || 'Processing failed', 'error')
+    });
   };
 
   const TABS = [
@@ -123,7 +103,7 @@ export default function PayrollModule() {
           const Icon = tab.icon;
           return (
             <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${activeTab === tab.id ? 'bg-indigo-600 text-white' : 'text-muted hover:text-main'}`}>
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${activeTab === tab.id ? 'bg-primary text-white' : 'text-muted hover:text-main'}`}>
               <Icon className="w-3.5 h-3.5" />{tab.label}
             </button>
           );
@@ -164,11 +144,24 @@ export default function PayrollModule() {
                       </span>
                     </td>
                     <td className="px-4 py-2.5">
-                      {p.payslipPdf && (
-                        <a href={p.payslipPdf} download={`Payslip_${p.employeeName}_${p.month}_${p.year}.pdf`} className="text-xs text-indigo-400 hover:underline flex items-center gap-1">
-                          <FileText className="w-3 h-3" /> Download
-                        </a>
-                      )}
+                      <div className="flex items-center gap-3">
+                        {p.payslipPdf && (
+                          <a href={p.payslipPdf} download={`Payslip_${p.employeeName}_${p.month}_${p.year}.pdf`} className="text-xs text-primary hover:underline flex items-center gap-1">
+                            <FileText className="w-3 h-3" /> Download
+                          </a>
+                        )}
+                        <button
+                          onClick={() => {
+                            sendPayslip.mutate(p.id, {
+                              onSuccess: () => addToast('Payslip email sent', 'success'),
+                              onError: (err) => addToast(err.message || 'Failed to send email', 'error')
+                            });
+                          }}
+                          className="text-xs text-blue-400 hover:underline flex items-center gap-1"
+                        >
+                          Send Email
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -182,7 +175,7 @@ export default function PayrollModule() {
         <div className="theme-card overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3 border-b border-main">
             <h3 className="text-sm font-semibold text-main">Tax Rules ({taxRules.length})</h3>
-            <button onClick={() => setRuleModal(true)} className="px-4 py-2 rounded-xl text-sm font-semibold flex items-center gap-2 bg-gradient-to-r from-emerald-500/20 to-teal-500/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/30 hover:shadow-[0_0_15px_rgba(16,185,129,0.3)] transition-all duration-300">
+            <button onClick={() => setRuleModal(true)} className="px-4 py-2 rounded-xl text-sm font-semibold flex items-center gap-2 bg-primary text-primary-foreground hover:bg-primary-hover border-primary/20 transition-all duration-300">
               <Plus className="w-3.5 h-3.5" /> Add Rule
             </button>
           </div>
@@ -262,7 +255,7 @@ export default function PayrollModule() {
           </div>
           <div className="flex gap-2 justify-end pt-2">
             <button onClick={() => setModal(false)} className="px-4 py-2 rounded-lg text-sm font-medium bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 hover:shadow-[0_0_15px_rgba(239,68,68,0.2)] transition-all">Cancel</button>
-            <button onClick={handleGenerateSlip} className="btn-primary text-sm bg-indigo-600">Run Payroll</button>
+            <button onClick={handleGenerateSlip} className="btn-primary text-sm bg-primary">Run Payroll</button>
           </div>
         </div>
       </Modal>

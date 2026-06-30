@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid, PieChart, Pie, Cell } from 'recharts';
 import { useERPStore } from '../store/useERPStore';
+import { useDashboardMetrics } from '../hooks/useDashboard';
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -37,39 +38,10 @@ const itemVariants = {
 const PIE_COLORS = ['#4f46e5', '#f59e0b', '#ef4444', '#10b981'];
 
 const Dashboard = React.memo(function Dashboard() {
-  const { employees, products, notifications } = useERPStore();
-  const [dashboardData, setDashboardData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const { demoMode } = useERPStore();
-
-  useEffect(() => {
-    if (!demoMode) {
-      fetchDashboardData();
-    } else {
-      setLoading(false);
-    }
-  }, [demoMode]);
-
-  const fetchDashboardData = useCallback(async () => {
-    try {
-      const token = localStorage.getItem('erp_token');
-      const API_URL = import.meta.env.VITE_API_URL || '';
-      const response = await fetch(`${API_URL}/api/v1/dashboard/metrics`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setDashboardData(data);
-      }
-    } catch (error) {
-      console.error('Error fetching dashboard data:', error);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const { employees, products, notifications, demoMode } = useERPStore();
+  const { data: dashboardData, isLoading: queryLoading } = useDashboardMetrics();
+  
+  const loading = demoMode ? false : queryLoading;
 
   const revenueExpensesData = dashboardData?.revenueHistory?.length > 0 
     ? dashboardData.revenueHistory 
@@ -91,7 +63,7 @@ const Dashboard = React.memo(function Dashboard() {
       change: '+5.2%',
       up: true,
       icon: Users,
-      color: 'bg-indigo-50 text-indigo-600',
+      color: 'bg-primary-light text-primary',
     },
     {
       label: 'Pipeline Value',
@@ -126,7 +98,7 @@ const Dashboard = React.memo(function Dashboard() {
       change: '+0%',
       up: true,
       icon: Users,
-      color: 'bg-indigo-50 text-indigo-600',
+      color: 'bg-primary-light text-primary',
     },
     {
       label: 'Pipeline Value',
@@ -254,7 +226,7 @@ const Dashboard = React.memo(function Dashboard() {
           </div>
           
           <div className="relative flex-1 flex items-center justify-center min-h-[220px]">
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
               <PieChart>
                 <Pie
                   data={inventoryStatusData}
@@ -274,7 +246,7 @@ const Dashboard = React.memo(function Dashboard() {
             <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
               <p className="text-[11px] font-semibold text-muted uppercase tracking-wider mb-1">Total Products</p>
               <p className="text-4xl font-bold text-main">{dashboardData?.inventory?.totalProducts || '0'}</p>
-              <p className="text-xs font-semibold text-indigo-500 mt-1 flex items-center gap-1">
+              <p className="text-xs font-semibold text-primary mt-1 flex items-center gap-1">
                 <Package className="w-3 h-3" /> {dashboardData?.inventory?.lowStockProducts || '0'} low stock
               </p>
             </div>
@@ -322,7 +294,7 @@ const Dashboard = React.memo(function Dashboard() {
               emerald: 'alert-emerald'
             };
             const accentColors = {
-              indigo: 'bg-indigo-500',
+              indigo: 'bg-primary',
               rose: 'bg-rose-500',
               amber: 'bg-amber-500',
               emerald: 'bg-emerald-500'
@@ -356,7 +328,7 @@ const Dashboard = React.memo(function Dashboard() {
             <p className="text-xs font-medium text-muted mb-6">Revenue (Last 09 Days) vs previous period</p>
             
             <div className="relative flex-1 min-h-[220px]">
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
                 <AreaChart data={revenueExpensesData} margin={{ top: 10, right: 0, left: -20, bottom: 0 }}>
                   <defs>
                     <linearGradient id="colorCurrent" x1="0" y1="0" x2="0" y2="1">
@@ -403,7 +375,7 @@ const Dashboard = React.memo(function Dashboard() {
         
         <div className="space-y-6">
           {[
-            { img: 'bg-indigo-100 text-indigo-750 dark:bg-indigo-500/10 dark:text-indigo-400', name: 'John Smith', action: 'created purchase order', target: 'PO-2024-002', time: '15 minutes ago' },
+            { img: 'bg-primary-light text-primary dark:bg-primary/10 dark:text-primary', name: 'John Smith', action: 'created purchase order', target: 'PO-2024-002', time: '15 minutes ago' },
             { img: 'bg-emerald-100 text-emerald-750 dark:bg-emerald-500/10 dark:text-emerald-400', name: 'Sarah Johnson', action: 'completed vehicle maintenance', target: 'WO-MAIN-101', time: '30 minutes ago' },
             { img: 'bg-amber-100 text-amber-750 dark:bg-amber-500/10 dark:text-amber-400', name: 'Mike Wilson', action: 'received goods from', target: 'TechSupply Corp', time: '1 hour ago', note: 'Goods receipt GRN-2024-001 processed successfully. All items verified and quality checked.' },
             { img: 'bg-teal-100 text-teal-750 dark:bg-teal-500/10 dark:text-teal-400', name: 'Emily Davis', action: 'approved supplier invoice', target: 'INV-2024-001', time: '2 hours ago' }
@@ -414,10 +386,10 @@ const Dashboard = React.memo(function Dashboard() {
               </div>
               <div className="flex-1 min-w-0 pb-6 border-b border-main/50 last:border-0 last:pb-0">
                 <p className="text-sm text-muted leading-snug">
-                  <span className="font-bold text-main">{item.name}</span> {item.action} <span className="font-bold text-indigo-600 dark:text-indigo-400">{item.target}</span>
+                  <span className="font-bold text-main">{item.name}</span> {item.action} <span className="font-bold text-primary dark:text-primary">{item.target}</span>
                 </p>
                 {item.note && (
-                  <div className="mt-2 p-3 rounded-xl bg-surface/50 text-sm text-muted border border-main border-l-4 border-l-indigo-500">
+                  <div className="mt-2 p-3 rounded-xl bg-surface/50 text-sm text-muted border border-main border-l-4 border-l-primary">
                     {item.note}
                   </div>
                 )}

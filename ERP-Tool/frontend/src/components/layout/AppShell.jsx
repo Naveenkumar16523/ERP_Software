@@ -3,9 +3,12 @@ import Sidebar from './Sidebar';
 import TopHeader from './TopHeader';
 import ToastContainer from '../ui/Toast';
 import { useERPStore } from '../../store/useERPStore';
+import { useRealtimeEvents } from '../../hooks/useRealtimeEvents';
 
 export default function AppShell({ children }) {
   const { sidebarCollapsed } = useERPStore();
+  
+  useRealtimeEvents();
 
   return (
     <div className="app-layout">

@@ -50,8 +50,13 @@ from app.routers.security import router as security_router
 from app.routers.supply_chain import router as supply_chain_router
 from app.routers.support import router as support_router
 from app.routers.search import router as search_router
-
-load_dotenv()
+from app.routers.realtime import router as realtime_router
+from app.routers.ecommerce import router as ecommerce_router
+# from app.routers.education import router as education_router
+# from app.routers.healthcare import router as healthcare_router
+from app.routers.manufacturing import router as manufacturing_router
+# from app.routers.sustainability import router as sustainability_router
+from app.routers.migration import router as migration_router
 
 import sentry_sdk
 from prometheus_fastapi_instrumentator import Instrumentator
@@ -151,8 +156,8 @@ async def startup_connections():
 
     # 3. Check Redis Connection
     try:
-        from app.utils.redis_client import redis_client
-        if redis_client and redis_client.ping():
+        from app.utils.redis_client import is_connected
+        if is_connected:
             logger.info("Redis connected successfully.")
     except Exception as e:
         logger.warning(f"Redis not available: {e} - Application will run with graceful degradation.")
@@ -240,3 +245,10 @@ app.include_router(security_router, prefix="/api/v1")
 app.include_router(supply_chain_router, prefix="/api/v1")
 app.include_router(support_router, prefix="/api/v1")
 app.include_router(search_router, prefix="/api/v1")
+app.include_router(realtime_router, prefix="/api/v1")
+app.include_router(ecommerce_router, prefix="/api/v1")
+# app.include_router(education_router, prefix="/api/v1")
+# app.include_router(healthcare_router, prefix="/api/v1")
+app.include_router(manufacturing_router, prefix="/api/v1")
+# app.include_router(sustainability_router, prefix="/api/v1")
+app.include_router(migration_router, prefix="/api/v1/migration", tags=["Migration"])

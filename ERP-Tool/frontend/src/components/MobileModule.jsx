@@ -16,7 +16,6 @@ export default function MobileModule() {
   const features = [
     { title: 'Responsive Layout', desc: 'Adapts to any screen size automatically', status: 'Active' },
     { title: 'Touch Gestures', desc: 'Swipe navigation and pull-to-refresh', status: 'Active' },
-    { title: 'Offline Mode', desc: 'Zustand-persisted state works offline', status: 'Active' },
     { title: 'PWA Support', desc: 'Installable as a Progressive Web App', status: 'Planned' },
     { title: 'Push Notifications', desc: 'Web push notification integration', status: 'Planned' }
   ];
@@ -33,7 +32,7 @@ export default function MobileModule() {
           const Icon = d.icon;
           return (
             <button key={d.id} onClick={() => setDevice(d.id)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${device === d.id ? 'bg-indigo-600 text-white' : 'text-muted hover:text-main'}`}>
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${device === d.id ? 'bg-primary text-white' : 'text-muted hover:text-main'}`}>
               <Icon className="w-3.5 h-3.5" />{d.label}
             </button>
           );

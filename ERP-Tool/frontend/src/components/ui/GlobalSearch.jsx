@@ -30,7 +30,7 @@ const MODULE_LIST = [
   { id: 'support', label: 'Support Center', desc: 'Help Desk & Tickets' },
 ];
 
-export default function GlobalSearch({ open, onClose }) {
+const GlobalSearch = ({ open, onClose }) => {
   const { setActiveModule, setMobileSidebar } = useERPStore();
   const [query, setQuery] = useState('');
   const [activeIndex, setActiveIndex] = useState(0);
@@ -50,6 +50,8 @@ export default function GlobalSearch({ open, onClose }) {
 
   // Debounce API Search
   useEffect(() => {
+    const abortController = new AbortController();
+    
     const fetchApiResults = async () => {
       if (!query.trim()) {
         setApiResults([]);
@@ -57,17 +59,22 @@ export default function GlobalSearch({ open, onClose }) {
       }
       setIsSearching(true);
       try {
-        const res = await api.search.query(query);
+        const res = await api.search.query(query, { signal: abortController.signal });
         setApiResults(res.results || []);
       } catch (e) {
-        console.error(e);
+        if (e.name !== 'AbortError') {
+          console.error(e);
+        }
       } finally {
         setIsSearching(false);
       }
     };
     
     const timeout = setTimeout(fetchApiResults, 300);
-    return () => clearTimeout(timeout);
+    return () => {
+      clearTimeout(timeout);
+      abortController.abort();
+    };
   }, [query]);
 
   const moduleResults = query.trim()
@@ -210,7 +217,7 @@ export default function GlobalSearch({ open, onClose }) {
                         <div
                           className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 transition-all ${
                             idx === activeIndex
-                              ? 'bg-indigo-500/15 text-indigo-400'
+                              ? 'bg-primary/15 text-primary'
                               : 'bg-surface text-dimmed'
                           }`}
                         >
@@ -229,7 +236,7 @@ export default function GlobalSearch({ open, onClose }) {
                       </div>
                       <ArrowRight
                         className={`w-3.5 h-3.5 flex-shrink-0 transition-colors ${
-                          idx === activeIndex ? 'text-indigo-400' : 'text-dimmed opacity-0 group-hover:opacity-100'
+                          idx === activeIndex ? 'text-primary' : 'text-dimmed opacity-0 group-hover:opacity-100'
                         }`}
                       />
                     </button>
@@ -323,3 +330,5 @@ export default function GlobalSearch({ open, onClose }) {
     </AnimatePresence>
   );
 }
+
+export default React.memo(GlobalSearch);
