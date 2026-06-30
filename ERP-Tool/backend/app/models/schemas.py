@@ -32,10 +32,15 @@ class AssetCreate(BaseModel):
     depRate: Optional[float] = None
 
 class OrderPlace(BaseModel):
-    customerId: str
-    items: List[dict]
-    shippingAddress: dict
-    paymentMethod: str
+    customerId: Optional[str] = None
+    customerName: Optional[str] = None
+    customerEmail: str
+    items: Optional[List[dict]] = None
+    shippingAddress: Optional[dict] = None
+    paymentMethod: Optional[str] = None
+    total: Optional[float] = None
+    paymentStatus: Optional[str] = None
+    status: Optional[str] = None
 
 class SupportTicketCreate(BaseModel):
     subject: str

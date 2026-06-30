@@ -28,6 +28,7 @@ import app.models.hr_sql_models
 import app.models.payroll_sql_models
 import app.models.procurement_sql_models
 import app.models.crm_sql_models
+import app.models.ecommerce_sql_models
 import app.models.supply_chain_sql_models
 import app.models.banking_sql_models
 import app.models.analytics_sql_models

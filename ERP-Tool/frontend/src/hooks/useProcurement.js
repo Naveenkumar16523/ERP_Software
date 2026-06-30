@@ -21,15 +21,15 @@ export const usePurchaseOrders = (filters) =>
   useQuery({
     queryKey: ['procurement', 'purchaseOrders', filters],
     queryFn: async () => {
-      const { data } = await apiClient.get('/procurement/orders', { params: filters });
+      const { data } = await apiClient.get('/procurement/purchase-orders', { params: filters });
       return data?.data ?? data ?? [];
     },
     staleTime: 60_000,
   });
 
-export const useCreatePurchaseOrder = () => useOptimisticMutation(['procurement', 'purchaseOrders'], 'post', '/procurement/orders');
-export const useApprovePurchaseOrder = () => useOptimisticMutation(['procurement', 'purchaseOrders'], 'post', (p) => `/procurement/orders/${p.id}/approve`);
-export const useReceivePOItem = () => useOptimisticMutation(['procurement', 'purchaseOrders'], 'post', (p) => `/procurement/orders/items/${p.id}/receive`);
+export const useCreatePurchaseOrder = () => useOptimisticMutation(['procurement', 'purchaseOrders'], 'post', '/procurement/purchase-orders');
+export const useApprovePurchaseOrder = () => useOptimisticMutation(['procurement', 'purchaseOrders'], 'post', (p) => `/procurement/purchase-orders/${p.id}/approve`);
+export const useReceivePOItem = () => useOptimisticMutation(['procurement', 'purchaseOrders'], 'post', (p) => `/procurement/purchase-orders/items/${p.id}/receive`);
 
 export const useRfqs = (filters) =>
   useQuery({
