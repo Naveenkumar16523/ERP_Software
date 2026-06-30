@@ -11,9 +11,9 @@ export default function MigrationHub() {
   const [isUploading, setIsUploading] = useState(false);
 
   const TEMPLATES = [
-    { id: 'sap', label: 'SAP to CLARIX', desc: 'Migrate from SAP ECC/S4HANA', icon: '🏭', fields: ['Chart of Accounts', 'Vendors', 'Customers', 'Open POs'] },
-    { id: 'tally', label: 'Tally to CLARIX', desc: 'Import from Tally Prime / Gold', icon: '📒', fields: ['Ledgers', 'Stock Items', 'Vouchers', 'Party Masters'] },
-    { id: 'odoo', label: 'Odoo to CLARIX', desc: 'Migrate from Odoo 14/15/16', icon: '🔧', fields: ['Products', 'Contacts', 'Sales Orders', 'Invoices'] },
+    { id: 'sap', label: 'SAP to LOGICORE', desc: 'Migrate from SAP ECC/S4HANA', icon: '🏭', fields: ['Chart of Accounts', 'Vendors', 'Customers', 'Open POs'] },
+    { id: 'tally', label: 'Tally to LOGICORE', desc: 'Import from Tally Prime / Gold', icon: '📒', fields: ['Ledgers', 'Stock Items', 'Vouchers', 'Party Masters'] },
+    { id: 'odoo', label: 'Odoo to LOGICORE', desc: 'Migrate from Odoo 14/15/16', icon: '🔧', fields: ['Products', 'Contacts', 'Sales Orders', 'Invoices'] },
     { id: 'csv', label: 'CSV / Excel Import', desc: 'Bulk import from flat files', icon: '📊', fields: ['Any tabular data'] }
   ];
 

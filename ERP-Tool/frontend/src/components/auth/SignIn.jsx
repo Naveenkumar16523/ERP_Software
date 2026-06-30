@@ -134,7 +134,7 @@ export default function SignIn() {
             <img src="/favicon.svg" alt="Logo" className="w-full h-full object-contain drop-shadow-[0_0_15px_rgba(34,211,238,0.2)]" />
           </div>
           <h1 className="text-3xl font-extrabold text-white tracking-tight font-heading">
-            CLARIX
+            LOGICORE
           </h1>
           <p className="text-xs text-slate-400 uppercase tracking-widest mt-1.5 font-semibold">
             Enterprise Resource Planning

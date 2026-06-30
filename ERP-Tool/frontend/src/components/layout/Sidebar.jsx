@@ -134,7 +134,7 @@ export default function Sidebar() {
                 initial={{ opacity: 0, x: -10 }}
                 animate={{ opacity: 1, x: 0 }}
               >
-                <p className="text-sm font-bold text-white leading-tight">CLARIX</p>
+                <p className="text-sm font-bold text-white leading-tight">LOGICORE</p>
                 <p className="text-[10px] text-white/40 leading-tight">Enterprise resource planning</p>
               </motion.div>
             )}

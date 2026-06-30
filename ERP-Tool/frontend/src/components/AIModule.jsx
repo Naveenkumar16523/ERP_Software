@@ -88,7 +88,7 @@ export default function AIModule() {
         </div>
         <div>
           <h1 className="text-2xl font-bold text-main">AI Companion</h1>
-          <p className="text-xs text-dimmed">Powered by CLARIX Intelligence</p>
+          <p className="text-xs text-dimmed">Powered by LOGICORE Intelligence</p>
         </div>
         <div className="ml-auto flex items-center gap-3">
           <button onClick={handleExportChat} className="flex items-center gap-1.5 text-xs text-muted hover:text-main bg-surface border border-main px-3 py-1 rounded-full transition-colors">
