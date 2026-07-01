@@ -189,13 +189,13 @@ async def get_admin_dashboard(current_user: ERPUser = Depends(require_ceo), db: 
 DEMO_DEPARTMENTS = [
   { "id": 'dept_finance', "name": 'Finance' }, { "id": 'dept_hr', "name": 'Human Resources' },
   { "id": 'dept_operations', "name": 'Operations' }, { "id": 'dept_sales', "name": 'Sales & Marketing' },
-  { "id": 'dept_it', "name": 'IT / System' }, { "id": 'dept_sustainability', "name": 'Sustainability' },
+  { "id": 'dept_it', "name": 'IT / System' },
 ]
 
 DEMO_ROLES = [
   { "id": 'role_finance_staff', "name": 'finance_staff' }, { "id": 'role_hr_staff', "name": 'hr_staff' },
   { "id": 'role_operations_staff', "name": 'operations_staff' }, { "id": 'role_sales_staff', "name": 'sales_staff' },
-  { "id": 'role_it_staff', "name": 'it_staff' }, { "id": 'role_sustainability_staff', "name": 'sustainability_staff' },
+  { "id": 'role_it_staff', "name": 'it_staff' },
 ]
 
 ALL_MODULES = [

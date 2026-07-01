@@ -27,7 +27,19 @@ def run_auto_migrations():
         "ALTER TABLE hr_employees ADD COLUMN unpaidLeaveDeductionDays INTEGER DEFAULT 0;",
         
         # CRM Leads
-        "ALTER TABLE crm_leads ADD COLUMN expectedRevenue DECIMAL(15, 4) DEFAULT 0.0;"
+        "ALTER TABLE crm_leads ADD COLUMN expectedRevenue DECIMAL(15, 4) DEFAULT 0.0;",
+        
+        # Cleanup Sustainability
+        "DELETE FROM erp_users WHERE roleId IN (SELECT id FROM erp_roles WHERE departmentId IN (SELECT id FROM erp_departments WHERE name='Sustainability'));",
+        "DELETE FROM module_access WHERE roleId IN (SELECT id FROM erp_roles WHERE departmentId IN (SELECT id FROM erp_departments WHERE name='Sustainability'));",
+        "DELETE FROM erp_roles WHERE departmentId IN (SELECT id FROM erp_departments WHERE name='Sustainability');",
+        "DELETE FROM erp_departments WHERE name='Sustainability';",
+        
+        # Cleanup duplicate Sales (the one with code SAL)
+        "DELETE FROM erp_users WHERE roleId IN (SELECT id FROM erp_roles WHERE departmentId IN (SELECT id FROM erp_departments WHERE name='Sales & Marketing' AND code='SAL'));",
+        "DELETE FROM module_access WHERE roleId IN (SELECT id FROM erp_roles WHERE departmentId IN (SELECT id FROM erp_departments WHERE name='Sales & Marketing' AND code='SAL'));",
+        "DELETE FROM erp_roles WHERE departmentId IN (SELECT id FROM erp_departments WHERE name='Sales & Marketing' AND code='SAL');",
+        "DELETE FROM erp_departments WHERE name='Sales & Marketing' AND code='SAL';"
     ]
     
     with engine.connect() as conn:
