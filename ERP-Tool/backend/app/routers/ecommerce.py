@@ -261,9 +261,12 @@ async def checkout_orders_route(body: OrderPlace, req: Request, db: Session = De
         action="CHECKOUT",
         resource="CustomerOrder",
         details=result["orderNo"],
-        req=req
     )
     return result
+
+@router.get("/test-error")
+async def test_error():
+    raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail={"error": "Test", "message": "Test error"})
 
 @router.get("/test-deploy")
 async def test_deploy():
