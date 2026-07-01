@@ -9,7 +9,7 @@ export const useKpis = (filters) =>
   useQuery({
     queryKey: ['analytics', 'kpis', filters],
     queryFn: async () => {
-      const { data } = await apiClient.get('/analytics/kpis', { params: filters });
+      const { data } = await apiClient.get('/analytics/logistics-kpis', { params: filters });
       return data?.data ?? data ?? [];
     },
     staleTime: 60_000,

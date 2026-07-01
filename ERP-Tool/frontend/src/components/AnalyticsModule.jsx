@@ -5,13 +5,17 @@ import {
 } from 'recharts';
 import { useERPStore } from '../store/useERPStore';
 import { useKpis } from '../hooks/useAnalytics';
+import { useEmployees } from '../hooks/useHR';
+import { useLeads } from '../hooks/useCRM';
 
 const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#f43f5e', '#06b6d4', '#8b5cf6'];
 
 export default function AnalyticsModule() {
   const { addToast } = useERPStore();
-  const employees = [];
-  const leads = [];
+  const { data: employeesData } = useEmployees();
+  const { data: leadsData } = useLeads();
+  const employees = employeesData || [];
+  const leads = leadsData || [];
   const { data: logisticsKpis } = useKpis();
 
   const revenueByMonth = logisticsKpis?.revenueByMonth || [];
