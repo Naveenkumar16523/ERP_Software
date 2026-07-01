@@ -268,6 +268,16 @@ async def checkout_orders_route(body: OrderPlace, req: Request, db: Session = De
 @router.get("/orders")
 async def get_orders(current_user: AuthenticatedUser = Depends(get_current_user), db: Session = Depends(get_db)):
     try:
+        import math
+        def safe_float(val):
+            if val is None: return 0.0
+            try:
+                v = float(val)
+                if math.isnan(v) or math.isinf(v): return 0.0
+                return v
+            except:
+                return 0.0
+
         orders = db.query(CustomerOrder).order_by(CustomerOrder.createdAt.desc()).all()
         result = []
         for o in orders:
@@ -276,29 +286,35 @@ async def get_orders(current_user: AuthenticatedUser = Depends(get_current_user)
             for it in items:
                 prod = db.query(StoreProduct).filter(StoreProduct.id == it.productId).first()
                 serialized_items.append({
-                    "id": it.id,
-                    "productId": it.productId,
-                    "quantity": it.quantity,
-                    "unitPrice": it.unitPrice,
-                    "totalPrice": it.totalPrice,
-                    "product": {"id": prod.id, "sku": prod.sku, "name": prod.name} if prod else None
+                    "id": str(it.id) if it.id else "",
+                    "productId": str(it.productId) if it.productId else None,
+                    "quantity": int(it.quantity) if it.quantity else 0,
+                    "unitPrice": safe_float(it.unitPrice),
+                    "totalPrice": safe_float(it.totalPrice),
+                    "product": {"id": str(prod.id), "sku": str(prod.sku), "name": str(prod.name)} if prod else None
                 })
             
             result.append({
-                "id": o.id,
-                "_id": o.id,
-                "orderNo": o.orderNo,
-                "customerName": o.customerName,
-                "customerEmail": o.customerEmail,
-                "totalAmount": o.totalAmount,
-                "discountAmount": o.discountAmount,
-                "loyaltyRedeemed": o.loyaltyRedeemed,
-                "shippingAddress": o.shippingAddress,
-                "status": o.status,
-                "createdAt": o.createdAt,
+                "id": str(o.id) if o.id else "",
+                "_id": str(o.id) if o.id else "",
+                "orderNo": str(o.orderNo) if o.orderNo else "",
+                "customerName": str(o.customerName) if o.customerName else "",
+                "customerEmail": str(o.customerEmail) if o.customerEmail else "",
+                "totalAmount": safe_float(o.totalAmount),
+                "discountAmount": safe_float(o.discountAmount),
+                "loyaltyRedeemed": int(o.loyaltyRedeemed) if o.loyaltyRedeemed else 0,
+                "shippingAddress": o.shippingAddress if isinstance(o.shippingAddress, (dict, list)) else {},
+                "status": str(o.status) if o.status else "PLACED",
+                "createdAt": o.createdAt.isoformat() if hasattr(o.createdAt, 'isoformat') else str(o.createdAt),
                 "items": serialized_items
             })
-        return result
+            
+        from fastapi.encoders import jsonable_encoder
+        import json
+        encoded_result = jsonable_encoder(result)
+        # Explicitly verify it's JSON serializable inside the try-except
+        json.dumps(encoded_result, allow_nan=False)
+        return encoded_result
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail={"error": "Internal Server Error", "message": str(e)})
 
