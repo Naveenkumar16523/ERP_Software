@@ -45,7 +45,7 @@ async def get_current_user(
         )
 
     # 1. Check if user is in the new ERPUser table (RBAC system)
-    from app.models.models import ERPUser, ModuleAccess
+    from app.models.sql_models import ERPUser, ModuleAccess
     user = db.query(ERPUser).filter(ERPUser.id == user_id).first()
     
     if user:
