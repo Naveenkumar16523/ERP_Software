@@ -58,12 +58,6 @@ export default function ProjectModule() {
         </button>
       </div>
 
-      {/* Preview Mode Banner for non-persistent modules */}
-      <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3 text-amber-400 text-sm flex items-center gap-2 mb-4">
-        <span className="font-bold uppercase tracking-wider bg-amber-500/20 px-2 py-1 rounded text-xs">Preview Mode</span>
-        <span>This module lacks backend persistence. Data shown is client-only mock data.</span>
-      </div>
-
       <div className="grid grid-cols-3 gap-3">
         {[
           { label: 'Total Projects', value: projects.length, color: 'text-indigo-400' },
