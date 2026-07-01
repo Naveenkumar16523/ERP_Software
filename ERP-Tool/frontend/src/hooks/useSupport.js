@@ -2,9 +2,6 @@ import { useOptimisticMutation } from './useOptimisticMutation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../api/client';
 
-
-
-
 export const useSupportTickets = (filters) =>
   useQuery({
     queryKey: ['support', 'supportTickets', filters],
