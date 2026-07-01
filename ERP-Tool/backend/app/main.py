@@ -109,12 +109,14 @@ async def global_exception_handler(request: Request, exc: Exception):
         "Access-Control-Allow-Credentials": "true"
     }
     
+    import traceback
+    tb = traceback.format_exc()
     if os.getenv("NODE_ENV") == "development":
         # Safe fallback for dummy models in dev mode if needed
-        return JSONResponse(status_code=500, content={"error": True, "code": "INTERNAL_ERROR", "message": str(exc), "request_id": req_id}, headers=cors_headers)
+        return JSONResponse(status_code=500, content={"error": True, "code": "INTERNAL_ERROR", "message": str(exc), "traceback": tb, "request_id": req_id}, headers=cors_headers)
     return JSONResponse(
         status_code=500,
-        content={"error": True, "code": "INTERNAL_ERROR", "message": "An internal server error occurred.", "request_id": req_id},
+        content={"error": True, "code": "INTERNAL_ERROR", "message": "An internal server error occurred.", "traceback": tb, "request_id": req_id},
         headers=cors_headers
     )
 
