@@ -265,6 +265,10 @@ async def checkout_orders_route(body: OrderPlace, req: Request, db: Session = De
     )
     return result
 
+@router.get("/test-deploy")
+async def test_deploy():
+    return {"status": "deployed", "version": "fix-serialization-v3"}
+
 @router.get("/orders")
 async def get_orders(current_user: AuthenticatedUser = Depends(get_current_user), db: Session = Depends(get_db)):
     try:
