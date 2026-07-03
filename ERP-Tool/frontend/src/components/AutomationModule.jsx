@@ -5,100 +5,7 @@ import {
   BarChart3, Zap, Activity, RefreshCw, ChevronRight, Bot
 } from 'lucide-react';
 import { useERPStore } from '../store/useERPStore';
-
-const BOT_SCRIPTS = {
-  'bot-1': [
-    'Connecting to ERP Financial gateway...',
-    'Scanning incoming invoice queue... 124 documents pending.',
-    'OCR extraction engine — processing Invoice INV-2026-041...',
-    'Parsed: Vendor "Aether Industries LLC" • Amount: ₹4,800.00',
-    'Validating against purchase order PO-2026-018 → MATCHED ✓',
-    'Posting double-entry journal VCH-AUTO-041 to General Ledger...',
-    'Dr: Accounts Payable ₹4,800 → Cr: Operating Cash Account ₹4,800',
-    'Continuing batch... 123 invoices remaining.',
-    'Processing Invoice INV-2026-042... Vendor "Boreas Energy Corp" • Amount: ₹12,500',
-    '--- [COMPLETE] Invoice batch run finished. 124 invoices processed. 0 errors. ---'
-  ],
-  'bot-2': [
-    'Initialising Payroll Reconciliation Agent v4.2...',
-    'Fetching payroll run for May 2026 — 15 active employees detected.',
-    'Validating gross salaries against HR records...',
-    'EMP-001 Julian Vance → Base ₹18,500 → Deductions: ₹3,700 → Net: ₹14,800 ✓',
-    'EMP-002 Seraphina Aria → Base ₹14,200 → Deductions: ₹2,840 → Net: ₹11,360 ✓',
-    'EMP-003 Kaelen Ross → Base ₹11,000 → Deductions: ₹2,200 → Net: ₹8,800 ✓',
-    'Processing statutory deductions: EPF 12%, ESI 0.75%, TDS 10%...',
-    'Generating payroll vouchers for 15 employees...',
-    'Posting disbursement batch VCH-PAY-MAY26 → Accrued Payroll: ₹1,25,000',
-    '--- [COMPLETE] Payroll reconciliation finished. 15/15 processed. Zero errors. ---'
-  ],
-  'bot-3': [
-    'Lead Scraping Bot v3.1 activated...',
-    'Scanning LinkedIn Sales Navigator for ICP keyword matches...',
-    'Query: "ERP Supply Chain Director" + "Head of Operations" (IN region)',
-    'Found 847 matching profiles. Applying company size filter (500–5000 employees)...',
-    'Filtered to 142 high-intent prospects. Enriching with email data via Hunter.io...',
-    'Enriched 98 emails (69% match rate). Deduplicating against CRM...',
-    '23 duplicates removed. 75 net new leads ready for outreach.',
-    'Creating leads in CRM pipeline with tag: ICP-Q3-2026...',
-    'Scheduling personalised email sequences via outreach automation...',
-    '--- [COMPLETE] 75 new leads added to pipeline. Sequences activated. ---'
-  ],
-  'bot-4': [
-    'Inventory Reorder Bot v2.0 starting...',
-    'Scanning 20 active SKUs against safety stock thresholds...',
-    'SKU: BATT-400W — Current Stock: 12 units | Reorder Level: 20 units → REORDER NEEDED',
-    'SKU: CABLE-USB-C — Current Stock: 8 units | Reorder Level: 15 units → REORDER NEEDED',
-    'Fetching preferred supplier for BATT-400W → Zenith Supplies (score: 94%)',
-    'Generating Purchase Order PO-AUTO-2026-089 for BATT-400W × 100 units @ ₹850/unit',
-    'Total PO Value: ₹85,000. Sending for manager approval...',
-    'Approval workflow triggered. Expected delivery: 3–5 business days.',
-    'Generating PO-AUTO-2026-090 for CABLE-USB-C × 200 units...',
-    '--- [COMPLETE] 2 auto-POs raised. Approval notifications sent. ---'
-  ]
-};
-
-const BOTS = [
-  {
-    id: 'bot-1',
-    name: 'Invoice Processor',
-    description: 'Auto-posts AP invoices to the GL with 3-way PO matching',
-    icon: '🧾',
-    category: 'Finance',
-    lastRun: '2 hours ago',
-    runsToday: 3,
-    successRate: 99.2
-  },
-  {
-    id: 'bot-2',
-    name: 'Payroll Reconciler',
-    description: 'Validates payroll, computes deductions & posts journal vouchers',
-    icon: '💰',
-    category: 'HR',
-    lastRun: '1 day ago',
-    runsToday: 1,
-    successRate: 100
-  },
-  {
-    id: 'bot-3',
-    name: 'Lead Scraper',
-    description: 'Enriches and imports high-intent B2B leads into the CRM pipeline',
-    icon: '🎯',
-    category: 'Sales',
-    lastRun: '4 hours ago',
-    runsToday: 2,
-    successRate: 97.8
-  },
-  {
-    id: 'bot-4',
-    name: 'Reorder Bot',
-    description: 'Monitors stock levels and auto-raises purchase orders when low',
-    icon: '📦',
-    category: 'Inventory',
-    lastRun: '30 mins ago',
-    runsToday: 5,
-    successRate: 98.5
-  }
-];
+import { useBots, useBotLogs, useRunBot } from '../hooks/useAutomation';
 
 const CATEGORY_COLORS = {
   Finance: 'text-emerald-400 bg-emerald-500/10',
@@ -109,10 +16,15 @@ const CATEGORY_COLORS = {
 
 export default function AutomationModule() {
   const { addToast, theme } = useERPStore();
+  
+  const { data: botsData = [], isLoading } = useBots();
+  const [selectedBot, setSelectedBot] = useState('bot-1');
+  const { data: logsData = [] } = useBotLogs(selectedBot);
+  const runBotMutation = useRunBot();
+  
   const [runningBots, setRunningBots] = useState({});
   const [completedBots, setCompletedBots] = useState({});
   const [terminalLines, setTerminalLines] = useState({});
-  const [selectedBot, setSelectedBot] = useState('bot-1');
   const terminalRef = useRef(null);
 
   // Auto-scroll terminal on new lines
@@ -122,7 +34,7 @@ export default function AutomationModule() {
     }
   }, [terminalLines]);
 
-  const runBot = (botId) => {
+  const runBot = async (botId) => {
     if (runningBots[botId]) return;
 
     setRunningBots(prev => ({ ...prev, [botId]: true }));
@@ -130,25 +42,65 @@ export default function AutomationModule() {
     setTerminalLines(prev => ({ ...prev, [botId]: [] }));
     setSelectedBot(botId);
 
-    const script = BOT_SCRIPTS[botId] || [];
-    let lineIndex = 0;
-
-    const interval = setInterval(() => {
-      if (lineIndex >= script.length) {
-        clearInterval(interval);
+    try {
+        await runBotMutation.mutateAsync(botId);
+        
+        // After backend completes, we simulate the log streaming in the UI
+        // In a real prod app, we'd use WebSockets for real-time logs
+        // For now, we will fetch the generated log and stream it visually
+        
+        // We will just do a quick delay to let the refetch happen
+        setTimeout(() => {
+            const bot = botsData.find(b => b.botId === botId);
+            addToast(`${bot?.name || 'Bot'} completed successfully`, 'success');
+            setRunningBots(prev => ({ ...prev, [botId]: false }));
+            setCompletedBots(prev => ({ ...prev, [botId]: true }));
+        }, 3000);
+        
+    } catch (error) {
+        addToast('Failed to run bot', 'error');
         setRunningBots(prev => ({ ...prev, [botId]: false }));
-        setCompletedBots(prev => ({ ...prev, [botId]: true }));
-        const bot = BOTS.find(b => b.id === botId);
-        addToast(`${bot?.name || 'Bot'} completed successfully`, 'success');
-        return;
-      }
-      setTerminalLines(prev => ({
-        ...prev,
-        [botId]: [...(prev[botId] || []), { text: script[lineIndex], index: lineIndex }]
-      }));
-      lineIndex++;
-    }, 500);
+    }
   };
+
+  // Sync logs when fetched
+  useEffect(() => {
+      if (logsData.length > 0 && !runningBots[selectedBot]) {
+          try {
+              const parsedOutput = JSON.parse(logsData[0].logOutput);
+              const lines = parsedOutput.map((text, index) => ({ text, index }));
+              setTerminalLines(prev => ({ ...prev, [selectedBot]: lines }));
+          } catch(e) {
+              setTerminalLines(prev => ({ ...prev, [selectedBot]: [{ text: logsData[0].logOutput, index: 0 }] }));
+          }
+      }
+  }, [logsData, selectedBot, runningBots]);
+
+  // Simulate streaming if running
+  useEffect(() => {
+      let interval;
+      if (runningBots[selectedBot]) {
+          let lineIndex = 0;
+          const fakeLogStream = [
+              'Initiating connection...',
+              'Authenticating...',
+              'Processing job...',
+              'Finalizing...'
+          ];
+          interval = setInterval(() => {
+              if (lineIndex >= fakeLogStream.length) {
+                  clearInterval(interval);
+                  return;
+              }
+              setTerminalLines(prev => ({
+                ...prev,
+                [selectedBot]: [...(prev[selectedBot] || []), { text: fakeLogStream[lineIndex], index: lineIndex }]
+              }));
+              lineIndex++;
+          }, 600);
+      }
+      return () => clearInterval(interval);
+  }, [runningBots, selectedBot]);
 
   const stopBot = (botId) => {
     setRunningBots(prev => ({ ...prev, [botId]: false }));
@@ -164,12 +116,14 @@ export default function AutomationModule() {
     setCompletedBots(prev => ({ ...prev, [botId]: false }));
   };
 
-  const activeBot = BOTS.find(b => b.id === selectedBot);
+  const activeBot = botsData.find(b => b.botId === selectedBot);
   const currentLines = terminalLines[selectedBot] || [];
   const isRunning = runningBots[selectedBot];
   const isComplete = completedBots[selectedBot];
-  const totalRunsToday = BOTS.reduce((s, b) => s + b.runsToday, 0);
-  const avgSuccess = (BOTS.reduce((s, b) => s + b.successRate, 0) / BOTS.length).toFixed(1);
+  const totalRunsToday = botsData.reduce((s, b) => s + b.runsToday, 0);
+  const avgSuccess = botsData.length > 0 ? (botsData.reduce((s, b) => s + b.successRate, 0) / botsData.length).toFixed(1) : 0;
+
+  if (isLoading) return <div className="p-6">Loading bots...</div>;
 
   return (
     <div className="p-6 space-y-6">
@@ -179,7 +133,7 @@ export default function AutomationModule() {
           <h1 className="text-2xl font-bold text-main flex items-center gap-2">
             <Cpu className="w-6 h-6 text-primary" /> RPA Automation Hub
           </h1>
-          <p className="text-sm text-muted mt-1">Robotic process automation — bots that work while you sleep</p>
+          <p className="text-sm text-muted mt-1">Robotic process automation — powered by backend persistence</p>
         </div>
         <div className="flex items-center gap-2">
           <span className="flex items-center gap-1.5 text-xs text-emerald-400 bg-emerald-500/10 px-3 py-1.5 rounded-full border border-emerald-500/20">
@@ -191,7 +145,7 @@ export default function AutomationModule() {
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[
-          { label: 'Total Bots', value: BOTS.length, color: 'text-indigo-400', icon: <Bot className="w-4 h-4" /> },
+          { label: 'Total Bots', value: botsData.length, color: 'text-indigo-400', icon: <Bot className="w-4 h-4" /> },
           { label: 'Runs Today', value: totalRunsToday, color: 'text-sky-400', icon: <Zap className="w-4 h-4" /> },
           { label: 'Avg Success Rate', value: `${avgSuccess}%`, color: 'text-emerald-400', icon: <CheckCircle className="w-4 h-4" /> },
           { label: 'Time Saved (hrs)', value: '14.2', color: 'text-amber-400', icon: <Clock className="w-4 h-4" /> }
@@ -209,15 +163,15 @@ export default function AutomationModule() {
         {/* Bot Cards */}
         <div className="lg:col-span-2 space-y-3">
           <h3 className="text-sm font-semibold text-muted uppercase tracking-wider">Available Bots</h3>
-          {BOTS.map(bot => {
-            const running = runningBots[bot.id];
-            const complete = completedBots[bot.id];
-            const isSelected = selectedBot === bot.id;
+          {botsData.map(bot => {
+            const running = runningBots[bot.botId];
+            const complete = completedBots[bot.botId];
+            const isSelected = selectedBot === bot.botId;
             return (
               <motion.div
-                key={bot.id}
+                key={bot.botId}
                 whileHover={{ scale: 1.01 }}
-                onClick={() => setSelectedBot(bot.id)}
+                onClick={() => setSelectedBot(bot.botId)}
                 className={`theme-card p-4 cursor-pointer transition-all ${isSelected ? 'ring-1 ring-primary/50' : ''}`}
               >
                 <div className="flex items-start justify-between gap-3">
@@ -232,7 +186,7 @@ export default function AutomationModule() {
                       </div>
                       <p className="text-xs text-muted leading-relaxed">{bot.description}</p>
                       <div className="flex items-center gap-3 mt-2 text-xs text-dimmed">
-                        <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{bot.lastRun}</span>
+                        <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{bot.lastRun ? new Date(bot.lastRun).toLocaleTimeString() : 'Never'}</span>
                         <span className="flex items-center gap-1 text-emerald-400"><CheckCircle className="w-3 h-3" />{bot.successRate}%</span>
                       </div>
                     </div>
@@ -242,15 +196,16 @@ export default function AutomationModule() {
                   <div className="flex-shrink-0">
                     {running ? (
                       <button
-                        onClick={(e) => { e.stopPropagation(); stopBot(bot.id); }}
+                        onClick={(e) => { e.stopPropagation(); stopBot(bot.botId); }}
                         className="p-1.5 rounded-lg bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 transition-colors"
                       >
                         <Square className="w-3.5 h-3.5" />
                       </button>
                     ) : (
                       <button
-                        onClick={(e) => { e.stopPropagation(); runBot(bot.id); }}
+                        onClick={(e) => { e.stopPropagation(); runBot(bot.botId); }}
                         className="p-1.5 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
+                        disabled={runBotMutation.isPending}
                       >
                         <Play className="w-3.5 h-3.5" />
                       </button>
@@ -265,7 +220,7 @@ export default function AutomationModule() {
                       <motion.div
                         className="h-full bg-gradient-to-r from-primary to-violet-500 rounded-full"
                         animate={{ width: ['0%', '100%'] }}
-                        transition={{ duration: (BOT_SCRIPTS[bot.id]?.length || 10) * 0.5, ease: 'linear' }}
+                        transition={{ duration: 3, ease: 'linear' }}
                       />
                     </div>
                     <p className="text-xs text-primary mt-1 flex items-center gap-1">
@@ -409,8 +364,8 @@ export default function AutomationModule() {
           <h3 className="text-sm font-semibold text-main">Bot Performance Overview</h3>
         </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {BOTS.map(bot => (
-            <div key={bot.id} className="space-y-2">
+          {botsData.map(bot => (
+            <div key={bot.botId} className="space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-xs text-muted flex items-center gap-1">{bot.icon} {bot.name.split(' ')[0]}</span>
                 <span className="text-xs font-data text-emerald-400">{bot.successRate}%</span>

@@ -95,6 +95,16 @@ export const useStatements = () =>
   });
 
 export const useCreateStatement = () => useOptimisticMutation(['finance', 'statements'], 'post', '/finance/statements');
+
+export const useGstrReport = () =>
+  useQuery({
+    queryKey: ['finance', 'gstrReport'],
+    queryFn: async () => {
+      const { data } = await apiClient.get('/finance/reports/gstr');
+      return data;
+    },
+    staleTime: 5 * 60_000,
+  });
 export const useUpdateStatementStatus = () => useOptimisticMutation(['finance', 'statements'], 'patch', (p) => `/finance/statements/${p.id}/status`);
 
 // ── Approval Workflows ──

@@ -3,79 +3,8 @@ import { Users, Shield, BarChart3, Plus, Edit, Trash2, Key, CheckCircle, XCircle
 import { useERPStore } from '../store/useERPStore';
 import { api } from '../utils/api';
 
-// ── Demo/fallback data shown when backend is unavailable ──────────────────────
-const DEMO_STATS = {
-  total_employees: 18,
-  active_employees: 16,
-  inactive_employees: 2,
-  employees_by_department: {
-    Finance: 4, 'Human Resources': 3, Operations: 5, 'Sales & Marketing': 3, 'IT / System': 2, Sustainability: 1
-  },
-  recent_users: [
-    { id: 'u1', username: 'john.doe001', full_name: 'John Doe', role_name: 'finance_staff', is_active: true },
-    { id: 'u2', username: 'jane.smith002', full_name: 'Jane Smith', role_name: 'hr_staff', is_active: true },
-    { id: 'u3', username: 'bob.jones003', full_name: 'Bob Jones', role_name: 'operations_staff', is_active: false },
-    { id: 'u4', username: 'alice.w004', full_name: 'Alice Wang', role_name: 'sales_staff', is_active: true },
-    { id: 'u5', username: 'mike.it005', full_name: 'Mike IT', role_name: 'it_staff', is_active: true },
-  ]
-};
+// No demo data used anymore, Admin Panel relies on real backend.
 
-const DEMO_USERS = [
-  { id: 'u1', username: 'john.doe001', full_name: 'John Doe', email: 'john.doe@company.com', role_name: 'finance_staff', department_name: 'Finance', is_active: true, is_ceo: false },
-  { id: 'u2', username: 'jane.smith002', full_name: 'Jane Smith', email: 'jane.smith@company.com', role_name: 'hr_staff', department_name: 'Human Resources', is_active: true, is_ceo: false },
-  { id: 'u3', username: 'bob.jones003', full_name: 'Bob Jones', email: 'bob.jones@company.com', role_name: 'operations_staff', department_name: 'Operations', is_active: false, is_ceo: false },
-  { id: 'u4', username: 'alice.w004', full_name: 'Alice Wang', email: 'alice.w@company.com', role_name: 'sales_staff', department_name: 'Sales & Marketing', is_active: true, is_ceo: false },
-  { id: 'u5', username: 'mike.it005', full_name: 'Mike IT', email: 'mike.it@company.com', role_name: 'it_staff', department_name: 'IT / System', is_active: true, is_ceo: false },
-];
-
-const DEMO_DEPARTMENTS = [
-  { id: 'dept_finance', name: 'Finance' }, { id: 'dept_hr', name: 'Human Resources' },
-  { id: 'dept_operations', name: 'Operations' }, { id: 'dept_sales', name: 'Sales & Marketing' },
-  { id: 'dept_it', name: 'IT / System' },
-];
-
-const DEMO_ROLES = [
-  { id: 'role_finance_staff', name: 'finance_staff' }, { id: 'role_hr_staff', name: 'hr_staff' },
-  { id: 'role_operations_staff', name: 'operations_staff' }, { id: 'role_sales_staff', name: 'sales_staff' },
-  { id: 'role_it_staff', name: 'it_staff' },
-];
-
-const ALL_MODULES = [
-  'dashboard', 'finance', 'human_resources', 'inventory', 'manufacturing',
-  'procurement', 'crm_pipeline', 'payroll', 'fixed_assets', 'projects',
-  'supply_chain', 'ecommerce', 'analytics_hub', 'banking', 'healthcare',
-  'education', 'sustainability', 'marketing', 'security', 'migration_hub', 'rpa_automation'
-];
-
-const ROLE_PERMS = {
-  finance_staff:       ['dashboard','finance','banking','analytics_hub'],
-  hr_staff:            ['dashboard','human_resources','payroll','healthcare','education'],
-  operations_staff:    ['dashboard','inventory','manufacturing','supply_chain','procurement','fixed_assets','projects'],
-  sales_staff:         ['dashboard','crm_pipeline','ecommerce','marketing','analytics_hub'],
-  it_staff:            ['dashboard','security','migration_hub','rpa_automation','analytics_hub'],
-  sustainability_staff:['dashboard','sustainability','analytics_hub'],
-  superadmin:          ALL_MODULES,
-};
-
-const DEMO_PERMISSIONS = {
-  modules: ALL_MODULES,
-  roles: Object.fromEntries(
-    DEMO_ROLES.map(r => [
-      r.name,
-      {
-        role_id: r.id,
-        department_id: 'dept_finance',
-        modules: Object.fromEntries(
-          ALL_MODULES.map(m => [m, {
-            can_read:   (ROLE_PERMS[r.name] || []).includes(m),
-            can_write:  (ROLE_PERMS[r.name] || []).includes(m),
-            can_export: (ROLE_PERMS[r.name] || []).includes(m),
-          }])
-        )
-      }
-    ])
-  )
-};
 
 export default function AdminPanel() {
   const { currentUser, addToast, demoMode } = useERPStore();
@@ -111,71 +40,47 @@ export default function AdminPanel() {
   }, [activeTab, demoMode]);
 
   const fetchDashboardStats = async () => {
-    // In demo/fallback mode, use local data to avoid hitting the real backend
-    if (demoMode) {
-      setStats(DEMO_STATS);
-      return;
-    }
     try {
       const data = await api.admin.getDashboard();
       setStats(data);
     } catch (err) {
-      console.warn('Admin dashboard API failed, using demo data:', err.message);
-      setStats(DEMO_STATS);
+      console.warn('Admin dashboard API failed:', err.message);
     }
   };
 
   const fetchUsers = async () => {
-    if (demoMode) {
-      setUsers(DEMO_USERS);
-      return;
-    }
     try {
       const data = await api.admin.getUsers();
       setUsers(data);
     } catch (err) {
-      console.warn('Admin users API failed, using demo data:', err.message);
-      setUsers(DEMO_USERS);
+      console.warn('Admin users API failed:', err.message);
     }
   };
 
   const fetchDepartments = async () => {
-    if (demoMode) {
-      setDepartments(DEMO_DEPARTMENTS);
-      return;
-    }
     try {
       const data = await api.admin.getDepartments();
       setDepartments(data);
     } catch (err) {
-      setDepartments(DEMO_DEPARTMENTS);
+      console.warn('Admin departments API failed:', err.message);
     }
   };
 
   const fetchRoles = async () => {
-    if (demoMode) {
-      setRoles(DEMO_ROLES);
-      return;
-    }
     try {
       const data = await api.admin.getRoles();
       setRoles(data);
     } catch (err) {
-      setRoles(DEMO_ROLES);
+      console.warn('Admin roles API failed:', err.message);
     }
   };
 
   const fetchPermissions = async () => {
-    if (demoMode) {
-      setPermissions(DEMO_PERMISSIONS);
-      return;
-    }
     try {
       const data = await api.admin.getPermissions();
       setPermissions(data);
     } catch (err) {
-      console.warn('Admin permissions API failed, using demo data:', err.message);
-      setPermissions(DEMO_PERMISSIONS);
+      console.warn('Admin permissions API failed:', err.message);
     }
   };
 
@@ -228,12 +133,13 @@ export default function AdminPanel() {
 
   const handleTogglePermission = async (roleId, moduleKey, canAccess) => {
     try {
-      const result = await api.admin.togglePermission({
+      await api.admin.togglePermission({
         role_id: roleId,
         module_key: moduleKey,
-        can_access: canAccess
+        permission_type: 'can_read',
+        value: canAccess
       });
-      setPermissions(result);
+      fetchPermissions();
       addToast(`Permission updated: ${moduleKey} ${canAccess ? 'enabled' : 'disabled'}`, 'success');
     } catch (err) {
       addToast(err.message || 'Failed to update permission', 'danger');

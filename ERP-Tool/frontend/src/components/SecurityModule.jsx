@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
-import { ShieldAlert, ShieldCheck, Activity, FileCheck, Users, ClipboardCheck } from 'lucide-react';
+import React, { useState } from 'react';
+import { ShieldAlert, ShieldCheck, Activity, FileCheck, Users, ClipboardCheck, Clock } from 'lucide-react';
 import { useERPStore } from '../store/useERPStore';
-import { useSecurityThreats, useCreateSecurityThreat, useSecurityAuditLog } from '../hooks/useSecurity';
+import { useSecurityAlerts, useAccessLogs, useUserActivities, useComplianceItems, useUpdateSecurityAlert } from '../hooks/useSecurity';
 
 const SEVERITY_STYLES = {
   CRITICAL: 'bg-rose-500/20 text-rose-400 border-rose-500/30',
@@ -12,12 +12,13 @@ const SEVERITY_STYLES = {
 
 export default function SecurityModule() {
   const { addToast } = useERPStore();
-  const accessLogs = [];
-  const securityAlerts = [];
-  const userActivity = [];
-  const complianceTracking = [];
   const [activeTab, setActiveTab] = useState('alerts');
-
+  
+  const { data: securityAlerts = [], isLoading: alertsLoading } = useSecurityAlerts();
+  const { data: accessLogs = [], isLoading: accessLoading } = useAccessLogs();
+  const { data: userActivity = [], isLoading: activityLoading } = useUserActivities();
+  const { data: complianceTracking = [], isLoading: complianceLoading } = useComplianceItems();
+  const updateAlertMutation = useUpdateSecurityAlert();
 
   const TABS = [
     { id: 'alerts', label: 'Security Alerts', icon: ShieldAlert },
@@ -27,6 +28,19 @@ export default function SecurityModule() {
   ];
 
   const openAlerts = securityAlerts.filter(a => a.status !== 'RESOLVED').length;
+
+  const handleResolveAlert = async (id) => {
+    try {
+        await updateAlertMutation.mutateAsync({ id, payload: { status: 'RESOLVED' } });
+        addToast('Alert resolved', 'success');
+    } catch (e) {
+        addToast('Failed to resolve alert', 'error');
+    }
+  };
+
+  const isLoading = alertsLoading || accessLoading || activityLoading || complianceLoading;
+
+  if (isLoading) return <div className="p-6">Loading security data...</div>;
 
   return (
     <div className="p-6 space-y-6">
@@ -87,6 +101,7 @@ export default function SecurityModule() {
                 <th className="px-4 py-2.5">Timestamp</th>
                 <th className="px-4 py-2.5">Status</th>
                 <th className="px-4 py-2.5">Assigned To</th>
+                <th className="px-4 py-2.5 text-right">Actions</th>
               </tr></thead>
               <tbody>
                 {securityAlerts.map(alert => (
@@ -98,13 +113,18 @@ export default function SecurityModule() {
                       </span>
                     </td>
                     <td className="px-4 py-2.5 text-sm text-main">{alert.description}</td>
-                    <td className="px-4 py-2.5 text-xs text-muted">{alert.timestamp}</td>
+                    <td className="px-4 py-2.5 text-xs text-muted">{new Date(alert.createdAt).toLocaleString()}</td>
                     <td className="px-4 py-2.5">
                       <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${alert.status === 'RESOLVED' ? 'bg-emerald-500/10 text-emerald-400' : alert.status === 'INVESTIGATING' ? 'bg-amber-500/10 text-amber-400' : 'bg-rose-500/10 text-rose-400'}`}>
                         {alert.status}
                       </span>
                     </td>
-                    <td className="px-4 py-2.5 text-xs text-muted">{alert.assignedTo}</td>
+                    <td className="px-4 py-2.5 text-xs text-muted">{alert.assignedTo || 'Unassigned'}</td>
+                    <td className="px-4 py-2.5 text-right">
+                        {alert.status !== 'RESOLVED' && (
+                            <button onClick={() => handleResolveAlert(alert.id)} className="text-xs text-emerald-400 hover:text-emerald-300">Resolve</button>
+                        )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -125,17 +145,15 @@ export default function SecurityModule() {
                 <th className="px-4 py-2.5">Action</th>
                 <th className="px-4 py-2.5">Timestamp</th>
                 <th className="px-4 py-2.5">IP Address</th>
-                <th className="px-4 py-2.5">Device</th>
                 <th className="px-4 py-2.5">Status</th>
               </tr></thead>
               <tbody>
                 {accessLogs.map(log => (
                   <tr key={log.id} className="border-b border-main hover:bg-surface/60 transition-colors">
-                    <td className="px-4 py-2.5 text-sm text-main">{log.username}</td>
+                    <td className="px-4 py-2.5 text-sm text-main">{log.userId}</td>
                     <td className="px-4 py-2.5 text-xs font-mono text-primary">{log.action}</td>
-                    <td className="px-4 py-2.5 text-xs text-muted">{log.timestamp}</td>
+                    <td className="px-4 py-2.5 text-xs text-muted">{new Date(log.timestamp).toLocaleString()}</td>
                     <td className="px-4 py-2.5 text-xs font-mono text-dimmed">{log.ipAddress}</td>
-                    <td className="px-4 py-2.5 text-xs text-muted">{log.device}</td>
                     <td className="px-4 py-2.5">
                       <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${log.status === 'SUCCESS' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'}`}>
                         {log.status}
@@ -160,17 +178,17 @@ export default function SecurityModule() {
                 <th className="px-4 py-2.5">Username</th>
                 <th className="px-4 py-2.5">Action</th>
                 <th className="px-4 py-2.5">Module</th>
+                <th className="px-4 py-2.5">Metadata</th>
                 <th className="px-4 py-2.5">Timestamp</th>
-                <th className="px-4 py-2.5 text-right">Duration (s)</th>
               </tr></thead>
               <tbody>
                 {userActivity.map(activity => (
                   <tr key={activity.id} className="border-b border-main hover:bg-surface/60 transition-colors">
-                    <td className="px-4 py-2.5 text-sm text-main">{activity.username}</td>
+                    <td className="px-4 py-2.5 text-sm text-main">{activity.userId}</td>
                     <td className="px-4 py-2.5 text-xs font-mono text-primary">{activity.action}</td>
                     <td className="px-4 py-2.5 text-xs text-muted">{activity.module}</td>
-                    <td className="px-4 py-2.5 text-xs text-muted">{activity.timestamp}</td>
-                    <td className="px-4 py-2.5 text-right text-sm font-data text-main">{activity.duration}</td>
+                    <td className="px-4 py-2.5 text-xs text-muted">{activity.metadata_info ? JSON.stringify(activity.metadata_info) : '-'}</td>
+                    <td className="px-4 py-2.5 text-xs text-muted">{new Date(activity.timestamp).toLocaleString()}</td>
                   </tr>
                 ))}
               </tbody>
@@ -187,24 +205,25 @@ export default function SecurityModule() {
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead><tr className="text-left text-xs text-dimmed border-b border-main">
-                <th className="px-4 py-2.5">Regulation</th>
+                <th className="px-4 py-2.5">Standard</th>
                 <th className="px-4 py-2.5">Status</th>
-                <th className="px-4 py-2.5">Last Audit</th>
+                <th className="px-4 py-2.5">Added On</th>
                 <th className="px-4 py-2.5">Next Audit</th>
-                <th className="px-4 py-2.5 text-right">Score</th>
               </tr></thead>
               <tbody>
                 {complianceTracking.map(compliance => (
                   <tr key={compliance.id} className="border-b border-main hover:bg-surface/60 transition-colors">
-                    <td className="px-4 py-2.5 text-sm text-main">{compliance.regulation}</td>
+                    <td className="px-4 py-2.5 text-sm text-main">{compliance.standard}</td>
                     <td className="px-4 py-2.5">
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${compliance.status === 'COMPLIANT' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400'}`}>
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${compliance.status === 'Compliant' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400'}`}>
                         {compliance.status}
                       </span>
                     </td>
-                    <td className="px-4 py-2.5 text-xs text-muted">{compliance.lastAudit}</td>
-                    <td className="px-4 py-2.5 text-xs text-muted">{compliance.nextAudit}</td>
-                    <td className="px-4 py-2.5 text-right text-sm font-data text-main">{compliance.score}</td>
+                    <td className="px-4 py-2.5 text-xs text-muted">{new Date(compliance.createdAt).toLocaleDateString()}</td>
+                    <td className="px-4 py-2.5 text-xs text-muted flex items-center gap-1">
+                        <Clock className="w-3 h-3" />
+                        {compliance.nextAuditDate ? new Date(compliance.nextAuditDate).toLocaleDateString() : 'TBD'}
+                    </td>
                   </tr>
                 ))}
               </tbody>

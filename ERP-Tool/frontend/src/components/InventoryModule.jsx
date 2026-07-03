@@ -1,7 +1,8 @@
 import React, { useState, useMemo, useCallback } from 'react';
-import { AlertTriangle, Package, Warehouse, Scan, BarChart3, Layers } from 'lucide-react';
-import { useProducts, useWarehouses, useInventoryBatches, useStockMovements } from '../hooks/useInventory';
+import { AlertTriangle, Package, Warehouse, Scan, BarChart3, Layers, Plus } from 'lucide-react';
+import { useProducts, useWarehouses, useInventoryBatches, useStockMovements, useCreateWarehouse, useCreateStockMovement, useCreateProduct } from '../hooks/useInventory';
 import { useERPStore } from '../store/useERPStore';
+import Modal from './ui/Modal';
 
 const Barcode = ({ value }) => {
   if (!value) return null;
@@ -24,9 +25,18 @@ const InventoryModule = React.memo(function InventoryModule() {
   const { data: inventoryBatches = [] } = useInventoryBatches();
   const { data: stockMovements = [] } = useStockMovements();
 
+  const createWarehouse = useCreateWarehouse();
+  const createStockMovement = useCreateStockMovement();
+  const createProduct = useCreateProduct();
+
   const [activeTab, setActiveTab] = useState('products');
   const [search, setSearch] = useState('');
   const [barcodeScan, setBarcodeScan] = useState('');
+
+  const [warehouseModal, setWarehouseModal] = useState(false);
+  const [txModal, setTxModal] = useState(false);
+  const [newWarehouse, setNewWarehouse] = useState({ name: '', location: '' });
+  const [newTx, setNewTx] = useState({ inventoryId: '', type: 'IN', quantity: 1, notes: '' });
   const filtered = useMemo(() => products.filter(
     p =>
       p.name?.toLowerCase().includes(search.toLowerCase()) ||
@@ -55,12 +65,46 @@ const InventoryModule = React.memo(function InventoryModule() {
     { id: 'scanner', label: 'Barcode Scanner', icon: Scan }
   ];
 
+  const handleCreateWarehouse = async () => {
+    try {
+      await createWarehouse.mutateAsync(newWarehouse);
+      addToast('Warehouse created', 'success');
+      setWarehouseModal(false);
+      setNewWarehouse({ name: '', location: '' });
+    } catch (err) {
+      addToast(err.message || 'Failed to create warehouse', 'error');
+    }
+  };
+
+  const handleCreateTx = async () => {
+    try {
+      await createStockMovement.mutateAsync(newTx);
+      addToast('Transaction recorded', 'success');
+      setTxModal(false);
+      setNewTx({ inventoryId: '', type: 'IN', quantity: 1, notes: '' });
+    } catch (err) {
+      addToast(err.message || 'Failed to record transaction', 'error');
+    }
+  };
+
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-main">Inventory Management</h1>
           <p className="text-sm text-muted mt-1">Real-time stock tracking and reorder management</p>
+        </div>
+        <div className="flex gap-2">
+          {activeTab === 'warehouses' && (
+            <button onClick={() => setWarehouseModal(true)} className="px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 bg-primary text-primary-foreground hover:bg-primary-hover border-primary/20 transition-all">
+              <Plus className="w-4 h-4" /> New Warehouse
+            </button>
+          )}
+          {activeTab === 'movements' && (
+            <button onClick={() => setTxModal(true)} className="px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 bg-primary text-primary-foreground hover:bg-primary-hover border-primary/20 transition-all">
+              <Plus className="w-4 h-4" /> Log Transaction
+            </button>
+          )}
         </div>
       </div>
 
@@ -284,17 +328,17 @@ const InventoryModule = React.memo(function InventoryModule() {
                   const product = products.find(p => p.id === movement.productId);
                   return (
                     <tr key={movement.id} className="border-b border-main hover:bg-surface/60 transition-colors">
-                      <td className="px-4 py-2.5 text-xs text-muted">{movement.date}</td>
-                      <td className="px-4 py-2.5 text-sm text-main">{product?.name || 'Unknown'}</td>
+                      <td className="px-4 py-2.5 text-xs text-muted">{new Date(movement.timestamp).toLocaleString()}</td>
+                      <td className="px-4 py-2.5 text-sm text-main">{movement.productName || 'Unknown'}</td>
                       <td className="px-4 py-2.5">
                         <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${movement.type === 'IN' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'}`}>
                           {movement.type}
                         </span>
                       </td>
                       <td className="px-4 py-2.5 text-right text-sm font-data text-main">{movement.quantity}</td>
-                      <td className="px-4 py-2.5 text-xs text-muted">{movement.fromWarehouse || '—'}</td>
-                      <td className="px-4 py-2.5 text-xs text-muted">{movement.toWarehouse || '—'}</td>
-                      <td className="px-4 py-2.5 text-xs text-muted max-w-xs truncate">{movement.reason}</td>
+                      <td className="px-4 py-2.5 text-xs text-muted">{movement.referenceId || '—'}</td>
+                      <td className="px-4 py-2.5 text-xs text-muted">—</td>
+                      <td className="px-4 py-2.5 text-xs text-muted max-w-xs truncate">{movement.notes}</td>
                     </tr>
                   );
                 })}
@@ -320,6 +364,50 @@ const InventoryModule = React.memo(function InventoryModule() {
           <p className="text-xs text-muted">Scan product barcodes to quickly check stock levels and product details.</p>
         </div>
       )}
+
+      <Modal isOpen={warehouseModal} onClose={() => setWarehouseModal(false)} title="New Warehouse">
+        <div className="space-y-4">
+          <div><label className="form-label">Name</label>
+            <input className="form-input" value={newWarehouse.name} onChange={e => setNewWarehouse({...newWarehouse, name: e.target.value})} />
+          </div>
+          <div><label className="form-label">Location</label>
+            <input className="form-input" value={newWarehouse.location} onChange={e => setNewWarehouse({...newWarehouse, location: e.target.value})} />
+          </div>
+          <div className="flex gap-2 justify-end pt-2">
+            <button onClick={() => setWarehouseModal(false)} className="px-4 py-2 rounded-lg text-sm font-medium bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 transition-all">Cancel</button>
+            <button onClick={handleCreateWarehouse} className="btn-primary text-sm">Create</button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal isOpen={txModal} onClose={() => setTxModal(false)} title="Log Stock Transaction">
+        <div className="space-y-4">
+          <div><label className="form-label">Product</label>
+            <select className="form-input" value={newTx.inventoryId} onChange={e => setNewTx({...newTx, inventoryId: e.target.value})}>
+              <option value="">Select Product...</option>
+              {products.map(p => <option key={p.id} value={p.id}>{p.name} (Stock: {p.currentStock})</option>)}
+            </select>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div><label className="form-label">Type</label>
+              <select className="form-input" value={newTx.type} onChange={e => setNewTx({...newTx, type: e.target.value})}>
+                <option value="IN">IN (Receive)</option>
+                <option value="OUT">OUT (Deduct)</option>
+              </select>
+            </div>
+            <div><label className="form-label">Quantity</label>
+              <input type="number" min="1" className="form-input" value={newTx.quantity} onChange={e => setNewTx({...newTx, quantity: parseInt(e.target.value)})} />
+            </div>
+          </div>
+          <div><label className="form-label">Notes</label>
+            <input className="form-input" value={newTx.notes} onChange={e => setNewTx({...newTx, notes: e.target.value})} placeholder="Reason for transaction" />
+          </div>
+          <div className="flex gap-2 justify-end pt-2">
+            <button onClick={() => setTxModal(false)} className="px-4 py-2 rounded-lg text-sm font-medium bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 transition-all">Cancel</button>
+            <button onClick={handleCreateTx} className="btn-primary text-sm">Log Transaction</button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 });

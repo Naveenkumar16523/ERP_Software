@@ -38,12 +38,18 @@ import app.models.assets_sql_models
 import app.models.projects_sql_models
 import app.models.automation_sql_models
 import app.models.support_sql_models
+import app.models.inventory_sql_models
+import app.models.compliance_sql_models
 target_metadata = Base.metadata
 
 def get_url():
-    url = os.getenv("DATABASE_URL", "sqlite:///./erp.db")
+    url = os.getenv("MYSQL_URL") or os.getenv("DB_URL") or os.getenv("DATABASE_URL", "sqlite:///./erp.db")
     if url.startswith("postgres://"):
         url = url.replace("postgres://", "postgresql://", 1)
+    if url.startswith("mysql://"):
+        url = url.replace("mysql://", "mysql+pymysql://", 1)
+    if "?ssl-mode=" in url:
+        url = url.split("?ssl-mode=")[0]
     return url
 
 def run_migrations_offline() -> None:
@@ -61,9 +67,9 @@ def run_migrations_offline() -> None:
 
 def run_migrations_online() -> None:
     """Run migrations in 'online' mode."""
-    from sqlalchemy import create_engine
+    from app.utils.db import engine
     
-    connectable = create_engine(get_url())
+    connectable = engine
 
     with connectable.connect() as connection:
         context.configure(

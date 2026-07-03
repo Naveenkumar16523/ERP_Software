@@ -92,14 +92,23 @@ class AccountCreate(BaseModel):
     type: str
     balance: float = 0.0
 
+class InvoiceItemCreate(BaseModel):
+    description: str
+    quantity: float
+    unitPrice: float
+    hsnCode: Optional[str] = None
+    taxRate: float
+
 class InvoiceCreate(BaseModel):
     invoiceNo: str
     customerName: str
+    customerGstin: Optional[str] = None
     invoiceDate: str
     dueDate: str
     subtotal: float
     taxRate: float
     status: str = "PENDING"
+    items: List[InvoiceItemCreate] = []
 
 class BudgetCreate(BaseModel):
     budgetName: str

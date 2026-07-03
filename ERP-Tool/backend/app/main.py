@@ -27,6 +27,11 @@ import app.models.projects_sql_models
 import app.models.ecommerce_sql_models
 import app.models.automation_sql_models
 import app.models.support_sql_models
+import app.models.inventory_sql_models
+import app.models.compliance_sql_models
+import app.models.ai_sql_models
+import app.models.mobile_sql_models
+from app.routers import export
 from app.utils.redis_client import connect_redis, cache_get
 
 # Routers
@@ -36,28 +41,31 @@ from app.routers.rbac_auth import router as rbac_auth_router
 from app.routers.admin import router as admin_router
 from app.routers.analytics import router as analytics_router
 from app.routers.assets import router as assets_router
-from app.routers.automation import router as automation_router
 from app.routers.banking import router as banking_router
 from app.routers.crm import router as crm_router
-from app.routers.dashboard import router as dashboard_router
 from app.routers.finance import router as finance_router
 from app.routers.hr import router as hr_router
-from app.routers.inventory import router as inventory_router
 from app.routers.marketing import router as marketing_router
 from app.routers.payroll import router as payroll_router
 from app.routers.procurement import router as procurement_router
 from app.routers.projects import router as projects_router
-from app.routers.security import router as security_router
 from app.routers.supply_chain import router as supply_chain_router
-from app.routers.support import router as support_router
-from app.routers.search import router as search_router
+from app.routers.security import router as security_router
+from app.routers.automation import router as automation_router
+# from app.routers.rpa_automation import router as rpa_automation_router
 from app.routers.realtime import router as realtime_router
+from app.routers.support import router as support_router
 from app.routers.ecommerce import router as ecommerce_router
-# from app.routers.education import router as education_router
+from app.routers.inventory import router as inventory_router
+from app.routers.compliance import router as compliance_router
+from app.routers.dashboard import router as dashboard_router
+from app.routers.search import router as search_router
 # from app.routers.healthcare import router as healthcare_router
 from app.routers.manufacturing import router as manufacturing_router
 # from app.routers.sustainability import router as sustainability_router
 from app.routers.migration import router as migration_router
+from app.routers.ai import router as ai_router
+from app.routers.mobile import router as mobile_router
 
 import sentry_sdk
 from prometheus_fastapi_instrumentator import Instrumentator
@@ -250,8 +258,12 @@ app.include_router(support_router, prefix="/api/v1")
 app.include_router(search_router, prefix="/api/v1")
 app.include_router(realtime_router, prefix="/api/v1")
 app.include_router(ecommerce_router, prefix="/api/v1")
+app.include_router(compliance_router, prefix="/api/v1")
+# app.include_router(rpa_automation_router, prefix="/api/v1")
 # app.include_router(education_router, prefix="/api/v1")
 # app.include_router(healthcare_router, prefix="/api/v1")
 app.include_router(manufacturing_router, prefix="/api/v1")
 # app.include_router(sustainability_router, prefix="/api/v1")
 app.include_router(migration_router, prefix="/api/v1/migration", tags=["Migration"])
+app.include_router(ai_router, prefix="/api/v1")
+app.include_router(mobile_router, prefix="/api/v1")

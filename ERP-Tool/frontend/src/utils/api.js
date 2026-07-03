@@ -713,6 +713,24 @@ export const api = {
   },
 
 
+  // ── Compliance ──
+  compliance: {
+    async getEwayBills() {
+      return request('/compliance/ewaybills');
+    },
+    async createEwayBill(payload) {
+      return request('/compliance/ewaybills', { method: 'POST', body: JSON.stringify(payload) });
+    },
+    async downloadEwayBillPdf(id) {
+      // Need standard fetch since it returns Blob
+      const token = useERPStore.getState().token;
+      const headers = token ? { Authorization: `Bearer ${token}` } : {};
+      const res = await fetch(`${API_URL}/api/v1/compliance/ewaybills/${id}/pdf`, { headers });
+      if (!res.ok) throw new Error('Failed to download E-Way Bill');
+      return res.blob();
+    }
+  },
+
   // ── Global Search ──
   search: {
     async query(q, options = {}) {

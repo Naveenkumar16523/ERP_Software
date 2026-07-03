@@ -21,7 +21,8 @@ import {
   useExpenses, useCreateExpense, useUpdateExpenseStatus,
   useTaxDeadlines, useCreateTaxDeadline, useUpdateTaxDeadlineStatus,
   useStatements, useCreateStatement, useUpdateStatementStatus,
-  useApprovalWorkflows, useCreateApprovalWorkflow, useApproveApprovalWorkflow
+  useApprovalWorkflows, useCreateApprovalWorkflow, useApproveApprovalWorkflow,
+  useGstrReport
 } from '../hooks/useFinance';
 
 import { api } from '../utils/api';
@@ -40,6 +41,7 @@ export default function FinanceModule() {
   const taxCompliance = Array.isArray(taxData) ? { filingDeadlines: taxData, auditTrail: [], gstRate: 18, vatRate: 20 } : (taxData || { filingDeadlines: [], auditTrail: [], gstRate: 18, vatRate: 20 });
   const { data: statements = [] } = useStatements();
   const { data: approvalWorkflows = [] } = useApprovalWorkflows();
+  const { data: gstrReportData } = useGstrReport();
   
   const createAccountMutation = useCreateAccount();
   const createJournalEntryMutation = useCreateJournalEntry();
@@ -69,7 +71,7 @@ export default function FinanceModule() {
 
   const [newAcct, setNewAcct] = useState({ code: '', name: '', type: 'ASSET', balance: 0 });
   const [newJournal, setNewJournal] = useState({ debitAcc: '', creditAcc: '', amount: 0, narration: '', date: '', referenceNo: '' });
-  const [newInv, setNewInv] = useState({ invoiceNo: '', customerName: '', invoiceDate: '', dueDate: '', subtotal: 0, taxRate: 0, status: 'PENDING' });
+  const [newInv, setNewInv] = useState({ invoiceNo: '', customerName: '', customerGstin: '', invoiceDate: '', dueDate: '', status: 'PENDING', items: [{ description: '', hsnCode: '', quantity: 1, unitPrice: 0, taxRate: 18 }] });
   const [newBudget, setNewBudget] = useState({ budgetName: '', category: '', period: 'monthly', amount: 0, spent: 0, year: 2026, month: 6 });
   const [newExpense, setNewExpense] = useState({ description: '', category: '', amount: 0, date: '', paidBy: '', receiptStatus: 'Pending' });
   const [newApproval, setNewApproval] = useState({ requestNo: '', type: 'PAYMENT', requester: '', amount: 0, date: '', reason: '' });
@@ -144,18 +146,33 @@ export default function FinanceModule() {
   };
 
   const handleAddInvoice = async () => {
-    if (!newInv.customerName || !newInv.subtotal) return addToast('Customer name and amount are required', 'error');
+    if (!newInv.invoiceNo || !newInv.customerName || !newInv.items.length) {
+      return addToast('Invoice Number, Customer Name and at least 1 item are required', 'error');
+    }
     if (isSubmitting) return;
     setIsSubmitting(true);
+    let calculatedSubtotal = 0;
+    newInv.items.forEach(item => {
+      calculatedSubtotal += parseFloat(item.quantity || 0) * parseFloat(item.unitPrice || 0);
+    });
+    
+    // We can default taxRate to 0 on the main body as items have their own taxRate in the backend. 
+    // Backend will use body.taxRate if we keep it, but we can just set it to 0.
     const payload = { 
       ...newInv, 
-      subtotal: parseFloat(newInv.subtotal) || 0,
-      taxRate: parseFloat(newInv.taxRate) || 0 
+      subtotal: calculatedSubtotal, 
+      taxRate: 0,
+      items: newInv.items.map(item => ({
+        ...item,
+        quantity: parseFloat(item.quantity) || 0,
+        unitPrice: parseFloat(item.unitPrice) || 0,
+        taxRate: parseFloat(item.taxRate) || 0
+      }))
     };
     try {
       await createInvoiceMutation.mutateAsync(payload);
-      addToast('Invoice created', 'success');
-      setNewInv({ invoiceNo: '', customerName: '', invoiceDate: '', dueDate: '', subtotal: 0, taxRate: 0, status: 'PENDING' });
+      addToast('Invoice created successfully', 'success');
+      setNewInv({ invoiceNo: '', customerName: '', customerGstin: '', invoiceDate: '', dueDate: '', status: 'PENDING', items: [{ description: '', hsnCode: '', quantity: 1, unitPrice: 0, taxRate: 18 }] });
       setInvoiceModalOpen(false);
     } catch (err) {
       addToast(`Error creating invoice: ${err.message}`, 'error');
@@ -397,6 +414,7 @@ export default function FinanceModule() {
     { id: 'expenses', label: 'Expense Tracker', icon: AlertCircle },
     { id: 'approvals', label: 'Approvals', icon: CheckCircle },
     { id: 'tax', label: 'Tax & Compliance', icon: ShieldCheck },
+    { id: 'gstr', label: 'GSTR Reports', icon: FileText },
     { id: 'statements', label: 'Statements', icon: TrendingUp },
     { id: 'audit', label: 'Audit Trail', icon: ShieldCheck }
   ];
@@ -890,6 +908,47 @@ export default function FinanceModule() {
         </div>
       )}
 
+      {activeTab === 'gstr' && (
+        <div className="theme-card overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-main">
+            <h3 className="text-sm font-semibold text-main">GSTR-1 Report (Outward Supplies)</h3>
+          </div>
+          <div className="p-4 grid grid-cols-2 gap-4">
+            <div className="theme-card p-4 border border-main">
+              <h4 className="text-xs text-muted">Total Taxable Value</h4>
+              <p className="text-xl font-bold text-main mt-1">₹{(gstrReportData?.totalSales || 0).toLocaleString('en-IN')}</p>
+            </div>
+            <div className="theme-card p-4 border border-main">
+              <h4 className="text-xs text-muted">Total Tax Collected</h4>
+              <p className="text-xl font-bold text-main mt-1">₹{(gstrReportData?.totalTaxCollected || 0).toLocaleString('en-IN')}</p>
+            </div>
+          </div>
+          <div className="overflow-x-auto p-4 pt-0">
+            <table className="w-full mt-2 border border-main">
+              <thead>
+                <tr className="text-left text-xs text-muted border-b border-main bg-surface">
+                  <th className="px-4 py-2.5">Tax Rate (%)</th>
+                  <th className="px-4 py-2.5 text-right">Taxable Value (₹)</th>
+                  <th className="px-4 py-2.5 text-right">Tax Amount (₹)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(gstrReportData?.gstr1 || []).map((row, idx) => (
+                  <tr key={idx} className="border-b border-main/50 hover:bg-surface/50">
+                    <td className="px-4 py-2.5 text-sm font-mono text-primary">{row.taxRate}%</td>
+                    <td className="px-4 py-2.5 text-right text-sm text-main">{(row.taxableValue || 0).toLocaleString('en-IN')}</td>
+                    <td className="px-4 py-2.5 text-right text-sm text-main">{(row.taxAmount || 0).toLocaleString('en-IN')}</td>
+                  </tr>
+                ))}
+                {(!gstrReportData || !gstrReportData.gstr1?.length) && (
+                  <tr><td colSpan="3" className="px-4 py-4 text-center text-muted text-sm">No sales data found for GSTR-1</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
       {activeTab === 'statements' && (
         <div className="space-y-4">
           <div className="flex items-center justify-between theme-card p-4">
@@ -1107,21 +1166,76 @@ export default function FinanceModule() {
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="form-label">Amount (Subtotal ₹)</label>
-              <input type="number" className="form-input" value={newInv.subtotal} onChange={e => setNewInv({...newInv, subtotal: e.target.value})} />
+              <label className="form-label">Customer GSTIN</label>
+              <input type="text" className="form-input" placeholder="e.g. 29ABCDE1234F1Z5" value={newInv.customerGstin} onChange={e => setNewInv({...newInv, customerGstin: e.target.value})} />
             </div>
             <div>
-              <label className="form-label">Tax Rate (%)</label>
-              <input type="number" className="form-input" value={newInv.taxRate} onChange={e => setNewInv({...newInv, taxRate: e.target.value})} />
+              <label className="form-label">Status</label>
+              <select className="form-input" value={newInv.status} onChange={e => setNewInv({...newInv, status: e.target.value})}>
+                <option value="PENDING">Pending</option>
+                <option value="PAID">Paid</option>
+                <option value="OVERDUE">Overdue</option>
+              </select>
             </div>
           </div>
-          <div>
-            <label className="form-label">Status</label>
-            <select className="form-input" value={newInv.status} onChange={e => setNewInv({...newInv, status: e.target.value})}>
-              <option value="PENDING">Pending</option>
-              <option value="PAID">Paid</option>
-              <option value="OVERDUE">Overdue</option>
-            </select>
+          
+          <div className="pt-2 border-t border-main/50">
+            <div className="flex justify-between items-center mb-2">
+              <h4 className="text-sm font-semibold text-main">Invoice Items</h4>
+              <button 
+                onClick={() => setNewInv({...newInv, items: [...newInv.items, { description: '', hsnCode: '', quantity: 1, unitPrice: 0, taxRate: 18 }]})}
+                className="text-xs text-primary hover:underline flex items-center gap-1"
+              >
+                <Plus className="w-3 h-3" /> Add Item
+              </button>
+            </div>
+            {newInv.items.map((item, idx) => (
+              <div key={idx} className="grid grid-cols-12 gap-2 mb-2 p-2 bg-surface/50 rounded-lg">
+                <div className="col-span-4">
+                  <input type="text" placeholder="Desc" className="form-input text-xs py-1 px-2" value={item.description} onChange={e => {
+                    const newItems = [...newInv.items];
+                    newItems[idx].description = e.target.value;
+                    setNewInv({...newInv, items: newItems});
+                  }} />
+                </div>
+                <div className="col-span-2">
+                  <input type="text" placeholder="HSN" className="form-input text-xs py-1 px-2" value={item.hsnCode} onChange={e => {
+                    const newItems = [...newInv.items];
+                    newItems[idx].hsnCode = e.target.value;
+                    setNewInv({...newInv, items: newItems});
+                  }} />
+                </div>
+                <div className="col-span-2">
+                  <input type="number" placeholder="Qty" className="form-input text-xs py-1 px-2" value={item.quantity} onChange={e => {
+                    const newItems = [...newInv.items];
+                    newItems[idx].quantity = e.target.value;
+                    setNewInv({...newInv, items: newItems});
+                  }} />
+                </div>
+                <div className="col-span-2">
+                  <input type="number" placeholder="Price" className="form-input text-xs py-1 px-2" value={item.unitPrice} onChange={e => {
+                    const newItems = [...newInv.items];
+                    newItems[idx].unitPrice = e.target.value;
+                    setNewInv({...newInv, items: newItems});
+                  }} />
+                </div>
+                <div className="col-span-2 flex gap-1">
+                  <input type="number" placeholder="Tax %" className="form-input text-xs py-1 px-2 w-full" value={item.taxRate} onChange={e => {
+                    const newItems = [...newInv.items];
+                    newItems[idx].taxRate = e.target.value;
+                    setNewInv({...newInv, items: newItems});
+                  }} />
+                  <button onClick={() => {
+                    const newItems = newInv.items.filter((_, i) => i !== idx);
+                    setNewInv({...newInv, items: newItems});
+                  }} className="text-rose-400 font-bold px-1 hover:bg-rose-500/10 rounded">✕</button>
+                </div>
+              </div>
+            ))}
+            <div className="flex justify-between items-center mt-2 px-2 text-sm">
+              <span className="text-muted">Calculated Subtotal:</span>
+              <span className="font-bold text-main">₹{newInv.items.reduce((sum, item) => sum + (parseFloat(item.quantity||0) * parseFloat(item.unitPrice||0)), 0).toLocaleString('en-IN')}</span>
+            </div>
           </div>
           <div className="flex gap-2 justify-end pt-2">
             <button onClick={() => setInvoiceModalOpen(false)} disabled={isSubmitting} className="px-4 py-2 rounded-lg text-sm font-medium bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 hover:shadow-[0_0_15px_rgba(239,68,68,0.2)] transition-all">Cancel</button>

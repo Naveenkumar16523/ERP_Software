@@ -10,6 +10,7 @@ from app.utils.audit import log_audit_event
 from app.middlewares.auth_middleware import get_current_user, require_permission, AuthenticatedUser
 from app.models.schemas import OrderPlace
 from app.models.ecommerce_sql_models import StoreProduct, CustomerOrder, OrderItem, LoyaltyAccount
+from app.models.inventory_sql_models import StoreInventory, StockTransaction
 
 router = APIRouter(prefix="/ecommerce", tags=["E-Commerce"])
 
@@ -136,6 +137,21 @@ async def process_checkout(body: OrderPlace, db: Session) -> dict:
             product = it["product_ref"]
             product.stock -= it["quantity"]
 
+            # Deduct from default warehouse inventory and create a transaction
+            inv = db.query(StoreInventory).filter(StoreInventory.productId == product.id).first()
+            if inv:
+                inv.currentStock -= it["quantity"]
+                tx = StockTransaction(
+                    inventoryId=inv.id,
+                    type="OUT",
+                    quantity=it["quantity"],
+                    notes="E-commerce Checkout",
+                    timestamp=datetime.utcnow()
+                )
+                # We'll set referenceId to the generated order_id later below
+                db.add(tx)
+                it["inv_tx"] = tx
+
         email = body.customerEmail or (body.shippingAddress.get("email") if body.shippingAddress else "guest@example.com")
         name = body.customerName or (body.shippingAddress.get("name") if body.shippingAddress else "Guest")
         
@@ -182,7 +198,7 @@ async def process_checkout(body: OrderPlace, db: Session) -> dict:
         for it in items_data:
             ord_item = OrderItem(
                 id=str(uuid.uuid4()),
-                orderId=order_id,
+                orderId=order.id,
                 productId=it["productId"],
                 quantity=it["quantity"],
                 unitPrice=it["unitPrice"],
@@ -191,7 +207,10 @@ async def process_checkout(body: OrderPlace, db: Session) -> dict:
             )
             db.add(ord_item)
             order_items_objs.append(ord_item)
+            if "inv_tx" in it:
+                it["inv_tx"].referenceId = order.id
 
+        # Reward 1 loyalty pt per $10 spent
         earned_points = int(final_amount // 10)
         loyalty.points += earned_points
         

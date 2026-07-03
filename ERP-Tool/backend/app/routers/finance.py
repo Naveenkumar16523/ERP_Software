@@ -10,7 +10,7 @@ from app.utils.audit import log_audit_event
 from app.utils.crypto_ledger import calculate_block_hash
 from app.middlewares.rbac_middleware import get_current_rbac_user, require_module_access, RBACUser
 from app.models.schemas import VoucherCreate, AccountCreate, InvoiceCreate, BudgetCreate, ExpenseCreate, ApprovalWorkflowCreate, TaxDeadlineCreate, StatementCreate
-from app.models.finance_sql_models import FinanceAccount, JournalEntry, Invoice, Budget, Expense, ApprovalWorkflow, ApprovalLevel, TaxDeadline, Statement, FinanceAuditLog
+from app.models.finance_sql_models import FinanceAccount, JournalEntry, Invoice, InvoiceItem, Budget, Expense, ApprovalWorkflow, ApprovalLevel, TaxDeadline, Statement, FinanceAuditLog
 import httpx
 from app.utils.redis_client import cache_get, cache_set, connect_redis
 from app.routers.realtime import manager
@@ -210,12 +210,46 @@ async def get_tax_summary(current_user: RBACUser = Depends(require_module_access
     tds_acc = db.query(FinanceAccount).filter(FinanceAccount.name == "TDS Payable").first()
     return {"gstPayable": gst_acc.balance if gst_acc else 0.0, "tdsPayable": tds_acc.balance if tds_acc else 0.0, "gstStatus": "Filing Ready", "tdsStatus": "Deductions Verified"}
 
+@router.get("/reports/gstr")
+async def get_gstr_report(current_user: RBACUser = Depends(require_module_access("finance")), db: Session = Depends(get_db)):
+    from sqlalchemy.orm import joinedload
+    invoices = db.query(Invoice).options(joinedload(Invoice.items)).all()
+    
+    # GSTR-1: Outward supplies (Sales)
+    # Group by tax rate
+    gstr1_summary = {}
+    total_tax = 0
+    total_sales = 0
+
+    for inv in invoices:
+        for item in inv.items:
+            rate = str(item.taxRate)
+            if rate not in gstr1_summary:
+                gstr1_summary[rate] = {"taxableValue": 0, "taxAmount": 0}
+            
+            taxable = float(item.quantity * item.unitPrice)
+            tax = float(item.taxAmount)
+            gstr1_summary[rate]["taxableValue"] += taxable
+            gstr1_summary[rate]["taxAmount"] += tax
+            total_tax += tax
+            total_sales += taxable
+
+    return {
+        "gstr1": [
+            {"taxRate": rate, "taxableValue": data["taxableValue"], "taxAmount": data["taxAmount"]} 
+            for rate, data in gstr1_summary.items()
+        ],
+        "totalSales": total_sales,
+        "totalTaxCollected": total_tax
+    }
+
 # 9. INVOICES
 
 @router.get("/invoices")
 async def get_invoices(current_user: RBACUser = Depends(require_module_access("finance")), db: Session = Depends(get_db)):
     try:
-        invoices = db.query(Invoice).order_by(Invoice.invoiceDate.desc()).all()
+        from sqlalchemy.orm import joinedload
+        invoices = db.query(Invoice).options(joinedload(Invoice.items)).order_by(Invoice.invoiceDate.desc()).all()
         return invoices
     except Exception as e:
         import logging
@@ -241,6 +275,7 @@ async def create_invoice(body: InvoiceCreate, current_user: RBACUser = Depends(r
     invoice = Invoice(
         invoiceNo=invoice_no,
         customerName=body.customerName,
+        customerGstin=body.customerGstin,
         subtotal=body.subtotal,
         taxRate=tax_rate,
         taxAmount=tax_amount,
@@ -251,6 +286,23 @@ async def create_invoice(body: InvoiceCreate, current_user: RBACUser = Depends(r
         dueDate=due_date
     )
     db.add(invoice)
+    db.flush() # flush to get invoice.id
+    
+    for item in body.items:
+        item_tax = (item.quantity * item.unitPrice) * (item.taxRate / 100)
+        item_total = (item.quantity * item.unitPrice) + item_tax
+        invoice_item = InvoiceItem(
+            invoiceId=invoice.id,
+            description=item.description,
+            hsnCode=item.hsnCode,
+            quantity=item.quantity,
+            unitPrice=item.unitPrice,
+            taxRate=item.taxRate,
+            taxAmount=item_tax,
+            totalAmount=item_total
+        )
+        db.add(invoice_item)
+
     db.commit()
     db.refresh(invoice)
     

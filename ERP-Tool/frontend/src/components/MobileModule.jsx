@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { Smartphone, Monitor, Tablet, Eye, Download, Zap } from 'lucide-react';
+import { useMobileConfig } from '../hooks/useMobile';
 
 export default function MobileModule() {
   const [device, setDevice] = useState('phone');
+  const { data: configs = [] } = useMobileConfig();
 
   const DEVICES = [
     { id: 'phone', label: 'Phone', icon: Smartphone, w: 375, h: 812 },
@@ -13,11 +15,11 @@ export default function MobileModule() {
 
   const previewUrl = window.location.href;
 
-  const features = [
-    { title: 'Responsive Layout', desc: 'Adapts to any screen size automatically', status: 'Active' },
-    { title: 'Touch Gestures', desc: 'Swipe navigation and pull-to-refresh', status: 'Active' },
-    { title: 'PWA Support', desc: 'Installable as a Progressive Web App', status: 'Planned' },
-    { title: 'Push Notifications', desc: 'Web push notification integration', status: 'Planned' }
+  const features = configs.length > 0 ? configs : [
+    { featureName: 'Responsive Layout', description: 'Adapts to any screen size automatically', status: 'Active' },
+    { featureName: 'Touch Gestures', description: 'Swipe navigation and pull-to-refresh', status: 'Active' },
+    { featureName: 'PWA Support', description: 'Installable as a Progressive Web App', status: 'Planned' },
+    { featureName: 'Push Notifications', description: 'Web push notification integration', status: 'Planned' }
   ];
 
   return (
@@ -60,11 +62,11 @@ export default function MobileModule() {
         <div className="flex-1 space-y-3">
           <h3 className="text-sm font-semibold text-main">Mobile-First Features</h3>
           {features.map(f => (
-            <div key={f.title} className="theme-card p-3 flex items-center gap-3">
+            <div key={f.featureName} className="theme-card p-3 flex items-center gap-3">
               <div className={`w-2 h-2 rounded-full flex-shrink-0 ${f.status === 'Active' ? 'bg-emerald-400' : 'bg-amber-400'}`} />
               <div className="flex-1">
-                <p className="text-sm font-medium text-main">{f.title}</p>
-                <p className="text-xs text-muted">{f.desc}</p>
+                <p className="text-sm font-medium text-main">{f.featureName}</p>
+                <p className="text-xs text-muted">{f.description}</p>
               </div>
               <span className={`text-xs px-2 py-0.5 rounded-full ${f.status === 'Active' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400'}`}>{f.status}</span>
             </div>

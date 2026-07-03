@@ -1,4 +1,5 @@
 from sqlalchemy import Column, String, Float, Boolean, Integer, DateTime, ForeignKey, Text, Numeric
+from sqlalchemy.orm import relationship
 from datetime import datetime
 import uuid
 
@@ -41,6 +42,7 @@ class Invoice(Base):
     id = Column(String(36), primary_key=True, default=generate_uuid)
     invoiceNo = Column(String(100), unique=True, index=True)
     customerName = Column(String(255), index=True)
+    customerGstin = Column(String(50), nullable=True) # Added for GST compliance
     subtotal = Column(Numeric(15, 4))
     taxRate = Column(Numeric(15, 4))
     taxAmount = Column(Numeric(15, 4))
@@ -51,6 +53,23 @@ class Invoice(Base):
     dueDate = Column(DateTime, nullable=True)
     sent = Column(Boolean, default=False)
     createdAt = Column(DateTime, default=datetime.utcnow)
+    
+    items = relationship("InvoiceItem", back_populates="invoice", cascade="all, delete-orphan")
+
+class InvoiceItem(Base):
+    __tablename__ = "finance_invoice_items"
+    
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    invoiceId = Column(String(36), ForeignKey('finance_invoices.id'))
+    description = Column(String(255))
+    hsnCode = Column(String(50), nullable=True) # Added for GST compliance
+    quantity = Column(Numeric(15, 4))
+    unitPrice = Column(Numeric(15, 4))
+    taxRate = Column(Numeric(15, 4))
+    taxAmount = Column(Numeric(15, 4))
+    totalAmount = Column(Numeric(15, 4))
+    
+    invoice = relationship("Invoice", back_populates="items")
 
 class Budget(Base):
     __tablename__ = "finance_budgets"

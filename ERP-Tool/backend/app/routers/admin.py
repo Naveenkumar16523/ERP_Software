@@ -9,7 +9,7 @@ from datetime import datetime
 
 from app.utils.db import get_db
 from app.utils.audit import log_audit_event
-from app.models.sql_models import ERPUser, ERPRole, ERPDepartment
+from app.models.sql_models import ERPUser, ERPRole, ERPDepartment, ModuleAccess
 from app.routers.rbac_auth import require_ceo, get_password_hash
 
 router = APIRouter(prefix="/admin", tags=["Admin Operations"])
@@ -184,53 +184,13 @@ async def get_admin_dashboard(current_user: ERPUser = Depends(require_ceo), db: 
         "recent_users": recent_users
     }
 
-# --- Static References for Admin Panel to Avoid 404 Errors ---
-
-DEMO_DEPARTMENTS = [
-  { "id": 'dept_finance', "name": 'Finance' }, { "id": 'dept_hr', "name": 'Human Resources' },
-  { "id": 'dept_operations', "name": 'Operations' }, { "id": 'dept_sales', "name": 'Sales & Marketing' },
-  { "id": 'dept_it', "name": 'IT / System' },
-]
-
-DEMO_ROLES = [
-  { "id": 'role_finance_staff', "name": 'finance_staff' }, { "id": 'role_hr_staff', "name": 'hr_staff' },
-  { "id": 'role_operations_staff', "name": 'operations_staff' }, { "id": 'role_sales_staff', "name": 'sales_staff' },
-  { "id": 'role_it_staff', "name": 'it_staff' },
-]
-
 ALL_MODULES = [
   'dashboard', 'finance', 'human_resources', 'inventory', 'manufacturing',
   'procurement', 'crm_pipeline', 'payroll', 'fixed_assets', 'projects',
   'supply_chain', 'ecommerce', 'analytics_hub', 'banking', 'healthcare',
-  'education', 'sustainability', 'marketing', 'security', 'migration_hub', 'rpa_automation'
+  'education', 'sustainability', 'marketing', 'security', 'migration_hub', 'rpa_automation',
+  'ai_module', 'mobile_module'
 ]
-
-ROLE_PERMS = {
-  "finance_staff":       ['dashboard','finance','banking','analytics_hub'],
-  "hr_staff":            ['dashboard','human_resources','payroll','healthcare','education'],
-  "operations_staff":    ['dashboard','inventory','manufacturing','supply_chain','procurement','fixed_assets','projects'],
-  "sales_staff":         ['dashboard','crm_pipeline','ecommerce','marketing','analytics_hub'],
-  "it_staff":            ['dashboard','security','migration_hub','rpa_automation','analytics_hub'],
-  "sustainability_staff":['dashboard','sustainability','analytics_hub'],
-  "superadmin":          ALL_MODULES,
-}
-
-DEMO_PERMISSIONS = {
-  "modules": ALL_MODULES,
-  "roles": {
-      r["name"]: {
-          "role_id": r["id"],
-          "department_id": "dept_finance",
-          "modules": {
-              m: {
-                  "can_read": m in ROLE_PERMS.get(r["name"], []),
-                  "can_write": m in ROLE_PERMS.get(r["name"], []),
-                  "can_export": m in ROLE_PERMS.get(r["name"], []),
-              } for m in ALL_MODULES
-          }
-      } for r in DEMO_ROLES
-  }
-}
 
 @router.get("/departments")
 async def get_departments(current_user: ERPUser = Depends(require_ceo), db: Session = Depends(get_db)):
@@ -243,10 +203,59 @@ async def get_roles(current_user: ERPUser = Depends(require_ceo), db: Session = 
     return [{"id": r.id, "name": r.name, "description": r.description} for r in roles]
 
 @router.get("/permissions")
-async def get_permissions(current_user: ERPUser = Depends(require_ceo)):
-    return DEMO_PERMISSIONS
+async def get_permissions(current_user: ERPUser = Depends(require_ceo), db: Session = Depends(get_db)):
+    roles = db.query(ERPRole).all()
+    roles_dict = {}
+    for r in roles:
+        role_modules = {}
+        for m in ALL_MODULES:
+            # check if there's a ModuleAccess
+            access = next((a for a in r.module_access if a.moduleKey == m), None)
+            if access:
+                role_modules[m] = {
+                    "can_read": access.canRead,
+                    "can_write": access.canWrite,
+                    "can_export": access.canExport
+                }
+            else:
+                role_modules[m] = {
+                    "can_read": False,
+                    "can_write": False,
+                    "can_export": False
+                }
+                
+        roles_dict[r.name] = {
+            "role_id": r.id,
+            "department_id": r.departmentId,
+            "modules": role_modules
+        }
+    return {
+        "modules": ALL_MODULES,
+        "roles": roles_dict
+    }
 
 @router.patch("/permissions")
-async def toggle_permission(payload: dict, current_user: ERPUser = Depends(require_ceo)):
-    # Dummy implementation for UI to not crash
-    return DEMO_PERMISSIONS
+async def toggle_permission(payload: dict, current_user: ERPUser = Depends(require_ceo), db: Session = Depends(get_db)):
+    role_id = payload.get("role_id")
+    module_key = payload.get("module_key")
+    permission_type = payload.get("permission_type") # e.g. "can_read"
+    value = payload.get("value")
+    
+    if not all([role_id, module_key, permission_type]):
+        raise HTTPException(status_code=400, detail="Missing required fields")
+        
+    access = db.query(ModuleAccess).filter(ModuleAccess.roleId == role_id, ModuleAccess.moduleKey == module_key).first()
+    if not access:
+        access = ModuleAccess(roleId=role_id, moduleKey=module_key, canRead=False, canWrite=False, canExport=False)
+        db.add(access)
+        
+    if permission_type == "can_read":
+        access.canRead = value
+    elif permission_type == "can_write":
+        access.canWrite = value
+    elif permission_type == "can_export":
+        access.canExport = value
+        
+    db.commit()
+    
+    return {"message": "Permission updated successfully"}

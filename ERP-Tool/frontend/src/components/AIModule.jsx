@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Sparkles, Send, Bot, User, Loader2, Zap, Download } from 'lucide-react';
-import { useQuery } from '@tanstack/react-query';
+import { useAIConversations, useAIMessages, useSendMessage } from '../hooks/useAI';
 import { useERPStore } from '../store/useERPStore';
 
 const QUICK_PROMPTS = [
@@ -12,64 +12,51 @@ const QUICK_PROMPTS = [
 ];
 
 export default function AIModule() {
-  const { addToast, aiMessages, addAIMessage } = useERPStore();
-  const { data: accounts = [] } = useQuery({ queryKey: ['crm', 'accounts'], queryFn: async () => [] });
-  const { data: employees = [] } = useQuery({ queryKey: ['employees'], queryFn: async () => [] });
-  const { data: products = [] } = useQuery({ queryKey: ['inventory', 'products'], queryFn: async () => [] });
-  const { data: leads = [] } = useQuery({ queryKey: ['crm', 'leads'], queryFn: async () => [] });
-  const { data: leaveRequests = [] } = useQuery({ queryKey: ['leaves'], queryFn: async () => [] });
-  const { data: shipments = [] } = useQuery({ queryKey: ['ecommerce', 'orders'], queryFn: async () => [] });
+  const { addToast } = useERPStore();
+  const { data: conversations = [] } = useAIConversations();
+  const defaultConvId = conversations[0]?.id;
+  const { data: aiMessages = [] } = useAIMessages(defaultConvId);
+  const sendMessage = useSendMessage();
+
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [optimisticMsgs, setOptimisticMsgs] = useState([]);
   const messagesEndRef = useRef(null);
+
+  const displayMessages = [...aiMessages, ...optimisticMsgs];
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [displayMessages]);
+
+  useEffect(() => {
+    // Clear optimistic msgs when real data arrives
+    if (aiMessages.length > 0) {
+      setOptimisticMsgs([]);
+    }
   }, [aiMessages]);
-
-  const generateResponse = (userMsg) => {
-    const msg = userMsg.toLowerCase();
-    const totalRev = accounts.filter(a => a.type === 'REVENUE').reduce((s, a) => s + a.balance, 0);
-    const totalExp = accounts.filter(a => a.type === 'EXPENSE').reduce((s, a) => s + a.balance, 0);
-    const netInc = totalRev - totalExp;
-    const pendingLeaves = leaveRequests.filter(l => l.status === 'PENDING');
-    const lowStock = products.filter(p => p.currentStock <= p.reorderLevel);
-    const topCustomers = leads.filter(l => l.status === 'WON').sort((a, b) => (b.value || 0) - (a.value || 0)).slice(0, 3);
-    const inTransit = (shipments || []).filter(s => ['IN_TRANSIT', 'DISPATCHED'].includes(s.status));
-
-    if (msg.includes('financ') || msg.includes('revenue') || msg.includes('income')) {
-      return `📊 **Financial Summary**\n\n- **Total Revenue:** ₹${totalRev.toLocaleString('en-IN')}\n- **Total Expenses:** ₹${totalExp.toLocaleString('en-IN')}\n- **Net Income:** ₹${netInc.toLocaleString('en-IN')} ${netInc >= 0 ? '✅' : '⚠️'}\n\nThe business is ${netInc >= 0 ? 'profitable' : 'currently running at a loss'}. Margin is ${totalRev > 0 ? ((netInc / totalRev) * 100).toFixed(1) : 0}%.`;
-    }
-    if (msg.includes('leave') || msg.includes('employee')) {
-      return `👥 **HR Summary**\n\n- **Total Employees:** ${employees.length} (${employees.filter(e => e.isActive).length} active)\n- **Pending Leave Requests:** ${pendingLeaves.length}\n${pendingLeaves.length > 0 ? pendingLeaves.map(l => `  • ${l.employeeName}: ${l.leaveType} (${l.startDate} → ${l.endDate})`).join('\n') : '  ✅ No pending requests'}`;
-    }
-    if (msg.includes('stock') || msg.includes('inventory')) {
-      return `📦 **Inventory Alert**\n\n- **Low Stock Items:** ${lowStock.length}\n${lowStock.length > 0 ? lowStock.map(p => `  • ${p.name}: ${p.currentStock} ${p.unit} (reorder at ${p.reorderLevel})`).join('\n') : '  ✅ All items adequately stocked'}\n\n- **Total SKUs:** ${products.length}`;
-    }
-    if (msg.includes('customer') || msg.includes('lead') || msg.includes('crm')) {
-      return `🤝 **CRM Summary**\n\n- **Total Leads:** ${leads.length}\n- **Won Deals:** ${leads.filter(l => l.status === 'WON').length}\n- **Conversion Rate:** ${leads.length > 0 ? ((leads.filter(l => l.status === 'WON').length / leads.length) * 100).toFixed(1) : 0}%\n${topCustomers.length > 0 ? '\n**Top Won Deals:**\n' + topCustomers.map(c => `  • ${c.name} (${c.company}): ₹${(c.value || 0).toLocaleString('en-IN')}`).join('\n') : ''}`;
-    }
-    if (msg.includes('shipment') || msg.includes('transit') || msg.includes('logistics')) {
-      return `🚚 **Supply Chain Status**\n\n- **In Transit:** ${inTransit.length} shipments\n${inTransit.slice(0, 3).map(s => `  • ${s.trackingNo} → ${s.destination} (${s.carrier})`).join('\n') || '  No shipments in transit'}`;
-    }
-    return `🤖 I can help you with:\n\n- **Finance** — Revenue, expenses, and P&L\n- **HR** — Employee data and leave requests\n- **Inventory** — Stock levels and alerts\n- **CRM** — Lead pipeline and conversions\n- **Logistics** — Shipment tracking\n\nTry asking: *"Summarize this month's financial performance"*`;
-  };
 
   const handleSend = async (msg) => {
     const text = msg || input.trim();
     if (!text) return;
-    addAIMessage({ role: 'user', content: text });
+    
+    // Optimistically update UI
+    setOptimisticMsgs(prev => [...prev, { role: 'user', content: text }]);
     setInput('');
     setLoading(true);
-    setTimeout(() => {
-      addAIMessage({ role: 'assistant', content: generateResponse(text) });
+    
+    try {
+      await sendMessage.mutateAsync({ content: text, conversationId: defaultConvId });
+    } catch (err) {
+      addToast('Failed to send message to AI', 'error');
+    } finally {
       setLoading(false);
-    }, 900);
+    }
   };
 
   const handleExportChat = () => {
-    if (aiMessages.length === 0) return addToast('No chat history to export', 'error');
-    const text = aiMessages.map(m => `${m.role.toUpperCase()}: ${m.content}`).join('\n\n');
+    if (displayMessages.length === 0) return addToast('No chat history to export', 'error');
+    const text = displayMessages.map(m => `${m.role.toUpperCase()}: ${m.content}`).join('\n\n');
     const blob = new Blob([text], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -101,7 +88,7 @@ export default function AIModule() {
       </div>
 
       {/* Quick Prompts */}
-      {aiMessages.length === 0 && (
+      {displayMessages.length === 0 && (
         <div className="flex flex-wrap gap-2">
           {QUICK_PROMPTS.map(p => (
             <button key={p} onClick={() => handleSend(p)}
@@ -114,13 +101,13 @@ export default function AIModule() {
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto custom-scrollbar space-y-4 min-h-0 max-h-[60vh]">
-        {aiMessages.length === 0 && (
+        {displayMessages.length === 0 && (
           <div className="flex flex-col items-center justify-center h-32 text-center">
             <Bot className="w-10 h-10 text-muted/20 mb-2" />
             <p className="text-sm text-muted">Ask me anything about your business data</p>
           </div>
         )}
-        {aiMessages.map((m, i) => (
+        {displayMessages.map((m, i) => (
           <div key={i} className={`flex items-start gap-3 ${m.role === 'user' ? 'flex-row-reverse' : ''}`}>
             <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 shadow-sm ${m.role === 'user' ? 'bg-primary text-white' : 'bg-gradient-to-br from-cyan-500 to-violet-600 text-white'}`}>
               {m.role === 'user' ? <User className="w-3.5 h-3.5" /> : <Sparkles className="w-3.5 h-3.5" />}
