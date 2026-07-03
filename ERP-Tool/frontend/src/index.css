@@ -71,6 +71,10 @@ a:hover {
 }
 
 /* Thicker visible scrollbar for horizontal tables */
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.25) transparent;
+}
 .custom-scrollbar::-webkit-scrollbar {
   height: 10px;
   width: 10px;
@@ -856,21 +860,23 @@ html[data-theme='dark'] .table tr:hover td {
 
 /* --- Main Content --- */
 .main-content {
+  width: calc(100% - var(--sidebar-width));
   margin-left: var(--sidebar-width);
   display: flex;
   flex-direction: column;
   min-height: 100vh;
-  flex: 1;
-  transition: margin-left 300ms cubic-bezier(0.16, 1, 0.3, 1);
+  transition: margin-left 300ms cubic-bezier(0.16, 1, 0.3, 1), width 300ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .main-content.sidebar-collapsed {
+  width: calc(100% - var(--sidebar-collapsed-width));
   margin-left: var(--sidebar-collapsed-width);
 }
 
 @media (max-width: 768px) {
   .main-content {
     margin-left: 0;
+    width: 100%;
   }
 }
 
@@ -926,21 +932,6 @@ html[data-theme='dark'] .table tr:hover td {
   letter-spacing: 0.05em;
   color: rgba(199, 196, 216, 0.7);
   margin-bottom: 4px;
-}
-
-.custom-scrollbar {
-  scrollbar-width: thin;
-  scrollbar-color: rgba(255,255,255,0.1) transparent;
-}
-
-.custom-scrollbar::-webkit-scrollbar {
-  width: 4px;
-  height: 4px;
-}
-
-.custom-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(255,255,255,0.1);
-  border-radius: 9999px;
 }
 
 /* Custom Alert Boxes Theme Utilities */
