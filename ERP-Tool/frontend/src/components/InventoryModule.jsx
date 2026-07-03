@@ -1,21 +1,10 @@
 import React, { useState, useMemo, useCallback } from 'react';
-import { AlertTriangle, Package, Warehouse, Scan, BarChart3, Layers, Plus } from 'lucide-react';
+import { AlertTriangle, Package, Warehouse, Scan, BarChart3, Layers, Plus, Printer } from 'lucide-react';
 import { useProducts, useWarehouses, useInventoryBatches, useStockMovements, useCreateWarehouse, useCreateStockMovement, useCreateProduct } from '../hooks/useInventory';
 import { useERPStore } from '../store/useERPStore';
 import Modal from './ui/Modal';
-
-const Barcode = ({ value }) => {
-  if (!value) return null;
-  // Simple deterministic hash to binary for visual barcode simulation
-  const bits = Array.from(value).map(c => c.charCodeAt(0).toString(2).padStart(8, '0')).join('').split('');
-  return (
-    <svg height="24" width="80" xmlns="http://www.w3.org/2000/svg" className="inline-block opacity-80" viewBox="0 0 80 24" preserveAspectRatio="none">
-      {bits.map((bit, i) => (
-        bit === '1' && <rect key={i} x={i} y="0" width="1.2" height="24" fill="currentColor" />
-      ))}
-    </svg>
-  );
-};
+import RealBarcode from './ui/RealBarcode';
+import CameraScanner from './ui/CameraScanner';
 
 const InventoryModule = React.memo(function InventoryModule() {
   const { addToast } = useERPStore();
@@ -32,6 +21,9 @@ const InventoryModule = React.memo(function InventoryModule() {
   const [activeTab, setActiveTab] = useState('products');
   const [search, setSearch] = useState('');
   const [barcodeScan, setBarcodeScan] = useState('');
+  const [matchedProduct, setMatchedProduct] = useState(null);
+  const [productModal, setProductModal] = useState(false);
+  const [newProduct, setNewProduct] = useState({ productId: '', warehouseId: '', currentStock: 0, reorderLevel: 10, barcode: '' });
 
   const [warehouseModal, setWarehouseModal] = useState(false);
   const [txModal, setTxModal] = useState(false);
@@ -47,15 +39,70 @@ const InventoryModule = React.memo(function InventoryModule() {
   const lowStock = useMemo(() => products.filter(p => p.currentStock <= p.reorderLevel), [products]);
   const expiringBatches = useMemo(() => inventoryBatches.filter(b => b.expiryDate && new Date(b.expiryDate) < new Date(Date.now() + 90 * 24 * 60 * 60 * 1000)), [inventoryBatches]);
 
-  const handleBarcodeScan = useCallback(() => {
-    const product = products.find(p => p.barcode === barcodeScan);
+  const handleBarcodeScan = useCallback((code) => {
+    const scanCode = typeof code === 'string' ? code : barcodeScan;
+    if (!scanCode) return;
+    const product = products.find(p => p.barcode === scanCode || p.sku === scanCode);
     if (product) {
       addToast(`Found: ${product.name} - Stock: ${product.currentStock}`, 'success');
+      setMatchedProduct(product);
     } else {
       addToast('Product not found with this barcode', 'error');
+      setMatchedProduct(null);
     }
-    setBarcodeScan('');
+    if (typeof code === 'string') setBarcodeScan(code);
   }, [products, barcodeScan, addToast]);
+
+  const handlePrintLabel = (product) => {
+    const printWindow = window.open('', '_blank', 'width=600,height=400');
+    if (!printWindow) {
+      addToast('Popup blocked! Please allow popups to print labels.', 'error');
+      return;
+    }
+    const code = product.barcode || product.sku;
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Print Label - ${product.name}</title>
+          <style>
+            body { font-family: sans-serif; text-align: center; padding: 20px; }
+            .label-container { border: 2px solid #000; padding: 15px; display: inline-block; border-radius: 8px; }
+            .product-name { font-weight: bold; font-size: 18px; margin-bottom: 5px; }
+            .sku { font-size: 14px; margin-bottom: 15px; }
+          </style>
+        </head>
+        <body>
+          <div class="label-container">
+            <div class="product-name">${product.name}</div>
+            <div class="sku">SKU: ${product.sku}</div>
+            <svg id="barcode"></svg>
+          </div>
+          <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+          <script>
+            JsBarcode("#barcode", "${code}", { format: "CODE128", width: 2, height: 60, displayValue: true, margin: 0 });
+            setTimeout(() => { window.print(); window.close(); }, 500);
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
+
+  const handleCreateProductSubmit = async () => {
+    try {
+      if (!newProduct.productId || !newProduct.warehouseId) {
+        addToast('Product ID (Store Product) and Warehouse are required', 'error');
+        return;
+      }
+      await createProduct.mutateAsync(newProduct);
+      addToast('Product created successfully', 'success');
+      setProductModal(false);
+      setNewProduct({ productId: '', warehouseId: '', currentStock: 0, reorderLevel: 10, barcode: '' });
+      setMatchedProduct(null);
+    } catch (err) {
+      addToast(err.message || 'Failed to create product', 'error');
+    }
+  };
 
   const TABS = [
     { id: 'products', label: 'Products', icon: Package },
@@ -189,6 +236,7 @@ const InventoryModule = React.memo(function InventoryModule() {
                     <th className="px-4 py-2.5 text-right">Cost Price</th>
                     <th className="px-4 py-2.5 text-right">Selling Price</th>
                     <th className="px-4 py-2.5">Status</th>
+                    <th className="px-4 py-2.5 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -198,8 +246,7 @@ const InventoryModule = React.memo(function InventoryModule() {
                       <tr key={p.id} className="border-b border-main hover:bg-surface/60 transition-colors">
                         <td className="px-4 py-2.5 text-xs font-mono text-dimmed">{p.sku}</td>
                         <td className="px-4 py-2.5 text-main">
-                          <Barcode value={p.barcode || p.sku} />
-                          <p className="text-[9px] font-mono mt-0.5 opacity-50">{p.barcode || p.sku}</p>
+                          <RealBarcode value={p.barcode || p.sku} height={30} width={1.2} />
                         </td>
                         <td className="px-4 py-2.5 text-sm text-main">{p.name}</td>
                         <td className="px-4 py-2.5 text-xs text-muted">{p.category}</td>
@@ -222,6 +269,11 @@ const InventoryModule = React.memo(function InventoryModule() {
                           >
                             {isLow ? 'Low Stock' : 'In Stock'}
                           </span>
+                        </td>
+                        <td className="px-4 py-2.5 text-right">
+                          <button onClick={() => handlePrintLabel(p)} className="p-1.5 rounded bg-surface border border-main text-muted hover:text-primary transition-colors" title="Print Label">
+                            <Printer className="w-4 h-4" />
+                          </button>
                         </td>
                       </tr>
                     );
@@ -349,19 +401,89 @@ const InventoryModule = React.memo(function InventoryModule() {
       )}
 
       {activeTab === 'scanner' && (
-        <div className="theme-card p-6">
-          <h3 className="text-sm font-semibold text-main mb-4">Barcode/QR Scanner</h3>
-          <div className="flex gap-2 mb-4">
-            <input
-              type="text"
-              placeholder="Scan or enter barcode..."
-              value={barcodeScan}
-              onChange={e => setBarcodeScan(e.target.value)}
-              className="form-input flex-1"
-            />
-            <button onClick={handleBarcodeScan} className="btn-primary">Scan</button>
+        <div className="theme-card p-6 space-y-6">
+          <div>
+            <h3 className="text-sm font-semibold text-main mb-2">Barcode/QR Scanner</h3>
+            <p className="text-xs text-muted mb-4">Scan product barcodes to quickly check stock levels and log movements.</p>
+            
+            <div className="flex flex-col md:flex-row gap-6">
+              <div className="flex-1 space-y-4">
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="Scan or enter barcode..."
+                    value={barcodeScan}
+                    onChange={e => setBarcodeScan(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && handleBarcodeScan()}
+                    className="form-input flex-1"
+                  />
+                  <button onClick={() => handleBarcodeScan()} className="btn-primary">Scan</button>
+                </div>
+                
+                <CameraScanner onScan={code => handleBarcodeScan(code)} />
+              </div>
+              
+              <div className="flex-1">
+                {matchedProduct && (
+                  <div className="theme-card p-5 bg-surface/30 border border-emerald-500/30">
+                    <div className="flex justify-between items-start mb-2">
+                      <h4 className="text-base font-bold text-main">{matchedProduct.name}</h4>
+                      <span className="text-xs px-2 py-1 bg-emerald-500/10 text-emerald-400 rounded-full">Match Found</span>
+                    </div>
+                    <p className="text-xs text-muted font-mono mb-4">{matchedProduct.sku} | {matchedProduct.barcode}</p>
+                    
+                    <div className="grid grid-cols-2 gap-4 mb-6">
+                      <div>
+                        <p className="text-xs text-dimmed">Current Stock</p>
+                        <p className="text-xl font-data text-main">{matchedProduct.currentStock}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-dimmed">Reorder Level</p>
+                        <p className="text-xl font-data text-amber-400">{matchedProduct.reorderLevel}</p>
+                      </div>
+                    </div>
+                    
+                    <div className="flex gap-3">
+                      <button 
+                        onClick={() => {
+                          setNewTx({ inventoryId: matchedProduct.id, type: 'IN', quantity: 1, notes: '' });
+                          setTxModal(true);
+                        }}
+                        className="flex-1 btn-primary bg-emerald-600 border-none hover:bg-emerald-500 text-sm py-2.5 shadow-lg shadow-emerald-900/20"
+                      >
+                        Stock IN
+                      </button>
+                      <button 
+                        onClick={() => {
+                          setNewTx({ inventoryId: matchedProduct.id, type: 'OUT', quantity: 1, notes: '' });
+                          setTxModal(true);
+                        }}
+                        className="flex-1 btn-primary bg-rose-600 border-none hover:bg-rose-500 text-sm py-2.5 shadow-lg shadow-rose-900/20"
+                      >
+                        Stock OUT
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {!matchedProduct && barcodeScan && (
+                  <div className="theme-card p-6 bg-surface/30 flex flex-col items-center justify-center text-center border-dashed">
+                    <Package className="w-12 h-12 text-muted mb-3 opacity-50" />
+                    <p className="text-sm text-main mb-4">No product found for <span className="font-mono text-primary">"{barcodeScan}"</span></p>
+                    <button 
+                      onClick={() => {
+                         setNewProduct(prev => ({ ...prev, barcode: barcodeScan }));
+                         setProductModal(true);
+                      }}
+                      className="btn-primary text-sm"
+                    >
+                      <Plus className="w-4 h-4 mr-2" /> Create New Product
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
-          <p className="text-xs text-muted">Scan product barcodes to quickly check stock levels and product details.</p>
         </div>
       )}
 
@@ -405,6 +527,36 @@ const InventoryModule = React.memo(function InventoryModule() {
           <div className="flex gap-2 justify-end pt-2">
             <button onClick={() => setTxModal(false)} className="px-4 py-2 rounded-lg text-sm font-medium bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 transition-all">Cancel</button>
             <button onClick={handleCreateTx} className="btn-primary text-sm">Log Transaction</button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal isOpen={productModal} onClose={() => setProductModal(false)} title="Quick Add Inventory Product">
+        <div className="space-y-4">
+          <p className="text-xs text-muted">Map a store product to an inventory warehouse.</p>
+          <div><label className="form-label">Store Product ID (UUID)</label>
+            <input className="form-input" value={newProduct.productId} onChange={e => setNewProduct({...newProduct, productId: e.target.value})} placeholder="e.g. from ecommerce module" />
+          </div>
+          <div><label className="form-label">Warehouse</label>
+            <select className="form-input" value={newProduct.warehouseId} onChange={e => setNewProduct({...newProduct, warehouseId: e.target.value})}>
+              <option value="">Select Warehouse...</option>
+              {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+            </select>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div><label className="form-label">Initial Stock</label>
+              <input type="number" min="0" className="form-input" value={newProduct.currentStock} onChange={e => setNewProduct({...newProduct, currentStock: parseInt(e.target.value)})} />
+            </div>
+            <div><label className="form-label">Reorder Level</label>
+              <input type="number" min="0" className="form-input" value={newProduct.reorderLevel} onChange={e => setNewProduct({...newProduct, reorderLevel: parseInt(e.target.value)})} />
+            </div>
+          </div>
+          <div><label className="form-label">Barcode (Auto-generated if empty)</label>
+            <input className="form-input" value={newProduct.barcode} onChange={e => setNewProduct({...newProduct, barcode: e.target.value})} />
+          </div>
+          <div className="flex gap-2 justify-end pt-2">
+            <button onClick={() => setProductModal(false)} className="px-4 py-2 rounded-lg text-sm font-medium bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 transition-all">Cancel</button>
+            <button onClick={handleCreateProductSubmit} className="btn-primary text-sm">Create</button>
           </div>
         </div>
       </Modal>

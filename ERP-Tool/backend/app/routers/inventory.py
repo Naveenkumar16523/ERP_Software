@@ -41,12 +41,18 @@ async def create_inventory_product(body: dict, db: Session = Depends(get_db), cu
     if not product_id or not warehouse_id:
         raise HTTPException(status_code=400, detail="productId and warehouseId are required")
 
+    barcode = body.get("barcode")
+    if not barcode:
+        prod = db.query(StoreProduct).filter(StoreProduct.id == product_id).first()
+        sku_prefix = prod.sku if prod and prod.sku else "PRD"
+        barcode = f"{sku_prefix}-{str(uuid.uuid4())[:6].upper()}"
+
     inv = StoreInventory(
         productId=product_id,
         warehouseId=warehouse_id,
         currentStock=int(body.get("currentStock", 0)),
         reorderLevel=int(body.get("reorderLevel", 10)),
-        barcode=body.get("barcode"),
+        barcode=barcode,
         costPrice=float(body.get("costPrice", 0.0))
     )
     db.add(inv)
