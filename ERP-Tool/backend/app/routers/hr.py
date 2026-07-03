@@ -16,7 +16,7 @@ from app.models.hr_sql_models import (
     OnboardingTask, OnboardingChecklist,
     AttendanceRecord, Shift, HRDocument
 )
-from app.routers.realtime import manager
+from app.routers.realtime import manager, trigger_dashboard_refresh
 
 router = APIRouter(prefix="/hr", tags=["Human Resources"])
 
@@ -210,6 +210,7 @@ async def create_employee(
     
     import asyncio
     asyncio.create_task(manager.broadcast({"type": "employee_added", "payload": {"employeeId": emp_id}}))
+    trigger_dashboard_refresh()
     
     return employee
 
@@ -242,6 +243,7 @@ async def update_employee(
 
     db.commit()
     db.refresh(emp)
+    trigger_dashboard_refresh()
     return emp
 
 

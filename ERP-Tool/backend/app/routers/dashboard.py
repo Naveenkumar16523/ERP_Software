@@ -11,8 +11,11 @@ from app.models.finance_sql_models import FinanceAccount, Invoice
 
 router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
 
+from typing import Literal
+
 @router.get("/metrics")
 async def get_dashboard_metrics(
+    period: Literal["daily", "weekly", "monthly"] = "monthly",
     current_user: RBACUser = Depends(get_current_rbac_user),
     db: Session = Depends(get_db)
 ):
@@ -21,7 +24,7 @@ async def get_dashboard_metrics(
     import logging
     logger = logging.getLogger(__name__)
     
-    cache_key = "dashboard:metrics"
+    cache_key = f"dashboard:metrics:{period}"
     cached_data = cache_get(cache_key)
     if cached_data:
         try:
@@ -61,28 +64,62 @@ async def get_dashboard_metrics(
         active_assets = 0
         recent_activity = []
         
-        # Calculate real revenue history (last 6 months)
+        # Calculate real revenue history based on period
         from datetime import datetime, timedelta
         from collections import defaultdict
         
-        invoices = db.query(Invoice).filter(Invoice.status == 'PAID').all()
+        # Determine date filter
+        now = datetime.utcnow()
+        if period == "daily":
+            start_date = now - timedelta(days=30)
+        elif period == "weekly":
+            start_date = now - timedelta(weeks=12)
+        else: # monthly
+            start_date = now - timedelta(days=365) # Last 12 months
+
+        invoices = db.query(Invoice).filter(Invoice.status == 'PAID', Invoice.createdAt >= start_date).all()
         # Fallback to all invoices if no paid ones to show some data on new accounts
         if not invoices:
-            invoices = db.query(Invoice).all()
+            invoices = db.query(Invoice).filter(Invoice.createdAt >= start_date).all()
             
-        months_data = defaultdict(float)
+        period_data = defaultdict(float)
         for inv in invoices:
             if inv.createdAt:
-                month_key = inv.createdAt.strftime('%b')
-                months_data[month_key] += float(inv.totalAmount)
+                if period == "daily":
+                    key = inv.createdAt.strftime('%d %b')
+                elif period == "weekly":
+                    # e.g. "W14 2026"
+                    week_num = inv.createdAt.isocalendar()[1]
+                    year = inv.createdAt.isocalendar()[0]
+                    key = f"W{week_num:02d} {year}"
+                else:
+                    key = inv.createdAt.strftime('%b %Y')
+                    
+                period_data[key] += float(inv.totalAmount or 0.0)
                 
         # Format for recharts
         revenue_history = []
-        if not months_data:
-            # If completely empty DB, just return empty array
+        if not period_data:
             revenue_history = []
         else:
-            for k, v in months_data.items():
+            # Sort the keys chronologically (assuming they are inserted in order or we can just rely on defaultdict insertion order if ordered query, but here let's sort them. Actually, strings like '14 Oct' sort alphabetically.
+            # To fix this, it's better to sort the invoices first, which SQLAlchemy usually does by ID or we can sort in Python.
+            invoices_sorted = sorted([i for i in invoices if i.createdAt], key=lambda x: x.createdAt)
+            
+            # Re-build dict to guarantee order
+            period_data_ordered = defaultdict(float)
+            for inv in invoices_sorted:
+                if period == "daily":
+                    key = inv.createdAt.strftime('%d %b')
+                elif period == "weekly":
+                    week_num = inv.createdAt.isocalendar()[1]
+                    year = inv.createdAt.isocalendar()[0]
+                    key = f"W{week_num:02d} {year}"
+                else:
+                    key = inv.createdAt.strftime('%b %Y')
+                period_data_ordered[key] += float(inv.totalAmount or 0.0)
+
+            for k, v in period_data_ordered.items():
                 revenue_history.append({"name": k, "current": v, "previous": v * 0.8}) # Approximate previous for comparison
         
         result = {

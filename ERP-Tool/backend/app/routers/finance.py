@@ -13,7 +13,7 @@ from app.models.schemas import VoucherCreate, AccountCreate, InvoiceCreate, Budg
 from app.models.finance_sql_models import FinanceAccount, JournalEntry, Invoice, InvoiceItem, Budget, Expense, ApprovalWorkflow, ApprovalLevel, TaxDeadline, Statement, FinanceAuditLog, FinanceCustomer, Payment
 import httpx
 from app.utils.redis_client import cache_get, cache_set, connect_redis
-from app.routers.realtime import manager
+from app.routers.realtime import manager, trigger_dashboard_refresh
 
 router = APIRouter(prefix="/finance", tags=["Finance"])
 
@@ -367,6 +367,7 @@ async def create_invoice(body: InvoiceCreate, current_user: RBACUser = Depends(r
     # Broadcast event
     import asyncio
     asyncio.create_task(manager.broadcast({"type": "invoice_updated", "payload": {"invoiceNo": invoice_no}}))
+    trigger_dashboard_refresh()
     
     return invoice
 
@@ -421,6 +422,7 @@ async def create_invoice_payment(id: str, body: dict, current_user: RBACUser = D
     # We won't call the create_voucher endpoint directly because of Request dependency,
     # but we can log the audit event.
     create_finance_audit(db, current_user.id, "CREATE", "finance_payments", payment.id, new_value=f"{{\"amount\": {amount}}}")
+    trigger_dashboard_refresh()
     
     return payment
 
@@ -546,6 +548,7 @@ async def create_expense(body: ExpenseCreate, current_user: RBACUser = Depends(r
     db.refresh(expense)
     
     create_finance_audit(db, current_user.id, "CREATE", "finance_expenses", expense.id, new_value=f"{{\"amount\": {expense.amount}}}")
+    trigger_dashboard_refresh()
     
     # Auto-create ApprovalWorkflow for high-value expenses
     if expense.amount > 1000:
@@ -596,6 +599,7 @@ async def update_expense_status(id: str, body: dict, current_user: RBACUser = De
             db.refresh(budget)
     
     create_finance_audit(db, current_user.id, "UPDATE", "finance_expenses", expense.id, old_value=f"{{\"status\": \"{old_status}\"}}", new_value=f"{{\"status\": \"{expense.status}\"}}")
+    trigger_dashboard_refresh()
     return expense
 
 # 12. APPROVAL WORKFLOWS

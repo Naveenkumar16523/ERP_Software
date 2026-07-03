@@ -4,6 +4,9 @@ from jose import jwt, JWTError
 from typing import List, Set
 import json
 import logging
+import asyncio
+
+from app.utils.redis_client import cache_del
 
 from app.utils.db import get_db
 from app.middlewares.rbac_middleware import JWT_SECRET, JWT_ALGORITHM
@@ -49,6 +52,12 @@ class ConnectionManager:
             self.disconnect(conn)
 
 manager = ConnectionManager()
+
+def trigger_dashboard_refresh():
+    cache_del("dashboard:metrics:daily")
+    cache_del("dashboard:metrics:weekly")
+    cache_del("dashboard:metrics:monthly")
+    asyncio.create_task(manager.broadcast({"type": "dashboard_refresh"}, required_module="dashboard"))
 
 @router.websocket("/events")
 async def events(ws: WebSocket, token: str = None, db: Session = Depends(get_db)):

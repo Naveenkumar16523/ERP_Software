@@ -38,8 +38,16 @@ const itemVariants = {
 const PIE_COLORS = ['#4f46e5', '#f59e0b', '#ef4444', '#10b981'];
 
 const Dashboard = React.memo(function Dashboard() {
-  const { employees, products, notifications, demoMode } = useERPStore();
-  const { data: dashboardData, isLoading: queryLoading } = useDashboardMetrics();
+  const { employees, products, notifications, demoMode, isRealtimeConnected } = useERPStore();
+  
+  const [period, setPeriod] = useState(() => localStorage.getItem('dashboardPeriod') || 'monthly');
+  const [showPeriodDropdown, setShowPeriodDropdown] = useState(false);
+
+  useEffect(() => {
+    localStorage.setItem('dashboardPeriod', period);
+  }, [period]);
+
+  const { data: dashboardData, isLoading: queryLoading } = useDashboardMetrics(period);
   
   const loading = demoMode ? false : queryLoading;
 
@@ -137,10 +145,41 @@ const Dashboard = React.memo(function Dashboard() {
     >
       {/* Middle Section Label */}
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-bold text-main">Key Metrics</h2>
-        <button className="flex items-center gap-2 px-4 py-2 btn-secondary text-sm rounded-lg transition-all">
-          Monthly <ChevronDown className="w-4 h-4" />
-        </button>
+        <div className="flex items-center gap-3">
+          <h2 className="text-lg font-bold text-main">Key Metrics</h2>
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-surface border border-main text-xs font-semibold">
+            <div className={`w-2 h-2 rounded-full ${isRealtimeConnected ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`} />
+            <span className={isRealtimeConnected ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}>
+              {isRealtimeConnected ? 'Live' : 'Disconnected'}
+            </span>
+          </div>
+        </div>
+        
+        <div className="relative">
+          <button 
+            onClick={() => setShowPeriodDropdown(!showPeriodDropdown)}
+            className="flex items-center gap-2 px-4 py-2 btn-secondary text-sm rounded-lg transition-all capitalize"
+          >
+            {period} <ChevronDown className="w-4 h-4" />
+          </button>
+          
+          {showPeriodDropdown && (
+            <div className="absolute right-0 mt-2 w-36 bg-surface border border-main rounded-xl shadow-lg overflow-hidden z-10 animate-in fade-in slide-in-from-top-2 duration-200">
+              {['daily', 'weekly', 'monthly'].map((p) => (
+                <button
+                  key={p}
+                  onClick={() => {
+                    setPeriod(p);
+                    setShowPeriodDropdown(false);
+                  }}
+                  className={`w-full text-left px-4 py-2.5 text-sm font-medium transition-colors hover:bg-main/5 ${period === p ? 'text-primary bg-primary/5' : 'text-main'}`}
+                >
+                  <span className="capitalize">{p}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* KPI Cards (4 columns) */}
@@ -325,7 +364,9 @@ const Dashboard = React.memo(function Dashboard() {
               <h3 className="text-base font-bold text-main">Revenue Trend</h3>
               <AlertCircle className="w-4 h-4 text-dimmed" />
             </div>
-            <p className="text-xs font-medium text-muted mb-6">Revenue (Last 09 Days) vs previous period</p>
+            <p className="text-xs font-medium text-muted mb-6">
+              Revenue ({period === 'daily' ? 'Last 30 Days' : period === 'weekly' ? 'Last 12 Weeks' : 'Last 12 Months'}) vs previous period
+            </p>
             
             <div className="relative flex-1 min-h-[220px]">
               <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>

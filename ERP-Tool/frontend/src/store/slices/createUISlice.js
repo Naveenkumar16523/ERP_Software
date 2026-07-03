@@ -10,6 +10,7 @@ export const createUISlice = (set, get) => ({
   searchQuery: '',
   searchResults: [],
   dbLive: true,
+  isRealtimeConnected: false,
   token: localStorage.getItem('erp_token') || null,
   demoMode: localStorage.getItem('erp_demo') === 'true',
   currentUser: (() => {
@@ -45,6 +46,7 @@ export const createUISlice = (set, get) => ({
   setSearchQuery: (q) => set({ searchQuery: q }),
   setSearchResults: (r) => set({ searchResults: r }),
   setDbLive: (v) => set({ dbLive: v }),
+  setRealtimeConnected: (v) => set({ isRealtimeConnected: v }),
   setToken: (t) => {
     if (t) {
       localStorage.setItem('erp_token', t);

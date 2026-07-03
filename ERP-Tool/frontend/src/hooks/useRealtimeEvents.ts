@@ -3,16 +3,21 @@ import { useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useERPStore } from '../store/useERPStore';
 
-const WS_URL = import.meta.env.VITE_API_URL?.replace('http', 'ws') ?? 'ws://localhost:8000';
+const WS_URL = import.meta.env.VITE_API_URL?.replace('http', 'ws') ?? 'ws://localhost:5001';
 
 export function useRealtimeEvents() {
   const qc = useQueryClient();
   const token = useERPStore((s) => s.token);
   const addNotification = useERPStore((s) => s.addNotification);
+  const setRealtimeConnected = useERPStore((s) => s.setRealtimeConnected);
 
   useEffect(() => {
     if (!token) return;
     const ws = new WebSocket(`${WS_URL}/api/v1/ws/events?token=${token}`);
+    
+    ws.onopen = () => {
+      setRealtimeConnected(true);
+    };
 
     ws.onmessage = (e) => {
       if (e.data === 'pong') return;
@@ -41,12 +46,20 @@ export function useRealtimeEvents() {
       }
     };
 
-    ws.onerror = () => ws.close();
+    ws.onerror = () => {
+      setRealtimeConnected(false);
+      ws.close();
+    };
+    ws.onclose = () => {
+      setRealtimeConnected(false);
+    };
+    
     const ping = setInterval(() => ws.readyState === 1 && ws.send('ping'), 30_000);
 
     return () => {
       clearInterval(ping);
+      setRealtimeConnected(false);
       ws.close();
     };
-  }, [token, qc, addNotification]);
+  }, [token, qc, addNotification, setRealtimeConnected]);
 }

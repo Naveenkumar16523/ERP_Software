@@ -8,6 +8,8 @@ from app.utils.db import get_db
 from app.middlewares.rbac_middleware import get_current_rbac_user, require_module_access, RBACUser
 from app.models.crm_sql_models import Lead, SupportTicket
 
+from app.routers.realtime import manager, trigger_dashboard_refresh
+
 router = APIRouter(prefix="/crm", tags=["Crm"])
 
 class LeadCreate(BaseModel):
@@ -43,6 +45,11 @@ async def create_lead(
     db.add(lead)
     db.commit()
     db.refresh(lead)
+    
+    import asyncio
+    asyncio.create_task(manager.broadcast({"type": "new_lead", "payload": {"leadId": lead.id}}))
+    trigger_dashboard_refresh()
+    
     return lead
 
 @router.patch("/leads/{lead_id}/status")
@@ -59,6 +66,7 @@ async def update_lead_status(
     lead.status = body.status
     db.commit()
     db.refresh(lead)
+    trigger_dashboard_refresh()
     return lead
 
 class TicketCreate(BaseModel):

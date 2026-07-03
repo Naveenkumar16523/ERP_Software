@@ -40,7 +40,7 @@ export default function TopHeader() {
       }
 
       try {
-        const API_URL = import.meta.env.VITE_API_URL || '';
+        const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
         const res = await fetch(`${API_URL}/api/v1/health`, { signal: AbortSignal.timeout(5000) });
         if (isMounted) {
           setDbLive(res.ok);
