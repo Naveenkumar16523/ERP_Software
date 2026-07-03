@@ -36,25 +36,61 @@ class JournalEntry(Base):
     blockHash = Column(String(255))
     createdAt = Column(DateTime, default=datetime.utcnow)
 
+class FinanceCustomer(Base):
+    __tablename__ = "finance_customers"
+    
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    name = Column(String(255), index=True)
+    gstin = Column(String(50), nullable=True)
+    billingAddress = Column(Text, nullable=True)
+    phone = Column(String(50), nullable=True)
+    email = Column(String(100), nullable=True)
+    createdAt = Column(DateTime, default=datetime.utcnow)
 class Invoice(Base):
     __tablename__ = "finance_invoices"
     
     id = Column(String(36), primary_key=True, default=generate_uuid)
     invoiceNo = Column(String(100), unique=True, index=True)
+    customerId = Column(String(36), ForeignKey('finance_customers.id'), nullable=True)
     customerName = Column(String(255), index=True)
     customerGstin = Column(String(50), nullable=True) # Added for GST compliance
+    
+    lrNumber = Column(String(100), nullable=True)
+    vehicleNumber = Column(String(100), nullable=True)
+    tripReference = Column(String(100), nullable=True)
+    
     subtotal = Column(Numeric(15, 4))
     taxRate = Column(Numeric(15, 4))
     taxAmount = Column(Numeric(15, 4))
     totalAmount = Column(Numeric(15, 4))
-    currency = Column(String(10), default="USD")
+    amountPaid = Column(Numeric(15, 4), default=0.0)
+    currency = Column(String(10), default="INR")
     status = Column(String(50), default="PENDING")
+    
+    isRecurring = Column(Boolean, default=False)
+    recurrenceInterval = Column(String(50), nullable=True)
+    
     invoiceDate = Column(String(50))
     dueDate = Column(DateTime, nullable=True)
     sent = Column(Boolean, default=False)
     createdAt = Column(DateTime, default=datetime.utcnow)
     
     items = relationship("InvoiceItem", back_populates="invoice", cascade="all, delete-orphan")
+    payments = relationship("Payment", back_populates="invoice", cascade="all, delete-orphan")
+    customer = relationship("FinanceCustomer")
+
+class Payment(Base):
+    __tablename__ = "finance_payments"
+    
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    invoiceId = Column(String(36), ForeignKey('finance_invoices.id'))
+    amount = Column(Numeric(15, 4))
+    method = Column(String(50))
+    referenceNo = Column(String(100), nullable=True)
+    paidDate = Column(DateTime, default=datetime.utcnow)
+    createdAt = Column(DateTime, default=datetime.utcnow)
+    
+    invoice = relationship("Invoice", back_populates="payments")
 
 class InvoiceItem(Base):
     __tablename__ = "finance_invoice_items"
@@ -95,8 +131,10 @@ class Expense(Base):
     date = Column(DateTime)
     paidBy = Column(String(255))
     receiptStatus = Column(String(50), default="Pending")
+    receiptUrl = Column(String(500), nullable=True)
     status = Column(String(50), default="PENDING")
     approvedBy = Column(String(255), nullable=True)
+    budgetId = Column(String(36), ForeignKey("finance_budgets.id"), nullable=True)
     createdAt = Column(DateTime, default=datetime.utcnow)
 
 class ApprovalWorkflow(Base):

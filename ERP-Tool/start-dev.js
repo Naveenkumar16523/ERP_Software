@@ -69,7 +69,7 @@ function startBackend() {
     console.log(`${COLORS.yellow}[System] Python venv for backend not found. Using system 'python'...${COLORS.reset}`);
   }
   
-  const child = spawn(pythonPath, ['-m', 'uvicorn', 'app.main:app', '--port', '5000', '--reload'], { 
+  const child = spawn(pythonPath, ['-m', 'uvicorn', 'app.main:app', '--host', '0.0.0.0', '--port', '5000', '--reload'], { 
     cwd: backendDir,
     shell: false
   });

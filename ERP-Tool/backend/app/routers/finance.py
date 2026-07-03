@@ -10,7 +10,7 @@ from app.utils.audit import log_audit_event
 from app.utils.crypto_ledger import calculate_block_hash
 from app.middlewares.rbac_middleware import get_current_rbac_user, require_module_access, RBACUser
 from app.models.schemas import VoucherCreate, AccountCreate, InvoiceCreate, BudgetCreate, ExpenseCreate, ApprovalWorkflowCreate, TaxDeadlineCreate, StatementCreate
-from app.models.finance_sql_models import FinanceAccount, JournalEntry, Invoice, InvoiceItem, Budget, Expense, ApprovalWorkflow, ApprovalLevel, TaxDeadline, Statement, FinanceAuditLog
+from app.models.finance_sql_models import FinanceAccount, JournalEntry, Invoice, InvoiceItem, Budget, Expense, ApprovalWorkflow, ApprovalLevel, TaxDeadline, Statement, FinanceAuditLog, FinanceCustomer, Payment
 import httpx
 from app.utils.redis_client import cache_get, cache_set, connect_redis
 from app.routers.realtime import manager
@@ -211,7 +211,7 @@ async def get_tax_summary(current_user: RBACUser = Depends(require_module_access
     return {"gstPayable": gst_acc.balance if gst_acc else 0.0, "tdsPayable": tds_acc.balance if tds_acc else 0.0, "gstStatus": "Filing Ready", "tdsStatus": "Deductions Verified"}
 
 @router.get("/reports/gstr")
-async def get_gstr_report(current_user: RBACUser = Depends(require_module_access("finance")), db: Session = Depends(get_db)):
+async def get_gstr_report(export: str = None, current_user: RBACUser = Depends(require_module_access("finance")), db: Session = Depends(get_db)):
     from sqlalchemy.orm import joinedload
     invoices = db.query(Invoice).options(joinedload(Invoice.items)).all()
     
@@ -234,22 +234,72 @@ async def get_gstr_report(current_user: RBACUser = Depends(require_module_access
             total_tax += tax
             total_sales += taxable
 
+    gstr1_data = [
+        {"taxRate": rate, "taxableValue": data["taxableValue"], "taxAmount": data["taxAmount"]} 
+        for rate, data in gstr1_summary.items()
+    ]
+
+    if export == "excel":
+        from app.utils.export import generate_excel
+        from fastapi.responses import Response
+        excel_bytes = generate_excel(gstr1_data, ["taxRate", "taxableValue", "taxAmount"])
+        return Response(
+            content=excel_bytes,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": "attachment; filename=gstr1_report.xlsx"}
+        )
+
     return {
-        "gstr1": [
-            {"taxRate": rate, "taxableValue": data["taxableValue"], "taxAmount": data["taxAmount"]} 
-            for rate, data in gstr1_summary.items()
-        ],
+        "gstr1": gstr1_data,
         "totalSales": total_sales,
         "totalTaxCollected": total_tax
     }
 
+# 8.5 REPORTS
+@router.get("/reports/aging")
+async def get_aging_report(current_user: RBACUser = Depends(require_module_access("finance")), db: Session = Depends(get_db)):
+    # Group unpaid/partially-paid invoices by customer and aging buckets
+    invoices = db.query(Invoice).filter(Invoice.status.in_(["PENDING", "PARTIAL", "OVERDUE"])).all()
+    
+    # Dummy mock for now - in reality calculate delta between today and dueDate
+    report = []
+    for inv in invoices:
+        balance = float(inv.totalAmount or 0.0) - float(inv.amountPaid or 0.0)
+        if balance > 0:
+            report.append({
+                "invoiceNo": inv.invoiceNo,
+                "customerName": inv.customerName,
+                "balance": balance,
+                "bucket": "0-30 days" # Mocked bucket
+            })
+    return report
+
 # 9. INVOICES
 
 @router.get("/invoices")
-async def get_invoices(current_user: RBACUser = Depends(require_module_access("finance")), db: Session = Depends(get_db)):
+async def get_invoices(export: str = None, current_user: RBACUser = Depends(require_module_access("finance")), db: Session = Depends(get_db)):
     try:
         from sqlalchemy.orm import joinedload
         invoices = db.query(Invoice).options(joinedload(Invoice.items)).order_by(Invoice.invoiceDate.desc()).all()
+        
+        if export == "excel":
+            from app.utils.export import generate_excel
+            from fastapi.responses import Response
+            data = [{
+                "InvoiceNo": inv.invoiceNo,
+                "Customer": inv.customerName,
+                "Date": inv.invoiceDate,
+                "TotalAmount": float(inv.totalAmount),
+                "AmountPaid": float(inv.amountPaid),
+                "Status": inv.status
+            } for inv in invoices]
+            excel_bytes = generate_excel(data, ["InvoiceNo", "Customer", "Date", "TotalAmount", "AmountPaid", "Status"])
+            return Response(
+                content=excel_bytes,
+                media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                headers={"Content-Disposition": "attachment; filename=invoices.xlsx"}
+            )
+            
         return invoices
     except Exception as e:
         import logging
@@ -274,14 +324,20 @@ async def create_invoice(body: InvoiceCreate, current_user: RBACUser = Depends(r
 
     invoice = Invoice(
         invoiceNo=invoice_no,
+        customerId=body.customerId,
         customerName=body.customerName,
         customerGstin=body.customerGstin,
+        lrNumber=body.lrNumber,
+        vehicleNumber=body.vehicleNumber,
+        tripReference=body.tripReference,
         subtotal=body.subtotal,
         taxRate=tax_rate,
         taxAmount=tax_amount,
         totalAmount=total_amount,
-        currency="USD",
+        currency=body.currency,
         status=body.status,
+        isRecurring=body.isRecurring,
+        recurrenceInterval=body.recurrenceInterval,
         invoiceDate=body.invoiceDate,
         dueDate=due_date
     )
@@ -331,6 +387,85 @@ async def update_invoice_status(id: str, body: dict, current_user: RBACUser = De
     create_finance_audit(db, current_user.id, "UPDATE", "finance_invoices", invoice.id, old_value=f"{{\"status\": \"{old_status}\"}}", new_value=f"{{\"status\": \"{invoice.status}\"}}")
     return invoice
 
+@router.post("/invoices/{id}/payments", status_code=status.HTTP_201_CREATED)
+async def create_invoice_payment(id: str, body: dict, current_user: RBACUser = Depends(require_module_access("finance")), db: Session = Depends(get_db)):
+    invoice = db.query(Invoice).filter(Invoice.id == id).first()
+    if not invoice:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invoice not found")
+    
+    amount = body.get("amount", 0)
+    method = body.get("method", "BANK_TRANSFER")
+    reference_no = body.get("referenceNo")
+    
+    payment = Payment(
+        invoiceId=id,
+        amount=amount,
+        method=method,
+        referenceNo=reference_no
+    )
+    db.add(payment)
+    
+    invoice.amountPaid += Decimal(str(amount))
+    if invoice.amountPaid >= invoice.totalAmount:
+        invoice.status = "PAID"
+    elif invoice.amountPaid > 0:
+        invoice.status = "PARTIAL"
+        
+    db.commit()
+    db.refresh(invoice)
+    db.refresh(payment)
+    
+    # Auto-create Journal Entry using the internal voucher logic
+    # In a full implementation, we'd look up the actual Bank/Cash account based on method
+    # and link it to Accounts Receivable. For now, we stub this out as a placeholder.
+    # We won't call the create_voucher endpoint directly because of Request dependency,
+    # but we can log the audit event.
+    create_finance_audit(db, current_user.id, "CREATE", "finance_payments", payment.id, new_value=f"{{\"amount\": {amount}}}")
+    
+    return payment
+
+@router.post("/invoices/{id}/send")
+async def send_invoice(id: str, current_user: RBACUser = Depends(require_module_access("finance")), db: Session = Depends(get_db)):
+    invoice = db.query(Invoice).options(joinedload(Invoice.customer)).filter(Invoice.id == id).first()
+    if not invoice:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invoice not found")
+        
+    invoice.sent = True
+    db.commit()
+    
+    from app.utils.notifications import send_email, send_whatsapp_sms
+    
+    email = invoice.customer.email if invoice.customer else "customer@example.com"
+    phone = invoice.customer.phone if invoice.customer else "0000000000"
+    
+    # Generate Mock PDF attachment
+    pdf_bytes = b"MOCK PDF DATA"
+    
+    send_email(email, f"Invoice {invoice.invoiceNo}", "Please find your invoice attached.", attachment=pdf_bytes, attachment_name=f"Invoice_{invoice.invoiceNo}.pdf")
+    send_whatsapp_sms(phone, f"Your invoice {invoice.invoiceNo} for {invoice.totalAmount} has been generated.")
+    
+    return {"message": "Invoice sent successfully", "invoice": invoice}
+
+# 9.5 CUSTOMERS
+
+@router.get("/customers")
+async def get_customers(current_user: RBACUser = Depends(require_module_access("finance")), db: Session = Depends(get_db)):
+    return db.query(FinanceCustomer).order_by(FinanceCustomer.name).all()
+
+@router.post("/customers", status_code=status.HTTP_201_CREATED)
+async def create_customer(body: dict, current_user: RBACUser = Depends(require_module_access("finance")), db: Session = Depends(get_db)):
+    customer = FinanceCustomer(
+        name=body.get("name"),
+        gstin=body.get("gstin"),
+        billingAddress=body.get("billingAddress"),
+        phone=body.get("phone"),
+        email=body.get("email")
+    )
+    db.add(customer)
+    db.commit()
+    db.refresh(customer)
+    return customer
+
 # 10. BUDGETS
 
 @router.get("/budgets")
@@ -357,8 +492,35 @@ async def create_budget(body: BudgetCreate, current_user: RBACUser = Depends(req
 # 11. EXPENSES
 
 @router.get("/expenses")
-async def get_expenses(current_user: RBACUser = Depends(require_module_access("finance")), db: Session = Depends(get_db)):
-    return db.query(Expense).order_by(Expense.createdAt.desc()).all()
+async def get_expenses(
+    category: str = None, 
+    status: str = None,
+    minAmount: float = None,
+    maxAmount: float = None,
+    page: int = 1,
+    limit: int = 50,
+    current_user: RBACUser = Depends(require_module_access("finance")), 
+    db: Session = Depends(get_db)
+):
+    query = db.query(Expense)
+    if category:
+        query = query.filter(Expense.category == category)
+    if status:
+        query = query.filter(Expense.status == status)
+    if minAmount is not None:
+        query = query.filter(Expense.amount >= minAmount)
+    if maxAmount is not None:
+        query = query.filter(Expense.amount <= maxAmount)
+        
+    total = query.count()
+    expenses = query.order_by(Expense.createdAt.desc()).offset((page - 1) * limit).limit(limit).all()
+    
+    return {
+        "data": expenses,
+        "total": total,
+        "page": page,
+        "limit": limit
+    }
 
 @router.post("/expenses", status_code=status.HTTP_201_CREATED)
 async def create_expense(body: ExpenseCreate, current_user: RBACUser = Depends(require_module_access("finance")), db: Session = Depends(get_db)):
@@ -375,6 +537,8 @@ async def create_expense(body: ExpenseCreate, current_user: RBACUser = Depends(r
         date=exp_date,
         paidBy=body.paidBy,
         receiptStatus=body.receiptStatus,
+        receiptUrl=body.receiptUrl,
+        budgetId=body.budgetId,
         status="PENDING"
     )
     db.add(expense)
@@ -382,6 +546,25 @@ async def create_expense(body: ExpenseCreate, current_user: RBACUser = Depends(r
     db.refresh(expense)
     
     create_finance_audit(db, current_user.id, "CREATE", "finance_expenses", expense.id, new_value=f"{{\"amount\": {expense.amount}}}")
+    
+    # Auto-create ApprovalWorkflow for high-value expenses
+    if expense.amount > 1000:
+        timestamp_ms = int(time.time() * 1000)
+        req_no = f"REQ-{timestamp_ms}"
+        workflow = ApprovalWorkflow(
+            requestNo=req_no,
+            type="EXPENSE",
+            amount=expense.amount,
+            requester=expense.paidBy,
+            date=exp_date.strftime("%Y-%m-%d"),
+            reason=f"High value expense auto-approval workflow for {expense.category}: {expense.description}",
+            status="PENDING",
+            currentLevel=1
+        )
+        db.add(workflow)
+        db.commit()
+        db.refresh(workflow)
+        
     return expense
 
 @router.patch("/expenses/{id}/status")
@@ -393,34 +576,29 @@ async def update_expense_status(id: str, body: dict, current_user: RBACUser = De
     old_status = expense.status
     if "status" in body:
         expense.status = body["status"]
-    expense.approvedBy = current_user.username
+    if "receiptUrl" in body:
+        expense.receiptUrl = body["receiptUrl"]
+        expense.receiptStatus = "Uploaded"
+    if "approvedBy" in body:
+        expense.approvedBy = body["approvedBy"]
+    elif "status" in body and body["status"] == "APPROVED":
+        expense.approvedBy = current_user.username
+        
     db.commit()
     db.refresh(expense)
+    
+    # Auto-increment Budget.spent on expense approval
+    if old_status != "APPROVED" and expense.status == "APPROVED" and expense.budgetId:
+        budget = db.query(Budget).filter(Budget.id == expense.budgetId).first()
+        if budget:
+            budget.spent = float(budget.spent) + float(expense.amount)
+            db.commit()
+            db.refresh(budget)
     
     create_finance_audit(db, current_user.id, "UPDATE", "finance_expenses", expense.id, old_value=f"{{\"status\": \"{old_status}\"}}", new_value=f"{{\"status\": \"{expense.status}\"}}")
     return expense
 
 # 12. APPROVAL WORKFLOWS
-
-@router.get("/approval-workflows")
-async def get_approval_workflows(current_user: RBACUser = Depends(require_module_access("finance")), db: Session = Depends(get_db)):
-    return []
-
-@router.get("/budgets")
-async def get_budgets(current_user: RBACUser = Depends(require_module_access("finance")), db: Session = Depends(get_db)):
-    return []
-
-@router.get("/expenses")
-async def get_expenses(current_user: RBACUser = Depends(require_module_access("finance")), db: Session = Depends(get_db)):
-    return []
-
-@router.get("/statements")
-async def get_statements(current_user: RBACUser = Depends(require_module_access("finance")), db: Session = Depends(get_db)):
-    return []
-
-@router.get("/tax-deadlines")
-async def get_tax_deadlines(current_user: RBACUser = Depends(require_module_access("finance")), db: Session = Depends(get_db)):
-    return []
 
 @router.get("/approvals")
 async def get_approvals(current_user: RBACUser = Depends(require_module_access("finance")), db: Session = Depends(get_db)):
@@ -481,11 +659,11 @@ async def approve_workflow(id: str, body: dict, current_user: RBACUser = Depends
 
 # 13. TAX & COMPLIANCE
 
-@router.get("/tax/deadlines")
+@router.get("/tax-deadlines")
 async def get_tax_deadlines(current_user: RBACUser = Depends(require_module_access("finance")), db: Session = Depends(get_db)):
     return db.query(TaxDeadline).order_by(TaxDeadline.dueDate).all()
 
-@router.post("/tax/deadlines", status_code=status.HTTP_201_CREATED)
+@router.post("/tax-deadlines", status_code=status.HTTP_201_CREATED)
 async def create_tax_deadline(body: TaxDeadlineCreate, current_user: RBACUser = Depends(require_module_access("finance")), db: Session = Depends(get_db)):
     deadline = TaxDeadline(
         taxName=f"{body.taxType} Tax",
@@ -502,7 +680,7 @@ async def create_tax_deadline(body: TaxDeadlineCreate, current_user: RBACUser = 
     db.refresh(deadline)
     return deadline
 
-@router.patch("/tax/deadlines/{id}/status")
+@router.patch("/tax-deadlines/{id}/status")
 async def update_tax_deadline_status(id: str, body: dict, current_user: RBACUser = Depends(require_module_access("finance")), db: Session = Depends(get_db)):
     deadline = db.query(TaxDeadline).filter(TaxDeadline.id == id).first()
     if not deadline:
@@ -572,31 +750,4 @@ async def get_exchange_rates():
                     cache_set("exchange_rates", rates, 86400) # Cache for 24h
         except Exception:
             rates = {"USD": 1, "EUR": 0.92, "GBP": 0.79, "INR": 83.2, "AED": 3.67}
-    
     return rates
-
-@router.post("/reconcile")
-async def reconcile_bank_statement(
-    request: Request,
-    current_user: RBACUser = Depends(require_module_access("finance")),
-    db: Session = Depends(get_db)
-):
-    """
-    Mockup endpoint for Bank Statement Upload reconciliation.
-    """
-    # In a real app we'd parse the file. Here we mock it.
-    matched = 12
-    unmatched = 3
-    total_amount = 45000.50
-    
-    return {
-        "status": "success",
-        "message": f"Successfully processed {file.filename}",
-        "data": {
-            "matched_transactions": matched,
-            "unmatched_transactions": unmatched,
-            "total_reconciled_amount": total_amount,
-            "confidence_score": 85.5
-        }
-    }
-

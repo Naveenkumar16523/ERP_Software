@@ -15,6 +15,19 @@ export const useAccounts = () =>
 
 export const useCreateAccount = () => useOptimisticMutation(['finance', 'accounts'], 'post', '/finance/accounts');
 
+// ── Customers ──
+export const useCustomers = () =>
+  useQuery({
+    queryKey: ['finance', 'customers'],
+    queryFn: async () => {
+      const { data } = await apiClient.get('/finance/customers');
+      return data?.data ?? data ?? [];
+    },
+    staleTime: 5 * 60_000,
+  });
+
+export const useCreateCustomer = () => useOptimisticMutation(['finance', 'customers'], 'post', '/finance/customers');
+
 // ── Invoices ──
 export const useInvoices = (filters) =>
   useQuery({
@@ -28,6 +41,8 @@ export const useInvoices = (filters) =>
 
 export const useCreateInvoice = () => useOptimisticMutation(['finance', 'invoices'], 'post', '/finance/invoices');
 export const useUpdateInvoiceStatus = () => useOptimisticMutation(['finance', 'invoices'], 'patch', (p) => `/finance/invoices/${p.id}/status`);
+export const useCreatePayment = () => useOptimisticMutation(['finance', 'invoices'], 'post', (p) => `/finance/invoices/${p.invoiceId}/payments`);
+export const useSendInvoice = () => useOptimisticMutation(['finance', 'invoices'], 'post', (p) => `/finance/invoices/${p.id}/send`);
 
 // ── Journal Entries ──
 export const useJournalEntries = () =>
@@ -56,12 +71,12 @@ export const useBudgets = () =>
 export const useCreateBudget = () => useOptimisticMutation(['finance', 'budgets'], 'post', '/finance/budgets');
 
 // ── Expenses ──
-export const useExpenses = () =>
+export const useExpenses = (filters = {}) =>
   useQuery({
-    queryKey: ['finance', 'expenses'],
+    queryKey: ['finance', 'expenses', filters],
     queryFn: async () => {
-      const { data } = await apiClient.get('/finance/expenses');
-      return data?.data ?? data ?? [];
+      const { data } = await apiClient.get('/finance/expenses', { params: filters });
+      return data;
     },
     staleTime: 30_000,
   });
@@ -105,6 +120,17 @@ export const useGstrReport = () =>
     },
     staleTime: 5 * 60_000,
   });
+
+export const useAgingReport = () =>
+  useQuery({
+    queryKey: ['finance', 'agingReport'],
+    queryFn: async () => {
+      const { data } = await apiClient.get('/finance/reports/aging');
+      return data;
+    },
+    staleTime: 5 * 60_000,
+  });
+
 export const useUpdateStatementStatus = () => useOptimisticMutation(['finance', 'statements'], 'patch', (p) => `/finance/statements/${p.id}/status`);
 
 // ── Approval Workflows ──
@@ -112,11 +138,11 @@ export const useApprovalWorkflows = () =>
   useQuery({
     queryKey: ['finance', 'approvalWorkflows'],
     queryFn: async () => {
-      const { data } = await apiClient.get('/finance/approval-workflows');
+      const { data } = await apiClient.get('/finance/approvals');
       return data?.data ?? data ?? [];
     },
     staleTime: 5 * 60_000,
   });
 
-export const useCreateApprovalWorkflow = () => useOptimisticMutation(['finance', 'approvalWorkflows'], 'post', '/finance/approval-workflows');
-export const useApproveApprovalWorkflow = () => useOptimisticMutation(['finance', 'approvalWorkflows'], 'post', (p) => `/finance/approval-workflows/${p.id}/approve`);
+export const useCreateApprovalWorkflow = () => useOptimisticMutation(['finance', 'approvalWorkflows'], 'post', '/finance/approvals');
+export const useApproveApprovalWorkflow = () => useOptimisticMutation(['finance', 'approvalWorkflows'], 'post', (p) => `/finance/approvals/${p.id}/approve`);

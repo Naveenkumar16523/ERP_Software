@@ -101,14 +101,38 @@ class InvoiceItemCreate(BaseModel):
 
 class InvoiceCreate(BaseModel):
     invoiceNo: str
+    customerId: Optional[str] = None
     customerName: str
     customerGstin: Optional[str] = None
+    
+    lrNumber: Optional[str] = None
+    vehicleNumber: Optional[str] = None
+    tripReference: Optional[str] = None
+    
     invoiceDate: str
-    dueDate: str
+    dueDate: Optional[str] = None
     subtotal: float
     taxRate: float
+    currency: str = "INR"
     status: str = "PENDING"
+    
+    isRecurring: bool = False
+    recurrenceInterval: Optional[str] = None
+    
     items: List[InvoiceItemCreate] = []
+
+class PaymentCreate(BaseModel):
+    amount: float
+    method: str
+    referenceNo: Optional[str] = None
+    paidDate: Optional[str] = None
+
+class FinanceCustomerCreate(BaseModel):
+    name: str
+    gstin: Optional[str] = None
+    billingAddress: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[str] = None
 
 class BudgetCreate(BaseModel):
     budgetName: str
@@ -126,6 +150,8 @@ class ExpenseCreate(BaseModel):
     date: str
     paidBy: str
     receiptStatus: str = "Pending"
+    receiptUrl: Optional[str] = None
+    budgetId: Optional[str] = None
 
 class ApprovalWorkflowCreate(BaseModel):
     type: str

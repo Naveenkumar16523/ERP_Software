@@ -22,7 +22,9 @@ import {
   useTaxDeadlines, useCreateTaxDeadline, useUpdateTaxDeadlineStatus,
   useStatements, useCreateStatement, useUpdateStatementStatus,
   useApprovalWorkflows, useCreateApprovalWorkflow, useApproveApprovalWorkflow,
-  useGstrReport
+  useGstrReport,
+  useCustomers, useCreateCustomer,
+  useCreatePayment, useSendInvoice, useAgingReport
 } from '../hooks/useFinance';
 
 import { api } from '../utils/api';
@@ -36,12 +38,18 @@ export default function FinanceModule() {
   const { data: journalEntries = [], isLoading: loadingJournals } = useJournalEntries();
   const { data: invoices = [], isLoading: loadingInvoices } = useInvoices();
   const { data: budgets = [] } = useBudgets();
-  const { data: expenses = [] } = useExpenses();
+  const [expenseCategoryFilter, setExpenseCategoryFilter] = useState('');
+  const [expensePage, setExpensePage] = useState(1);
+  const { data: expensesData } = useExpenses({ category: expenseCategoryFilter || undefined, page: expensePage, limit: 10 });
+  const expenses = expensesData?.data || [];
+  const expensesTotalPages = Math.ceil((expensesData?.total || 0) / 10);
   const { data: taxData } = useTaxDeadlines();
   const taxCompliance = Array.isArray(taxData) ? { filingDeadlines: taxData, auditTrail: [], gstRate: 18, vatRate: 20 } : (taxData || { filingDeadlines: [], auditTrail: [], gstRate: 18, vatRate: 20 });
   const { data: statements = [] } = useStatements();
   const { data: approvalWorkflows = [] } = useApprovalWorkflows();
   const { data: gstrReportData } = useGstrReport();
+  const { data: customers = [] } = useCustomers();
+  const { data: agingReportData = [] } = useAgingReport();
   
   const createAccountMutation = useCreateAccount();
   const createJournalEntryMutation = useCreateJournalEntry();
@@ -56,6 +64,9 @@ export default function FinanceModule() {
   const updateTaxDeadlineStatusMutation = useUpdateTaxDeadlineStatus();
   const createStatementMutation = useCreateStatement();
   const updateStatementStatusMutation = useUpdateStatementStatus();
+  const createCustomerMutation = useCreateCustomer();
+  const createPaymentMutation = useCreatePayment();
+  const sendInvoiceMutation = useSendInvoice();
 
 
   
@@ -71,9 +82,14 @@ export default function FinanceModule() {
 
   const [newAcct, setNewAcct] = useState({ code: '', name: '', type: 'ASSET', balance: 0 });
   const [newJournal, setNewJournal] = useState({ debitAcc: '', creditAcc: '', amount: 0, narration: '', date: '', referenceNo: '' });
-  const [newInv, setNewInv] = useState({ invoiceNo: '', customerName: '', customerGstin: '', invoiceDate: '', dueDate: '', status: 'PENDING', items: [{ description: '', hsnCode: '', quantity: 1, unitPrice: 0, taxRate: 18 }] });
+  const [newInv, setNewInv] = useState({ invoiceNo: '', customerId: '', customerName: '', customerGstin: '', invoiceDate: '', dueDate: '', status: 'PENDING', currency: 'INR', lrNumber: '', vehicleNumber: '', tripReference: '', isRecurring: false, recurrenceInterval: '', items: [{ description: '', hsnCode: '', quantity: 1, unitPrice: 0, taxRate: 18 }] });
+  const [newCustomer, setNewCustomer] = useState({ name: '', gstin: '', phone: '', email: '', billingAddress: '' });
+  const [customerModalOpen, setCustomerModalOpen] = useState(false);
+  const [paymentModalOpen, setPaymentModalOpen] = useState(false);
+  const [newPayment, setNewPayment] = useState({ invoiceId: null, amount: 0, method: 'BANK_TRANSFER', referenceNo: '' });
   const [newBudget, setNewBudget] = useState({ budgetName: '', category: '', period: 'monthly', amount: 0, spent: 0, year: 2026, month: 6 });
-  const [newExpense, setNewExpense] = useState({ description: '', category: '', amount: 0, date: '', paidBy: '', receiptStatus: 'Pending' });
+  const [newExpense, setNewExpense] = useState({ description: '', category: '', amount: 0, date: '', paidBy: '', receiptStatus: 'Pending', receiptUrl: '', budgetId: '' });
+
   const [newApproval, setNewApproval] = useState({ requestNo: '', type: 'PAYMENT', requester: '', amount: 0, date: '', reason: '' });
   const [newTax, setNewTax] = useState({ taxName: '', taxType: 'GST', rate: 0, applicableOn: '', effectiveDate: '', dueDate: '', period: 'monthly', status: 'PENDING' });
   const [newStmt, setNewStmt] = useState({ statementType: 'Profit & Loss', period: '', totalIncome: 0, totalExpense: 0, netAmount: 0, status: 'Generated' });
@@ -214,7 +230,7 @@ export default function FinanceModule() {
     try {
       await createExpenseMutation.mutateAsync(payload);
       addToast('Expense logged successfully', 'success');
-      setNewExpense({ description: '', category: '', amount: 0, date: '', paidBy: '', receiptStatus: 'Pending' });
+      setNewExpense({ description: '', category: '', amount: 0, date: '', paidBy: '', receiptStatus: 'Pending', receiptUrl: '', budgetId: '' });
       setExpenseModalOpen(false);
     } catch (err) {
       addToast(`Error logging expense: ${err.message}`, 'error');
@@ -229,6 +245,15 @@ export default function FinanceModule() {
       addToast('Expense approved', 'success');
     } catch (err) {
       addToast(`Error approving expense: ${err.message}`, 'error');
+    }
+  };
+
+  const handleRejectExpense = async (expenseId) => {
+    try {
+      await updateExpenseStatusMutation.mutateAsync({ id: expenseId, status: 'REJECTED' });
+      addToast('Expense rejected', 'success');
+    } catch (err) {
+      addToast(`Error rejecting expense: ${err.message}`, 'error');
     }
   };
 
@@ -323,11 +348,48 @@ export default function FinanceModule() {
 
   const handleSendInvoice = async (invoiceId) => {
     try {
-      await updateInvoiceStatusMutation.mutateAsync({ id: invoiceId, status: 'SENT' });
+      await sendInvoiceMutation.mutateAsync({ id: invoiceId });
       addToast('Invoice sent successfully', 'success');
       addNotification(`Invoice sent to customer`);
     } catch (err) {
       addToast(`Error sending invoice: ${err.message}`, 'error');
+    }
+  };
+
+  const handleAddCustomer = async () => {
+    if (!newCustomer.name) return addToast('Customer name is required', 'error');
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+    try {
+      await createCustomerMutation.mutateAsync(newCustomer);
+      addToast('Customer created successfully', 'success');
+      setNewCustomer({ name: '', gstin: '', phone: '', email: '', billingAddress: '' });
+      setCustomerModalOpen(false);
+    } catch (err) {
+      addToast(`Error creating customer: ${err.message}`, 'error');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleAddPayment = async () => {
+    if (!newPayment.invoiceId || !newPayment.amount) return addToast('Invoice ID and Amount are required', 'error');
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+    try {
+      await createPaymentMutation.mutateAsync({
+        invoiceId: newPayment.invoiceId,
+        amount: parseFloat(newPayment.amount),
+        method: newPayment.method,
+        referenceNo: newPayment.referenceNo
+      });
+      addToast('Payment recorded successfully', 'success');
+      setNewPayment({ invoiceId: null, amount: 0, method: 'BANK_TRANSFER', referenceNo: '' });
+      setPaymentModalOpen(false);
+    } catch (err) {
+      addToast(`Error recording payment: ${err.message}`, 'error');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -611,17 +673,13 @@ export default function FinanceModule() {
                               Send
                             </button>
                           )}
-                          {(statusFormatted === 'PENDING' || statusFormatted === 'OVERDUE') && !isOverdue && (
-                            <button onClick={async () => {
-                              try {
-                                await updateInvoiceStatusMutation.mutateAsync({ id: inv.id, status: 'PAID' });
-                                addToast('Invoice marked as paid', 'success');
-                              } catch (err) {
-                                addToast(`Error marking invoice as paid: ${err.message}`, 'error');
-                              }
+                          {(statusFormatted === 'PENDING' || statusFormatted === 'PARTIAL' || statusFormatted === 'OVERDUE') && (
+                            <button onClick={() => {
+                                setNewPayment({ invoiceId: inv.id, amount: (inv.totalAmount || 0) - (inv.amountPaid || 0), method: 'BANK_TRANSFER', referenceNo: '' });
+                                setPaymentModalOpen(true);
                             }}
                               className="text-xs text-emerald-400 hover:underline">
-                              Mark Paid
+                              Record Payment
                             </button>
                           )}
                           <button onClick={() => handlePrintInvoice(inv)} className="text-xs text-blue-400 hover:underline">
@@ -698,7 +756,18 @@ export default function FinanceModule() {
       {activeTab === 'expenses' && (
         <div className="theme-card overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3 border-b border-main">
-            <h3 className="text-sm font-semibold text-main">Expense Tracker ({expenses.length})</h3>
+            <div className="flex items-center gap-3">
+              <h3 className="text-sm font-semibold text-main">Expense Tracker ({expenses.length})</h3>
+              <select className="form-input py-1 text-xs" value={expenseCategoryFilter} onChange={(e) => setExpenseCategoryFilter(e.target.value)}>
+                <option value="">All Categories</option>
+                <option value="Operations">Operations</option>
+                <option value="IT">IT</option>
+                <option value="Marketing">Marketing</option>
+                <option value="Travel">Travel</option>
+                <option value="Supplies">Supplies</option>
+                <option value="Utilities">Utilities</option>
+              </select>
+            </div>
             <button onClick={() => setExpenseModalOpen(true)} className="btn-primary text-xs flex items-center gap-1.5">
               <Plus className="w-3.5 h-3.5" /> Log Expense
             </button>
@@ -726,11 +795,17 @@ export default function FinanceModule() {
                     <td className="px-4 py-2.5 text-xs text-muted">{expense.date}</td>
                     <td className="px-4 py-2.5 text-xs text-muted">{expense.paidBy || '—'}</td>
                     <td className="px-4 py-2.5 text-xs text-muted">
-                      <span className={`px-2 py-0.5 rounded text-[10px] font-medium ${
-                        expense.receiptStatus === 'Attached' ? 'bg-emerald-500/15 text-emerald-400' :
-                        expense.receiptStatus === 'Missing' ? 'bg-rose-500/15 text-rose-400' :
-                        'bg-amber-500/15 text-amber-400'
-                      }`}>{expense.receiptStatus || 'Pending'}</span>
+                      {expense.receiptUrl ? (
+                        <a href={expense.receiptUrl} target="_blank" rel="noreferrer" className="text-primary hover:underline flex items-center gap-1">
+                          <FileText className="w-3 h-3" /> View Receipt
+                        </a>
+                      ) : (
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-medium ${
+                          expense.receiptStatus === 'Attached' || expense.receiptStatus === 'Uploaded' ? 'bg-emerald-500/15 text-emerald-400' :
+                          expense.receiptStatus === 'Missing' ? 'bg-rose-500/15 text-rose-400' :
+                          'bg-amber-500/15 text-amber-400'
+                        }`}>{expense.receiptStatus || 'Pending'}</span>
+                      )}
                     </td>
                     <td className="px-4 py-2.5">
                       <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
@@ -741,9 +816,14 @@ export default function FinanceModule() {
                     </td>
                     <td className="px-4 py-2.5">
                       {expense.status === 'PENDING' && (
-                        <button onClick={() => handleApproveExpense(expense.id)} className="text-xs text-emerald-400 hover:underline">
-                          Approve
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button onClick={() => handleApproveExpense(expense.id)} className="text-xs text-emerald-400 hover:underline">
+                            Approve
+                          </button>
+                          <button onClick={() => handleRejectExpense(expense.id)} className="text-xs text-rose-400 hover:underline">
+                            Reject
+                          </button>
+                        </div>
                       )}
                     </td>
                   </tr>
@@ -751,6 +831,15 @@ export default function FinanceModule() {
               </tbody>
             </table>
           </div>
+          {expensesTotalPages > 1 && (
+            <div className="flex items-center justify-between px-4 py-3 border-t border-main">
+              <span className="text-xs text-muted">Page {expensePage} of {expensesTotalPages}</span>
+              <div className="flex gap-2">
+                <button onClick={() => setExpensePage(p => Math.max(1, p - 1))} disabled={expensePage === 1} className="px-3 py-1 rounded-md text-xs font-medium border border-main hover:bg-surface disabled:opacity-50 transition-all">Previous</button>
+                <button onClick={() => setExpensePage(p => Math.min(expensesTotalPages, p + 1))} disabled={expensePage === expensesTotalPages} className="px-3 py-1 rounded-md text-xs font-medium border border-main hover:bg-surface disabled:opacity-50 transition-all">Next</button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -1330,12 +1419,27 @@ export default function FinanceModule() {
               <input type="text" className="form-input" placeholder="e.g. Employee name" value={newExpense.paidBy} onChange={e => setNewExpense({...newExpense, paidBy: e.target.value})} />
             </div>
             <div>
+              <label className="form-label">Budget Link (Optional)</label>
+              <select className="form-input" value={newExpense.budgetId} onChange={e => setNewExpense({...newExpense, budgetId: e.target.value})}>
+                <option value="">No budget</option>
+                {budgets.map(b => (
+                  <option key={b.id} value={b.id}>{b.budgetName}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
               <label className="form-label">Receipt Status</label>
               <select className="form-input" value={newExpense.receiptStatus} onChange={e => setNewExpense({...newExpense, receiptStatus: e.target.value})}>
                 <option value="Pending">Pending</option>
                 <option value="Attached">Attached</option>
                 <option value="Missing">Missing</option>
               </select>
+            </div>
+            <div>
+              <label className="form-label">Receipt File URL</label>
+              <input type="text" className="form-input" placeholder="e.g. https://..." value={newExpense.receiptUrl} onChange={e => setNewExpense({...newExpense, receiptUrl: e.target.value, receiptStatus: 'Attached'})} />
             </div>
           </div>
           <div className="flex gap-2 justify-end pt-2">
@@ -1506,6 +1610,69 @@ export default function FinanceModule() {
             <button onClick={() => setStmtModalOpen(false)} disabled={isSubmitting} className="px-4 py-2 rounded-lg text-sm font-medium bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 hover:shadow-[0_0_15px_rgba(239,68,68,0.2)] transition-all">Cancel</button>
             <button onClick={handleAddStatement} disabled={isSubmitting} className="btn-primary text-sm">
               {isSubmitting ? 'Logging...' : 'Log Statement'}
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Add Customer Modal */}
+      <Modal isOpen={customerModalOpen} onClose={() => setCustomerModalOpen(false)} title="New Customer">
+        <div className="space-y-4">
+          <div>
+            <label className="form-label">Customer Name</label>
+            <input type="text" className="form-input" value={newCustomer.name} onChange={e => setNewCustomer({...newCustomer, name: e.target.value})} />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="form-label">GSTIN</label>
+              <input type="text" className="form-input" value={newCustomer.gstin} onChange={e => setNewCustomer({...newCustomer, gstin: e.target.value})} />
+            </div>
+            <div>
+              <label className="form-label">Phone</label>
+              <input type="text" className="form-input" value={newCustomer.phone} onChange={e => setNewCustomer({...newCustomer, phone: e.target.value})} />
+            </div>
+          </div>
+          <div>
+            <label className="form-label">Email</label>
+            <input type="email" className="form-input" value={newCustomer.email} onChange={e => setNewCustomer({...newCustomer, email: e.target.value})} />
+          </div>
+          <div>
+            <label className="form-label">Billing Address</label>
+            <textarea className="form-input min-h-[80px]" value={newCustomer.billingAddress} onChange={e => setNewCustomer({...newCustomer, billingAddress: e.target.value})}></textarea>
+          </div>
+          <div className="flex gap-2 justify-end pt-2">
+            <button onClick={() => setCustomerModalOpen(false)} disabled={isSubmitting} className="px-4 py-2 rounded-lg text-sm font-medium bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 transition-all">Cancel</button>
+            <button onClick={handleAddCustomer} disabled={isSubmitting} className="btn-primary text-sm">
+              {isSubmitting ? 'Saving...' : 'Save Customer'}
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Record Payment Modal */}
+      <Modal isOpen={paymentModalOpen} onClose={() => setPaymentModalOpen(false)} title="Record Payment">
+        <div className="space-y-4">
+          <div>
+            <label className="form-label">Payment Amount</label>
+            <input type="number" className="form-input" value={newPayment.amount} onChange={e => setNewPayment({...newPayment, amount: e.target.value})} />
+          </div>
+          <div>
+            <label className="form-label">Payment Method</label>
+            <select className="form-input" value={newPayment.method} onChange={e => setNewPayment({...newPayment, method: e.target.value})}>
+              <option value="BANK_TRANSFER">Bank Transfer</option>
+              <option value="CASH">Cash</option>
+              <option value="CREDIT_CARD">Credit Card</option>
+              <option value="UPI">UPI</option>
+            </select>
+          </div>
+          <div>
+            <label className="form-label">Reference No (Optional)</label>
+            <input type="text" className="form-input" value={newPayment.referenceNo} onChange={e => setNewPayment({...newPayment, referenceNo: e.target.value})} />
+          </div>
+          <div className="flex gap-2 justify-end pt-2">
+            <button onClick={() => setPaymentModalOpen(false)} disabled={isSubmitting} className="px-4 py-2 rounded-lg text-sm font-medium bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 transition-all">Cancel</button>
+            <button onClick={handleAddPayment} disabled={isSubmitting} className="btn-primary text-sm">
+              {isSubmitting ? 'Recording...' : 'Record Payment'}
             </button>
           </div>
         </div>
