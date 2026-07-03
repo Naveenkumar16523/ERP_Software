@@ -13,53 +13,66 @@ export function useRealtimeEvents() {
 
   useEffect(() => {
     if (!token) return;
-    const ws = new WebSocket(`${WS_URL}/api/v1/ws/events?token=${token}`);
     
-    ws.onopen = () => {
-      setRealtimeConnected(true);
-    };
+    let ws: WebSocket | null = null;
+    let ping: NodeJS.Timeout;
 
-    ws.onmessage = (e) => {
-      if (e.data === 'pong') return;
-      try {
-        const event = JSON.parse(e.data);
-        switch (event.type) {
-          case 'invoice_updated':
-            qc.invalidateQueries({ queryKey: ['finance', 'invoices'] });
-            break;
-          case 'employee_added':
-            qc.invalidateQueries({ queryKey: ['hr', 'employees'] });
-            break;
-          case 'stock_low':
-            qc.invalidateQueries({ queryKey: ['inventory', 'products'] });
-            addNotification(`Low stock alert: ${event.payload?.productName}`, 'warning');
-            break;
-          case 'new_lead':
-            qc.invalidateQueries({ queryKey: ['crm', 'leads'] });
-            break;
-          case 'dashboard_refresh':
-            qc.invalidateQueries({ queryKey: ['dashboard'] });
-            break;
+    const timeout = setTimeout(() => {
+      ws = new WebSocket(`${WS_URL}/api/v1/ws/events?token=${token}`);
+      
+      ws.onopen = () => {
+        setRealtimeConnected(true);
+      };
+
+      ws.onmessage = (e) => {
+        if (e.data === 'pong') return;
+        try {
+          const event = JSON.parse(e.data);
+          switch (event.type) {
+            case 'invoice_updated':
+              qc.invalidateQueries({ queryKey: ['finance', 'invoices'] });
+              break;
+            case 'employee_added':
+              qc.invalidateQueries({ queryKey: ['hr', 'employees'] });
+              break;
+            case 'stock_low':
+              qc.invalidateQueries({ queryKey: ['inventory', 'products'] });
+              addNotification(`Low stock alert: ${event.payload?.productName}`, 'warning');
+              break;
+            case 'new_lead':
+              qc.invalidateQueries({ queryKey: ['crm', 'leads'] });
+              break;
+            case 'dashboard_refresh':
+              qc.invalidateQueries({ queryKey: ['dashboard'] });
+              break;
+          }
+        } catch (err) {
+          console.error('Failed to parse websocket message', err);
         }
-      } catch (err) {
-        console.error('Failed to parse websocket message', err);
-      }
-    };
+      };
 
-    ws.onerror = () => {
-      setRealtimeConnected(false);
-      ws.close();
-    };
-    ws.onclose = () => {
-      setRealtimeConnected(false);
-    };
-    
-    const ping = setInterval(() => ws.readyState === 1 && ws.send('ping'), 30_000);
+      ws.onerror = () => {
+        setRealtimeConnected(false);
+        if (ws) ws.close();
+      };
+      ws.onclose = () => {
+        setRealtimeConnected(false);
+      };
+      
+      ping = setInterval(() => {
+        if (ws && ws.readyState === 1) {
+          ws.send('ping');
+        }
+      }, 30_000);
+    }, 50);
 
     return () => {
+      clearTimeout(timeout);
       clearInterval(ping);
       setRealtimeConnected(false);
-      ws.close();
+      if (ws) {
+        ws.close();
+      }
     };
   }, [token, qc, addNotification, setRealtimeConnected]);
 }

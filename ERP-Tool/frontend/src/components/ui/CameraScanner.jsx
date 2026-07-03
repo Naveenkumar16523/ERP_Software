@@ -17,8 +17,13 @@ export default function CameraScanner({ onScan, onError }) {
         }
       })
       .catch((err) => {
-        console.error('Camera permissions denied', err);
-        setPermissionError('Camera permissions denied or no camera found.');
+        if (err.name === 'NotFoundError') {
+          // Suppress console error for missing camera
+          setPermissionError('No camera device found on this system.');
+        } else {
+          console.error('Camera permissions denied', err);
+          setPermissionError('Camera permissions denied or error accessing camera.');
+        }
       });
 
     return () => stopScanner();

@@ -265,7 +265,7 @@ const Dashboard = React.memo(function Dashboard() {
           </div>
           
           <div className="relative flex-1 flex items-center justify-center min-h-[220px]">
-            <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
+            <ResponsiveContainer width="100%" height={220} minWidth={1} minHeight={1}>
               <PieChart>
                 <Pie
                   data={inventoryStatusData}
@@ -369,7 +369,7 @@ const Dashboard = React.memo(function Dashboard() {
             </p>
             
             <div className="relative flex-1 min-h-[220px]">
-              <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
+              <ResponsiveContainer width="100%" height={280} minWidth={1} minHeight={1}>
                 <AreaChart data={revenueExpensesData} margin={{ top: 10, right: 0, left: -20, bottom: 0 }}>
                   <defs>
                     <linearGradient id="colorCurrent" x1="0" y1="0" x2="0" y2="1">
