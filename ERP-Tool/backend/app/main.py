@@ -133,7 +133,11 @@ allowed_origins = [origin.strip() for origin in cors_env.split(",") if origin.st
 
 if not allowed_origins:
     logger.warning("CORS_ORIGINS is empty. Falling back to localhost defaults.")
-    allowed_origins = ["http://localhost:5173", "http://localhost:3000"]
+    allowed_origins = ["http://localhost:5173", "http://localhost:3000", "https://erp-software-mmbt.vercel.app"]
+
+# Always ensure the known production Vercel app is allowed if not already present
+if "https://erp-software-mmbt.vercel.app" not in allowed_origins:
+    allowed_origins.append("https://erp-software-mmbt.vercel.app")
 
 if "*" in allowed_origins:
     raise ValueError("Wildcard CORS origin ('*') is not permitted when allow_credentials=True. Please specify exact origins in CORS_ORIGINS.")
