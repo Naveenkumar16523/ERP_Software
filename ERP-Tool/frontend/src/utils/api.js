@@ -65,29 +65,66 @@ async function request(path, options = {}) {
                             (res.status === 401 && !String(errorMessage).includes('Invalid credentials') && !String(errorMessage).includes('Invalid username or password'));
         
         if (isAuthError) {
-
           const refreshToken = localStorage.getItem('erp_refresh_token');
           if (refreshToken && !options._retry) {
+            if (window._isRefreshing) {
+              return new Promise((resolve, reject) => {
+                window._failedQueue = window._failedQueue || [];
+                window._failedQueue.push({ resolve, reject });
+              }).then(token => {
+                return request(path, { ...options, _retry: true });
+              }).catch(err => {
+                throw err;
+              });
+            }
+
+            window._isRefreshing = true;
+            window._failedQueue = window._failedQueue || [];
+
+            const processQueue = (error, token = null) => {
+              window._failedQueue.forEach(p => {
+                if (error) p.reject(error);
+                else p.resolve(token);
+              });
+              window._failedQueue = [];
+            };
+
             try {
               const refreshRes = await fetch(`${BASE_URL}/auth/refresh?refreshToken=${encodeURIComponent(refreshToken)}`, {
                 method: 'POST'
               });
+              
               if (refreshRes.ok) {
                 const refreshData = await refreshRes.json();
-                useERPStore.getState().setToken(refreshData.accessToken || refreshData.access_token || refreshData.token);
+                const newToken = refreshData.accessToken || refreshData.access_token || refreshData.token;
+                useERPStore.getState().setToken(newToken);
                 if (refreshData.refreshToken) {
                   localStorage.setItem('erp_refresh_token', refreshData.refreshToken);
                 }
+                processQueue(null, newToken);
                 // Retry original request with new token
                 return await request(path, { ...options, _retry: true });
+              } else if (refreshRes.status >= 500) {
+                // Don't logout if the server is just temporarily down (e.g. Render DB waking up)
+                const err = new Error('Server temporarily unavailable. Please try again.');
+                processQueue(err, null);
+                throw err;
               } else {
                 logout();
-                throw new Error('Session expired. Please log in again.');
+                const err = new Error('Session expired. Please log in again.');
+                processQueue(err, null);
+                throw err;
               }
             } catch (e) {
-              if (e.message.includes('Session expired')) throw e;
-              logout();
-              throw new Error('Session expired. Please log in again.');
+              if (e.message.includes('temporarily unavailable') || e.message.includes('Session expired')) {
+                throw e;
+              }
+              // Network error during refresh (not a 4xx)
+              const err = new Error('Network error during refresh. Please try again.');
+              processQueue(err, null);
+              throw err;
+            } finally {
+              window._isRefreshing = false;
             }
           } else {
             logout();
