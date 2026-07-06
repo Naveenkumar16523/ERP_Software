@@ -3,7 +3,8 @@ import { RefreshCw, Database, Upload, X } from 'lucide-react';
 import { useERPStore } from '../store/useERPStore';
 
 export default function MigrationHub() {
-  const { migrationJobs, startMigrationJob, updateMigrationJob, addToast } = useERPStore();
+  const { addToast } = useERPStore();
+  const [migrationJobs, setMigrationJobs] = useState([]);
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
   const [targetModule, setTargetModule] = useState('employees');
@@ -42,16 +43,15 @@ export default function MigrationHub() {
 
       if (response.ok) {
         addToast(`Success: ${data.message}`, 'success');
-        // Add a completed job to the list directly via startMigrationJob trick or just let startMigrationJob run very fast
-        startMigrationJob({ templateId: activeTemplate, status: 'COMPLETED', progress: 100, jobNo: `MIG-${Date.now()}` });
+        setMigrationJobs(prev => [...prev, { templateId: activeTemplate, status: 'COMPLETED', progress: 100, jobNo: `MIG-${Date.now()}`, id: Date.now() }]);
         setUploadModalOpen(false);
       } else {
         addToast(`Error: ${data.detail || 'Failed to upload'}`, 'error');
-        startMigrationJob({ templateId: activeTemplate, status: 'FAILED', progress: 0, jobNo: `MIG-${Date.now()}` });
+        setMigrationJobs(prev => [...prev, { templateId: activeTemplate, status: 'FAILED', progress: 0, jobNo: `MIG-${Date.now()}`, id: Date.now() }]);
       }
     } catch (error) {
       addToast(`Network Error: ${error.message}`, 'error');
-      startMigrationJob({ templateId: activeTemplate, status: 'FAILED', progress: 0, jobNo: `MIG-${Date.now()}` });
+      setMigrationJobs(prev => [...prev, { templateId: activeTemplate, status: 'FAILED', progress: 0, jobNo: `MIG-${Date.now()}`, id: Date.now() }]);
     } finally {
       setIsUploading(false);
     }

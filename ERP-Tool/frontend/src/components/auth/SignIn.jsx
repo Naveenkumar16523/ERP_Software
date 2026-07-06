@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Mail, Lock, User, Key, Shield, Sparkles, ArrowRight, Eye, EyeOff } from 'lucide-react';
 
 import { useERPStore } from '../../store/useERPStore';
-import { api } from '../../utils/api';
+import { apiClient } from '../../api/client';
 
 export default function SignIn() {
   const { setToken, setCurrentUser, setDemoMode, addToast, theme, setUserPermissions, setActiveModule } = useERPStore();
@@ -23,7 +23,7 @@ export default function SignIn() {
     // Check if self-registration is enabled on backend
     const checkRegStatus = async () => {
       try {
-        const data = await api.auth.getRegistrationStatus();
+        const { data } = await apiClient.get('/auth/registration-status');
         setRegistrationEnabled(data.registrationEnabled);
       } catch (err) {
         setRegistrationEnabled(false);
@@ -44,11 +44,11 @@ export default function SignIn() {
     setAuthLoading(true);
 
     try {
-      const data = await api.auth.login({ email: email.trim(), password });
+      const { data } = await apiClient.post('/auth/login', { username: email.trim(), password });
 
       setToken(data.accessToken || data.access_token || data.token);
       if (data.refreshToken) {
-        localStorage.setItem('erp_refresh_token', data.refreshToken);
+        useERPStore.getState().setRefreshToken(data.refreshToken);
       }
 
       const userObj = {
@@ -71,10 +71,11 @@ export default function SignIn() {
       }
     } catch (err) {
       console.warn('Backend login failed:', err.message);
+      const errMsg = err.response?.data?.detail || err.response?.data?.message || err.message;
       setAuthError(
-        err.message === 'Invalid credentials'
+        errMsg === 'Invalid credentials' || errMsg === 'Incorrect username or password'
           ? 'Invalid username or password. Try: username · ceo · password · admin123'
-          : (err.message || 'Login failed. Please check your credentials.')
+          : (errMsg || 'Login failed. Please check your credentials.')
       );
     } finally {
       setAuthLoading(false);

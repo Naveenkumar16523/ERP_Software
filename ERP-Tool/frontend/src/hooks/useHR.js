@@ -1,12 +1,12 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import api from '../utils/api';
+import { apiClient } from '../api/client';
 
 // -- Employees --
 export const useEmployees = () => {
   return useQuery({
     queryKey: ['employees'],
     queryFn: async () => {
-      const data = await api.hr.getEmployees();
+      const { data } = await apiClient.get('/hr/employees');
       return Array.isArray(data) ? data : (data?.data || []);
     }
   });
@@ -16,7 +16,8 @@ export const useAddEmployee = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (employee) => {
-      return await api.hr.addEmployee(employee);
+      const { data } = await apiClient.post('/hr/employees', employee);
+      return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['employees'] });
@@ -28,9 +29,8 @@ export const useUpdateEmployee = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, ...employee }) => {
-      // NOTE: There is no updateEmployee in api.hr yet, but we'll fall back to api request
-      const res = await api.hr.updateEmployee ? await api.hr.updateEmployee(id, employee) : null;
-      return res;
+      const { data } = await apiClient.put(`/hr/employees/${id}`, employee);
+      return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['employees'] });
@@ -43,7 +43,7 @@ export const useLeaves = () => {
   return useQuery({
     queryKey: ['leaves'],
     queryFn: async () => {
-      const data = await api.hr.getLeaveRequests();
+      const { data } = await apiClient.get('/hr/leaves');
       return Array.isArray(data) ? data : (data?.data || []);
     }
   });
@@ -53,14 +53,15 @@ export const useAddLeave = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (leave) => {
-      return await api.hr.createLeaveRequest(leave.employeeId || leave.employee_id, {
-          employeeId: leave.employee_id,
+      const { data } = await apiClient.post('/hr/leaves', {
+          employeeId: leave.employee_id || leave.employeeId,
           leaveTypeName: leave.leave_type,
           startDate: leave.start_date,
           endDate: leave.end_date,
           totalDays: 1, // simplified
           reason: leave.reason
       });
+      return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['leaves'] });
@@ -72,7 +73,8 @@ export const useUpdateLeave = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, status, isUnpaid }) => {
-      return await api.hr.updateLeaveStatus(id, status, isUnpaid);
+      const { data } = await apiClient.patch(`/hr/leaves/${id}/status`, { status, isUnpaid });
+      return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['leaves'] });

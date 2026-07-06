@@ -5,8 +5,6 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../api/client';
 import { useSupportTickets, useCreateSupportTicket } from '../hooks/useSupport';
 import Modal from './ui/Modal';
-import api from '../utils/api';
-
 export default function SupportModule() {
   const { addToast, currentUser } = useERPStore();
   const { data: supportTickets = [] } = useSupportTickets();

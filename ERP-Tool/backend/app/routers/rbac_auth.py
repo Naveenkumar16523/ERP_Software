@@ -27,7 +27,10 @@ def registration_status():
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 
-JWT_SECRET = os.getenv("JWT_SECRET", "super-secret-key")
+JWT_SECRET = os.getenv("JWT_SECRET")
+if not JWT_SECRET:
+    raise ValueError("FATAL ERROR: JWT_SECRET environment variable is missing. The app cannot start safely.")
+
 JWT_ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 1440 # 24 hours for easier testing
 REFRESH_TOKEN_EXPIRE_DAYS = 7
@@ -167,9 +170,35 @@ class ResetCEORequest(BaseModel):
     resetSecret: str
     ceoPassword: str
 
+reset_attempts = {}
+
 @router.post("/reset-ceo")
 async def reset_ceo(req: Request, data: ResetCEORequest, db: Session = Depends(get_db)):
-    expected_secret = os.getenv("RESET_SECRET", "emergency-reset-2024")
+    expected_secret = os.getenv("RESET_SECRET")
+    if not expected_secret:
+        raise ValueError("FATAL ERROR: RESET_SECRET is not configured. /auth/reset-ceo is disabled.")
+
+    client_ip = req.client.host if req.client else "unknown"
+    forwarded = req.headers.get("x-forwarded-for")
+    if forwarded:
+        client_ip = forwarded.split(",")[0].strip()
+
+    now = datetime.utcnow()
+    
+    global reset_attempts
+    # Prune old attempts
+    reset_attempts = {ip: times for ip, times in reset_attempts.items() if (now - times[-1]).total_seconds() < 3600}
+    
+    if client_ip in reset_attempts:
+        if len(reset_attempts[client_ip]) >= 5:
+            await log_audit_event("CEO_RESET_BLOCKED", "Auth", f"Rate limit exceeded for IP {client_ip}", req=req)
+            raise HTTPException(status_code=429, detail="Too many reset attempts. Please try again later.")
+        reset_attempts[client_ip].append(now)
+    else:
+        reset_attempts[client_ip] = [now]
+
+    await log_audit_event("CEO_RESET_ATTEMPT", "Auth", f"CEO reset attempt from IP {client_ip}", req=req)
+
     if data.resetSecret != expected_secret:
         raise HTTPException(status_code=403, detail="Invalid reset secret")
 

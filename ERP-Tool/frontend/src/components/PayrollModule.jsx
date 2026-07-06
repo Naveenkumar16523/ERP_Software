@@ -4,7 +4,6 @@ import { useERPStore } from '../store/useERPStore';
 import { usePayrolls, useCreatePayroll, useSalaryStructures, useTaxRules, useCreateTaxRule, useGeneratePayroll, useProcessPayroll, useSendPayslip } from '../hooks/usePayroll';
 import { useEmployees } from '../hooks/useHR';
 import Modal from './ui/Modal';
-import api from '../utils/api';
 
 export default function PayrollModule() {
   const {

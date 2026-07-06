@@ -1,4 +1,4 @@
-name: Clarix ERP CI/CD Pipeline
+name: NexusERP CI/CD Pipeline
 
 on:
   push:
@@ -10,10 +10,18 @@ jobs:
   backend-test:
     runs-on: ubuntu-latest
     services:
-      mongodb:
-        image: mongo:6
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: nexuserp_test
         ports:
-          - 27017:27017
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=3
 
     steps:
     - uses: actions/checkout@v4
@@ -32,9 +40,10 @@ jobs:
         
     - name: Run Backend Tests
       env:
-        MONGO_URL: mongodb://localhost:27017/clarix_test
+        MYSQL_URL: mysql+pymysql://root:root@127.0.0.1:3306/nexuserp_test
         JWT_SECRET: testing_secret_key_only
-        ENVIRONMENT: testing
+        JWT_REFRESH_SECRET: testing_refresh_secret_key_only
+        NODE_ENV: testing
       run: |
         cd backend
         pytest -v
@@ -61,12 +70,3 @@ jobs:
         cd frontend
         npm run test
 
-  deploy:
-    needs: [backend-test, frontend-test]
-    if: github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v4
-    - name: Deploy to Production
-      run: echo "Tests passed! Triggering deployment webhooks..."
-      # Add Vercel/Render deployment scripts here when secrets are configured

@@ -5,7 +5,6 @@ import { useOrders, useCreateOrder, useShipments, useCreateShipment, useCarriers
 import { useCompliance } from '../hooks/useCompliance';
 import Modal from './ui/Modal';
 import ExportExcelButton from './ui/ExportExcelButton';
-import api from '../utils/api';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 

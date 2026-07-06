@@ -30,12 +30,7 @@ export const createDataSlice = (set, get) => ({
   migrationJobs: [],
   migrationValidationReport: null,
   
-  // Note: startMigrationJob interval logic should be moved to MigrationHub.jsx
-  updateMigrationJob: (jobNo, updates) => set((s) => ({ migrationJobs: s.migrationJobs.map(j => j.jobNo === jobNo ? { ...j, ...updates } : j) })),
-  startMigrationJob: (job) => set((s) => {
-    // This is a placeholder since the interval logic must be moved out of Zustand
-    return { migrationJobs: [...s.migrationJobs, { ...job, progress: 0 }] };
-  }),
+  // Note: Migration logic should be completely decoupled from global store and live in MigrationHub.jsx
 
   // ── Ecommerce Cart (Client-only) ────────────────────────────────────────
   cart: [],

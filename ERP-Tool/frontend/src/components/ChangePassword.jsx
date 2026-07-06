@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Lock, Eye, EyeOff, Check } from 'lucide-react';
 import { useERPStore } from '../store/useERPStore';
-import { api } from '../utils/api';
+import { apiClient } from '../api/client';
 
 export default function ChangePassword() {
   const { currentUser, token, addToast } = useERPStore();
@@ -54,7 +54,7 @@ export default function ChangePassword() {
 
     setLoading(true);
     try {
-      await api.auth.changePassword({
+      await apiClient.post('/auth/change-password', {
         current_password: currentPassword,
         new_password: newPassword
       });
@@ -63,7 +63,9 @@ export default function ChangePassword() {
       setNewPassword('');
       setConfirmPassword('');
     } catch (err) {
-      setError(err.message || 'Failed to change password');
+      console.warn('Password change failed:', err.message);
+      const errMsg = err.response?.data?.detail || err.response?.data?.message || err.message;
+      setError(errMsg || 'Failed to change password. Please verify your current password.');
     } finally {
       setLoading(false);
     }

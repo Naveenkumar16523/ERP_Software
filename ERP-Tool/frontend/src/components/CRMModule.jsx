@@ -7,8 +7,6 @@ import { useSupportTickets, useCreateSupportTicket, useUpdateSupportTicketStatus
 import { useQueryClient, useMutation } from '@tanstack/react-query';
 import { apiClient } from '../api/client';
 import Modal from './ui/Modal';
-import api from '../utils/api';
-
 const STAGES = ['New', 'Contacted', 'Qualified', 'Won', 'Lost'];
 const STAGE_COLORS = {
   New: 'border-sky-500',

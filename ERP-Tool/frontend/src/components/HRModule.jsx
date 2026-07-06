@@ -4,6 +4,7 @@ import { Plus, Users, UserCheck, Calendar, Clock, Edit2, Check, X, FileText, Net
 import { useEmployees, useAddEmployee, useUpdateEmployee, useLeaves, useAddLeave, useUpdateLeave } from '../hooks/useHR';
 import { useERPStore } from '../store/useERPStore';
 import Modal from './ui/Modal';
+import { apiClient } from '../api/client';
 
 const OrgChartNode = ({ employee, allEmployees }) => {
   const reports = allEmployees.filter(e => e.managerId === employee.id);
@@ -75,9 +76,8 @@ export default function HRModule() {
   const fetchDocs = async (empId) => {
     if (!empId) return;
     try {
-      const { api } = await import('../utils/api');
-      
-      setDocuments(docs || []);
+      const { data } = await apiClient.get(`/hr/employees/${empId}/documents`);
+      setDocuments(data || []);
     } catch (e) {}
   };
 
@@ -145,8 +145,7 @@ export default function HRModule() {
   const handleBiometricScan = async (empId) => {
     if (!empId) return;
     try {
-      const { api } = await import('../utils/api');
-      await api.hr.markBiometricAttendance(empId, `mock_hash_${empId}`);
+      await apiClient.post('/hr/attendance/biometric', { employeeId: empId, hash: `mock_hash_${empId}` });
       addToast('Biometric attendance marked successfully!', 'success');
     } catch (e) {
       addToast('Failed to mark attendance', 'error');
@@ -159,8 +158,7 @@ export default function HRModule() {
     const reader = new FileReader();
     reader.onload = async () => {
       try {
-        const { api } = await import('../utils/api');
-        await api.hr.uploadDocument(selectedDocEmployee, {
+        await apiClient.post(`/hr/employees/${selectedDocEmployee}/documents`, {
           documentName: file.name,
           documentType: file.type || 'application/pdf',
           fileData: reader.result

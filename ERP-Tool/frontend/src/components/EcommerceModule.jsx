@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Package, CreditCard, FileText, Send, Truck, ArrowRight, CheckCircle2, User, MapPin } from 'lucide-react';
 import { useERPStore } from '../store/useERPStore';
 import { useEcommerceProducts, useEcommerceOrders, useCreateEcommerceOrder, useUpdateEcommerceOrderStatus } from '../hooks/useEcommerce';
-import { api } from '../utils/api';
+
 
 export default function CustomerPortalModule() {
   const addToast = useERPStore(s => s.addToast);

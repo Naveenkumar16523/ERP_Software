@@ -52,7 +52,6 @@ from app.routers.projects import router as projects_router
 from app.routers.supply_chain import router as supply_chain_router
 from app.routers.security import router as security_router
 from app.routers.automation import router as automation_router
-# from app.routers.rpa_automation import router as rpa_automation_router
 from app.routers.realtime import router as realtime_router
 from app.routers.support import router as support_router
 from app.routers.ecommerce import router as ecommerce_router
@@ -60,9 +59,7 @@ from app.routers.inventory import router as inventory_router
 from app.routers.compliance import router as compliance_router
 from app.routers.dashboard import router as dashboard_router
 from app.routers.search import router as search_router
-# from app.routers.healthcare import router as healthcare_router
 from app.routers.manufacturing import router as manufacturing_router
-# from app.routers.sustainability import router as sustainability_router
 from app.routers.migration import router as migration_router
 from app.routers.ai import router as ai_router
 from app.routers.mobile import router as mobile_router
@@ -124,15 +121,22 @@ async def global_exception_handler(request: Request, exc: Exception):
         return JSONResponse(status_code=500, content={"error": True, "code": "INTERNAL_ERROR", "message": str(exc), "traceback": tb, "request_id": req_id}, headers=cors_headers)
     return JSONResponse(
         status_code=500,
-        content={"error": True, "code": "INTERNAL_ERROR", "message": "An internal server error occurred.", "traceback": tb, "request_id": req_id},
+        content={"error": True, "code": "INTERNAL_ERROR", "message": "An internal server error occurred.", "request_id": req_id},
         headers=cors_headers
     )
 
 # Setup Rate Limiting
 setup_rate_limiting(app)
 
-cors_env = os.getenv("CORS_ORIGINS", "*")
-allowed_origins = ["*"]
+cors_env = os.getenv("CORS_ORIGINS", "")
+allowed_origins = [origin.strip() for origin in cors_env.split(",") if origin.strip()]
+
+if not allowed_origins:
+    logger.warning("CORS_ORIGINS is empty. Falling back to localhost defaults.")
+    allowed_origins = ["http://localhost:5173", "http://localhost:3000"]
+
+if "*" in allowed_origins:
+    raise ValueError("Wildcard CORS origin ('*') is not permitted when allow_credentials=True. Please specify exact origins in CORS_ORIGINS.")
 
 logger.info(f"CORS Allowed Origins: {allowed_origins}")
 
@@ -267,3 +271,5 @@ app.include_router(manufacturing_router, prefix="/api/v1")
 app.include_router(migration_router, prefix="/api/v1/migration", tags=["Migration"])
 app.include_router(ai_router, prefix="/api/v1")
 app.include_router(mobile_router, prefix="/api/v1")
+
+# Trigger reload

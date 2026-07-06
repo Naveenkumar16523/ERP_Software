@@ -6,29 +6,16 @@ export const createUISlice = (set, get) => ({
   activeModule: 'dashboard',
   sidebarCollapsed: false,
   mobileSidebarOpen: false,
-  theme: localStorage.getItem('erp-theme') || 'dark',
+  theme: 'dark',
   searchQuery: '',
   searchResults: [],
   dbLive: true,
   isRealtimeConnected: false,
-  token: localStorage.getItem('erp_token') || null,
-  demoMode: localStorage.getItem('erp_demo') === 'true',
-  currentUser: (() => {
-    try {
-      const stored = localStorage.getItem('erp_user');
-      return stored ? JSON.parse(stored) : null;
-    } catch {
-      return null;
-    }
-  })(),
-  userPermissions: (() => {
-    try {
-      const stored = localStorage.getItem('erp_permissions');
-      return stored ? JSON.parse(stored) : [];
-    } catch {
-      return [];
-    }
-  })(),
+  token: null,
+  refreshToken: null,
+  demoMode: false,
+  currentUser: null,
+  userPermissions: [],
 
   // ── Notifications & Toasts ────────────────────────────────────────
   notifications: [],
@@ -38,46 +25,24 @@ export const createUISlice = (set, get) => ({
   setActiveModule: (m) => set({ activeModule: m }),
   toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
   setMobileSidebar: (o) => set({ mobileSidebarOpen: o }),
-  toggleTheme: () => set((s) => {
-    const next = s.theme === 'dark' ? 'light' : 'dark';
-    localStorage.setItem('erp-theme', next);
-    return { theme: next };
-  }),
+  toggleTheme: () => set((s) => ({ theme: s.theme === 'dark' ? 'light' : 'dark' })),
   setSearchQuery: (q) => set({ searchQuery: q }),
   setSearchResults: (r) => set({ searchResults: r }),
   setDbLive: (v) => set({ dbLive: v }),
   setRealtimeConnected: (v) => set({ isRealtimeConnected: v }),
-  setToken: (t) => {
-    if (t) {
-      localStorage.setItem('erp_token', t);
-    } else {
-      localStorage.removeItem('erp_token');
-    }
-    set({ token: t });
-  },
-  setCurrentUser: (u, permissions = []) => {
-    if (u) {
-      localStorage.setItem('erp_user', JSON.stringify(u));
-    } else {
-      localStorage.removeItem('erp_user');
-    }
-    set({ currentUser: u, userPermissions: permissions });
-  },
-  setUserPermissions: (permissions) => {
-    localStorage.setItem('erp_permissions', JSON.stringify(permissions));
-    set({ userPermissions: permissions });
-  },
-  setDemoMode: (d) => {
-    localStorage.setItem('erp_demo', d ? 'true' : 'false');
-    set({ demoMode: d });
-  },
+  setToken: (t) => set({ token: t }),
+  setRefreshToken: (t) => set({ refreshToken: t }),
+  setCurrentUser: (u, permissions = []) => set({ currentUser: u, userPermissions: permissions }),
+  setUserPermissions: (permissions) => set({ userPermissions: permissions }),
+  setDemoMode: (d) => set({ demoMode: d }),
   logout: () => {
-    localStorage.removeItem('erp_token');
+    // Clear legacy tokens if they exist, to ensure clean slate during migration
     localStorage.removeItem('erp_refresh_token');
+    localStorage.removeItem('erp_token');
     localStorage.removeItem('erp_user');
     localStorage.removeItem('erp_permissions');
-    localStorage.setItem('erp_demo', 'false');
-    set({ token: null, currentUser: null, userPermissions: [], demoMode: false, activeModule: 'dashboard' });
+    localStorage.removeItem('erp_demo');
+    set({ token: null, refreshToken: null, currentUser: null, userPermissions: [], demoMode: false, activeModule: 'dashboard' });
   },
 
   // ── Toasts ────────────────────────────────────────────────────────

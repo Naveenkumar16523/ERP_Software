@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Users, Shield, BarChart3, Plus, Edit, Trash2, Key, CheckCircle, XCircle, ArrowLeft } from 'lucide-react';
 import { useERPStore } from '../store/useERPStore';
-import { api } from '../utils/api';
+import { apiClient } from '../api/client';
 
 // No demo data used anymore, Admin Panel relies on real backend.
 
@@ -41,7 +41,7 @@ export default function AdminPanel() {
 
   const fetchDashboardStats = async () => {
     try {
-      const data = await api.admin.getDashboard();
+      const { data } = await apiClient.get('/admin/dashboard');
       setStats(data);
     } catch (err) {
       console.warn('Admin dashboard API failed:', err.message);
@@ -50,7 +50,7 @@ export default function AdminPanel() {
 
   const fetchUsers = async () => {
     try {
-      const data = await api.admin.getUsers();
+      const { data } = await apiClient.get('/admin/users');
       setUsers(data);
     } catch (err) {
       console.warn('Admin users API failed:', err.message);
@@ -59,7 +59,7 @@ export default function AdminPanel() {
 
   const fetchDepartments = async () => {
     try {
-      const data = await api.admin.getDepartments();
+      const { data } = await apiClient.get('/admin/departments');
       setDepartments(data);
     } catch (err) {
       console.warn('Admin departments API failed:', err.message);
@@ -68,7 +68,7 @@ export default function AdminPanel() {
 
   const fetchRoles = async () => {
     try {
-      const data = await api.admin.getRoles();
+      const { data } = await apiClient.get('/admin/roles');
       setRoles(data);
     } catch (err) {
       console.warn('Admin roles API failed:', err.message);
@@ -77,7 +77,7 @@ export default function AdminPanel() {
 
   const fetchPermissions = async () => {
     try {
-      const data = await api.admin.getPermissions();
+      const { data } = await apiClient.get('/admin/permissions');
       setPermissions(data);
     } catch (err) {
       console.warn('Admin permissions API failed:', err.message);
@@ -88,8 +88,8 @@ export default function AdminPanel() {
     e.preventDefault();
     setLoading(true);
     try {
-      const result = await api.admin.createUser(newUser);
-      addToast(`User created successfully! Username: ${result.username}, Default Password: ${result.password}`, 'success');
+      const { data } = await apiClient.post('/admin/users', newUser);
+      addToast(`User created successfully! Username: ${data.username}, Default Password: ${data.password}`, 'success');
       setShowCreateModal(false);
       setNewUser({ full_name: '', email: '', department_id: '', role_id: '' });
       fetchUsers();
@@ -102,7 +102,7 @@ export default function AdminPanel() {
 
   const handleToggleUserStatus = async (userId, currentStatus) => {
     try {
-      await api.admin.updateUser(userId, { is_active: !currentStatus });
+      await apiClient.patch(`/admin/users/${userId}`, { is_active: !currentStatus });
       addToast('User status updated', 'success');
       fetchUsers();
     } catch (err) {
@@ -113,7 +113,7 @@ export default function AdminPanel() {
   const handleDeleteUser = async (userId) => {
     if (!confirm('Are you sure you want to delete this user?')) return;
     try {
-      await api.admin.deleteUser(userId);
+      await apiClient.delete(`/admin/users/${userId}`);
       addToast('User deleted successfully', 'success');
       fetchUsers();
     } catch (err) {

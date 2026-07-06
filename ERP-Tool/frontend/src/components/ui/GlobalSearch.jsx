@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Search, X, ArrowRight, LayoutDashboard, User, FileText, Briefcase } from 'lucide-react';
 import { useERPStore } from '../../store/useERPStore';
-import { api } from '../../utils/api';
+import { apiClient } from '../../api/client';
 
 const MODULE_LIST = [
   { id: 'dashboard', label: 'Dashboard', desc: 'Overview & KPIs' },
@@ -59,8 +59,11 @@ const GlobalSearch = ({ open, onClose }) => {
       }
       setIsSearching(true);
       try {
-        const res = await api.search.query(query, { signal: abortController.signal });
-        setApiResults(res.results || []);
+        const { data } = await apiClient.get('/search', { 
+          params: { q: query },
+          signal: abortController.signal 
+        });
+        setApiResults(data.results || []);
       } catch (e) {
         if (e.name !== 'AbortError') {
           console.error(e);

@@ -27,7 +27,7 @@ import {
   useCreatePayment, useSendInvoice, useAgingReport
 } from '../hooks/useFinance';
 
-import { api } from '../utils/api';
+
 import Modal from './ui/Modal';
 
 export default function FinanceModule() {

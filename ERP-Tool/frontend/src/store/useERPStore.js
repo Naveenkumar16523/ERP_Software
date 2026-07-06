@@ -15,11 +15,13 @@ export const useERPStore = create(
         // Only persist auth + UI preferences. Never persist server data arrays.
         partialize: (state) => ({
           token: state.token,
+          refreshToken: state.refreshToken,
           currentUser: state.currentUser,
           userPermissions: state.userPermissions,
           demoMode: state.demoMode,
           theme: state.theme,
           sidebarCollapsed: state.sidebarCollapsed,
+          cart: state.cart,
         }),
       }
     ),

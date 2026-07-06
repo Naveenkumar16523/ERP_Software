@@ -37,7 +37,7 @@ apiClient.interceptors.response.use(null, async (error) => {
 
   original._retry = true;
   refreshing = true;
-  const refreshToken = localStorage.getItem('erp_refresh_token');
+  const refreshToken = useERPStore.getState().refreshToken;
 
   if (!refreshToken) {
     useERPStore.getState().logout();
@@ -47,7 +47,9 @@ apiClient.interceptors.response.use(null, async (error) => {
   try {
     const { data } = await axios.post(`${BASE}/auth/refresh`, { refresh_token: refreshToken });
     const newToken = data.access_token ?? data.accessToken;
+    const newRefreshToken = data.refresh_token ?? data.refreshToken;
     useERPStore.getState().setToken(newToken);
+    if (newRefreshToken) useERPStore.getState().setRefreshToken(newRefreshToken);
     queue.forEach((p) => p.resolve(newToken));
     queue = [];
     original.headers.Authorization = `Bearer ${newToken}`;
