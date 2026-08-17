@@ -173,22 +173,16 @@ def run_seed():
         dept_id_map = {}
 
         for dept in DEPARTMENTS:
+            conn.execute(
+                text("INSERT INTO erp_departments (id, name, code) VALUES (:id, :name, :code) ON DUPLICATE KEY UPDATE name = :name"),
+                {"id": str(uuid.uuid4()), "name": dept["name"], "code": dept["code"]}
+            )
             row = conn.execute(
                 text("SELECT id FROM erp_departments WHERE code = :code"),
                 {"code": dept["code"]}
             ).fetchone()
-
-            if row:
-                dept_id_map[dept["code"]] = row[0]
-                print(f"  Department exists: {dept['name']}", flush=True)
-            else:
-                new_id = str(uuid.uuid4())
-                conn.execute(
-                    text("INSERT INTO erp_departments (id, name, code) VALUES (:id, :name, :code)"),
-                    {"id": new_id, "name": dept["name"], "code": dept["code"]}
-                )
-                dept_id_map[dept["code"]] = new_id
-                print(f"  Created department: {dept['name']}", flush=True)
+            dept_id_map[dept["code"]] = row[0]
+            print(f"  Processed department: {dept['name']}", flush=True)
 
         # ── 3. Seed Roles + Module Access ──────────────────────────────
         role_id_map = {}
@@ -199,21 +193,16 @@ def run_seed():
                 print(f"  WARNING: Department {role_cfg['dept']} not found, skipping {role_cfg['name']}", flush=True)
                 continue
 
+            conn.execute(
+                text("INSERT INTO erp_roles (id, name, description, departmentId) VALUES (:id, :name, :desc, :dept) ON DUPLICATE KEY UPDATE description = :desc, departmentId = :dept"),
+                {"id": str(uuid.uuid4()), "name": role_cfg["name"], "desc": role_cfg["desc"], "dept": dept_id}
+            )
             row = conn.execute(
                 text("SELECT id FROM erp_roles WHERE name = :name"),
                 {"name": role_cfg["name"]}
             ).fetchone()
-
-            if row:
-                role_id = row[0]
-                print(f"  Role exists: {role_cfg['name']}", flush=True)
-            else:
-                role_id = str(uuid.uuid4())
-                conn.execute(
-                    text("INSERT INTO erp_roles (id, name, description, departmentId) VALUES (:id, :name, :desc, :dept)"),
-                    {"id": role_id, "name": role_cfg["name"], "desc": role_cfg["desc"], "dept": dept_id}
-                )
-                print(f"  Created role: {role_cfg['name']}", flush=True)
+            role_id = row[0]
+            print(f"  Processed role: {role_cfg['name']}", flush=True)
 
             role_id_map[role_cfg["name"]] = role_id
 
