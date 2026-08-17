@@ -32,24 +32,67 @@ class UserResponse(BaseModel):
     createdAt: datetime
     password: str = None
 
-@router.get("/users", response_model=List[UserResponse])
-async def list_users(current_user: ERPUser = Depends(require_ceo), db: Session = Depends(get_db)):
-    """List all users (CEO only)"""
-    users = db.query(ERPUser).all()
-    result = []
-    for u in users:
-        result.append({
-            "id": u.id,
-            "username": u.username,
-            "full_name": u.fullName,
-            "email": u.email,
-            "role_name": u.role.name if u.role else u.roleId,
-            "department_name": u.department.name if u.department else u.departmentId,
-            "is_active": u.isActive,
-            "is_ceo": u.isCEO,
-            "createdAt": u.createdAt
-        })
-    return result
+@router.get("/users")
+async def list_users(
+    current_user: ERPUser = Depends(require_ceo),
+    db: Session = Depends(get_db)
+):
+    """List all users - CEO only"""
+
+    try:
+        users = db.query(ERPUser).all()
+
+        result = []
+
+        for user in users:
+            result.append({
+                "id": str(user.id),
+                "username": getattr(user, "username", None),
+                "full_name": getattr(user, "fullName", None),
+                "email": getattr(user, "email", None),
+
+                "role_name": (
+                    user.role.name
+                    if getattr(user, "role", None)
+                    else getattr(user, "roleId", None)
+                ),
+
+                "department_name": (
+                    user.department.name
+                    if getattr(user, "department", None)
+                    else getattr(user, "departmentId", None)
+                ),
+
+                "is_active": bool(
+                    getattr(user, "isActive", True)
+                ),
+
+                "is_ceo": bool(
+                    getattr(user, "isCEO", False)
+                ),
+
+                "createdAt": (
+                    user.createdAt.isoformat()
+                    if getattr(user, "createdAt", None)
+                    else None
+                )
+            })
+
+        return result
+
+    except Exception as e:
+        import traceback
+
+        print("\n========================================")
+        print("ADMIN USERS API ERROR")
+        print("========================================")
+        traceback.print_exc()
+        print("========================================\n")
+
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to load users: {str(e)}"
+        )
 
 @router.post("/users", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 async def create_user(http_req: Request, user_data: UserCreate, current_user: ERPUser = Depends(require_ceo), db: Session = Depends(get_db)):
@@ -165,7 +208,8 @@ async def get_admin_dashboard(current_user: ERPUser = Depends(require_ceo), db: 
         dept = (u.department.name if u.department else u.departmentId) or 'Unassigned'
         dept_counts[dept] = dept_counts.get(dept, 0) + 1
         
-    recent = sorted(users, key=lambda x: x.createdAt, reverse=True)[:5]
+    from datetime import datetime
+    recent = sorted(users, key=lambda x: x.createdAt or datetime.min, reverse=True)[:5]
     recent_users = []
     for u in recent:
         recent_users.append({

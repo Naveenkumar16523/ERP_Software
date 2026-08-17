@@ -227,8 +227,8 @@ async def reset_ceo(req: Request, data: ResetCEORequest, db: Session = Depends(g
         return {"message": "Existing CEO account password has been reset"}
     else:
         new_ceo = ERPUser(
-            username="ceo",
-            email="ceo@company.com",
+            username="erp_admin",
+            email="erp_admin@company.com",
             passwordHash=get_password_hash(data.ceoPassword),
             fullName="Chief Executive Officer",
             roleId=role.id,

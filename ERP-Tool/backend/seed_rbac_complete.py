@@ -239,10 +239,10 @@ def run_seed():
             print("  WARNING: superadmin role not found, skipping CEO user creation.", flush=True)
         else:
             existing = conn.execute(
-                text("SELECT id FROM erp_users WHERE username = 'ceo'")
+                text("SELECT id FROM erp_users WHERE username = 'erp_admin'")
             ).fetchone()
 
-            hashed_pw = pwd_context.hash("admin123")
+            hashed_pw = pwd_context.hash("erp_admin123")
 
             if existing:
                 conn.execute(
@@ -252,24 +252,24 @@ def run_seed():
                                    isCEO        = TRUE,
                                    roleId       = :rid,
                                    departmentId = :did
-                             WHERE username = 'ceo'"""),
+                             WHERE username = 'erp_admin'"""),
                     {"pw": hashed_pw, "rid": superadmin_role_id, "did": fin_dept_id}
                 )
-                print("  Updated CEO user (ceo / admin123)", flush=True)
+                print("  Updated CEO user (erp_admin / erp_admin123)", flush=True)
             else:
                 conn.execute(
                     text("""INSERT INTO erp_users
                                 (id, username, email, passwordHash, fullName, roleId, departmentId, isActive, isCEO)
                             VALUES
-                                (:id, 'ceo', 'ceo@company.com', :pw, 'Chief Executive Officer',
+                                (:id, 'erp_admin', 'erp_admin@company.com', :pw, 'Chief Executive Officer',
                                  :rid, :did, TRUE, TRUE)"""),
                     {"id": str(uuid.uuid4()), "pw": hashed_pw,
                      "rid": superadmin_role_id, "did": fin_dept_id}
                 )
-                print("  Created CEO user (ceo / admin123)", flush=True)
+                print("  Created CEO user (erp_admin / erp_admin123)", flush=True)
 
     print("\nRBAC seed completed successfully!", flush=True)
-    print("CEO login -> username: ceo | password: admin123", flush=True)
+    print("CEO login -> username: erp_admin | password: erp_admin123", flush=True)
 
 
 if __name__ == "__main__":

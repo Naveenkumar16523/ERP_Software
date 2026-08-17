@@ -74,7 +74,7 @@ export default function SignIn() {
       const errMsg = err.response?.data?.detail || err.response?.data?.message || err.message;
       setAuthError(
         errMsg === 'Invalid credentials' || errMsg === 'Incorrect username or password'
-          ? 'Invalid username or password. Try: username · ceo · password · admin123'
+          ? 'Invalid username or password. Try: username · erp_admin · password · erp_admin123'
           : (errMsg || 'Login failed. Please check your credentials.')
       );
     } finally {
@@ -207,7 +207,7 @@ export default function SignIn() {
                   value={email}
                   onChange={e => setEmail(e.target.value)}
                   className="w-full bg-transparent border-0 px-9 py-2.5 text-white placeholder:text-slate-600 text-sm outline-none"
-                  placeholder={authView === 'login' ? "ceo or admin@example.com" : "Your email address"}
+                  placeholder={authView === 'login' ? "erp_admin or admin@example.com" : "Your email address"}
                   id="email"
                 />
               </div>
